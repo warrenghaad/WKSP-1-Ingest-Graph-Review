@@ -26,6 +26,15 @@ The theoretical backbone of the platform. Five drivers form a weight vector per 
 - Each section has a MAGIC weight vector [M,A,G,I,C] ∈ [0,1]
 - Artifacts are tagged with section roles (which lesson sections they can serve)
 
+### Braid Theory Visualization (`/braid`)
+Each civilization gets a 3D braid showing the DII (Discovery-Innovation-Invention) cycle:
+- **Discoveries**: Individual MAGIC strands run separately, thickening as each variable grows
+- **Innovations**: 2–4 strands cross and twist together (partial braiding, tighter helix)
+- **Inventions**: All 5 converge into a tight full braid
+- At invention convergence: a **green G-wrap** (Geometry) encircles the braid
+- Then strands separate and the cycle restarts (3 cycles per braid)
+- 7 civilizations: Sumerian, Akkadian, Babylonian, Assyrian, Elamite, Egyptian, Persian
+
 ### Data Layer
 - `magicFramework.ts`: All 15 lesson sections with vectors, cognitive operations, GE tags, keyword templates
 - `artifacts.ts`: 18 artifacts with MAGIC metadata (sectionRoles, GEA/GEM tags, E×C×D specs, RWI tags)
@@ -68,6 +77,9 @@ The theoretical backbone of the platform. Five drivers form a weight vector per 
 - `client/src/components/LessonArc.tsx` - Lesson Architecture interactive viewer
 - `client/src/lib/magicFramework.ts` - MAGIC data layer (sections, vectors, ziggurat layers)
 - `client/src/lib/artifacts.ts` - Artifact data model with MAGIC metadata
+- `client/src/lib/braidData.ts` - Civilization data for braid theory (7 civs with MAGIC profiles, interactions)
+- `client/src/components/BraidScene.tsx` - 3D braid visualization (DII cycle with green G-wraps)
+- `client/src/pages/Braid.tsx` - Braid Theory page with civilization detail panel
 - `server/routes.ts` - API route definitions
 - `server/imageSearch.ts` - Image search logic
 - `server/museumSearch.ts` - Museum API integrations

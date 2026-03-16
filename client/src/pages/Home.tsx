@@ -122,6 +122,16 @@ export default function Home() {
             </button>
           </div>
           <Button
+            data-testid="button-nav-braid"
+            variant="outline"
+            size="sm"
+            className="rounded-full border-white/10 bg-black/40 backdrop-blur-md text-white hover:bg-white/10 h-9"
+            onClick={() => navigate("/braid")}
+          >
+            <Hexagon className="w-3.5 h-3.5 mr-1.5" />
+            Braid
+          </Button>
+          <Button
             data-testid="button-nav-reader"
             variant="outline"
             size="sm"
