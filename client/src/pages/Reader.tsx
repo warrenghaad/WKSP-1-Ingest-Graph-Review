@@ -1,11 +1,20 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Search, Bookmark, ArrowLeft, Image as ImageIcon, Check, Download, X, AlertCircle, Loader2 } from "lucide-react";
+import {
+  Search, Bookmark, ArrowLeft, Image as ImageIcon, Check, Download, X,
+  AlertCircle, Loader2, Bold, Italic, Heading1, Heading2, Heading3,
+  List, ListOrdered, Quote, Undo, Redo, Strikethrough, Highlighter
+} from "lucide-react";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEditor, EditorContent } from "@tiptap/react";
+import { BubbleMenu } from "@tiptap/react/menus";
+import StarterKit from "@tiptap/starter-kit";
+import Highlight from "@tiptap/extension-highlight";
+import Placeholder from "@tiptap/extension-placeholder";
 
 interface ImageResult {
   url: string;
@@ -21,6 +30,60 @@ interface SavedImage {
   query: string | null;
   createdAt: string;
 }
+
+const INITIAL_CONTENT = `<h1>Seven Geometric Primitives in Ancient Mesopotamian Material Culture</h1>
+
+<p><em>The geometric vocabulary of human civilization rests on seven elemental forms—dot, line, triangle, circle, square, eight-pointed star, and crescent—each traceable from Paleolithic cognitive origins through Mesopotamian urban complexity.</em></p>
+
+<h2>PRIMITIVE 1: THE DOT / POINT</h2>
+
+<h3>Part A — Mathematical properties and the science of position</h3>
+
+<p>The dot is geometry's zero-dimensional atom: position without extension, location without magnitude. Formally, it possesses no symmetry axes, no angles, no ratios—it is pure <em>where</em>. Yet this seemingly trivial element generated the most consequential cognitive technology in Mesopotamian history: <strong>the numeral</strong>.</p>
+
+<p>Babylonian mathematics exploited the dot through two innovations. First, the <strong>clay token system</strong> (c. 8000–3100 BCE), documented by Denise Schmandt-Besserat across more than 8,000 artifacts, used small geometric clay shapes—spheres, cones, disks—as one-to-one counters for commodities. A sphere equaled one large measure of grain; a cone, one small measure. These tokens are literally three-dimensional dots. When pressed into wet clay, tokens produced circular impressions—<strong>two-dimensional dots that became the first numerals</strong> (c. 3200 BCE, Susa and Uruk). The round-tipped stylus created circular marks for tens while the wedge-tipped end produced unit marks, establishing the proto-cuneiform numerical system visible on some 4,000 tablets from Uruk Level IV.</p>
+
+<p>Second, the <strong>sexagesimal positional notation</strong> (emerging c. 2000 BCE) combined vertical wedges (units) and horizontal wedges (tens) in a base-60 system that required understanding position—where a sign sat determined its value. By the 3rd century BCE, Babylonian astronomers introduced a placeholder symbol for empty positions, a functional zero. The dot as abstract numerical position had traveled from physical token to conceptual placeholder across five millennia.</p>
+
+<p><strong>Tools that create dots</strong> include pointed styli (reed and bone), blunt circular stylus ends for numerical impressions, bow drills for bead perforation and seal engraving, and flint punches. The transition from stone to copper drills (3rd millennium BCE) enabled finer work on seals and jewelry.</p>
+
+<h3>Part B — Material culture inventory</h3>
+
+<p><strong>B1. Ceramics.</strong> Dot patterns constitute one of the oldest decorative vocabularies on Near Eastern pottery. Samarra ware (c. 5500–4800 BCE, Tell es-Sawwan) features geometric dot arrangements on dark-fired backgrounds. Halaf pottery (c. 6100–5100 BCE) from Tell Arpachiyah and Tell Halaf introduced the <strong>dot-circle motif</strong> as a standard element by the Late Halaf phase (c. 4900–4500 BCE), alongside white-on-dark dot compositions on eggshell-thin bowls.</p>
+
+<p><strong>B2. Cylinder seals and stamp seals.</strong> The <strong>drill-dot technique</strong> is fundamental to seal engraving. Halaf stamp seals (mid-6th millennium BCE) are the earliest personal property markers in the Near East, featuring geometric patterns including dot arrangements. Cylinder seals (invented c. 3500 BCE at Uruk) extensively use drilled dots as filler between figures, as border elements, and as compositional spacing devices.</p>
+
+<p><strong>B3. Textiles.</strong> Direct evidence is limited, but Schmandt-Besserat documented disk tokens from Uruk (c. 3300 BCE) bearing "different patterns of incised lines or dots, which stood for a variety of textiles and garments." Cone mosaic patterns at Uruk explicitly imitate "matting and textiles." Al-Ubaid figurines bear "painted marks or tattoos" that may represent textile or body-art dot patterns.</p>
+
+<p><strong>B4. Architecture.</strong> The <strong>cone mosaic</strong> is the dot's most spectacular architectural expression. At the Eanna Precinct in Uruk (c. 3500–3000 BCE), thousands of baked clay cones (~10 cm long) with flat circular ends painted black, red, or white were pressed pointed-end-first into wet mud plaster, creating geometric patterns of colored dots across walls and columns. Each cone tip functions as one dot in a massive architectural pointillist composition.</p>
+
+<p><strong>B5. Jewelry.</strong> Beads are three-dimensional dots. Stone, shell, and clay beads appear from the earliest Neolithic sites. The <strong>granulation technique</strong> (c. 2500 BCE) represents the dot's most refined metalworking expression: tiny gold spheres (pinhead-sized) are fused to gold surfaces in decorative patterns without conventional solder. The earliest examples come from the Royal Tombs of Ur (c. 2500 BCE), discovered by Woolley.</p>
+
+<p><strong>B6. Ritual objects.</strong> Al-Ubaid female clay figurines with painted dot-patterns on their bodies (Penn Museum 31-16-733) may represent ritual scarification. Votive animal figurines from Uruk Level III (c. 3000 BCE) bear incised dot patterns. Clay bullae (hollow spherical envelopes containing tokens, c. 3300 BCE, Susa, Louvre) served the temple redistribution economy.</p>
+
+<p><strong>B7. Tools.</strong> Tools that CREATE dots include: bone/flint/reed awls (Neolithic onward); the reed stylus with its blunt circular end for numerical impressions; bow drills for bead and seal work; copper drills replacing stone (3rd millennium BCE); and most fundamentally, <strong>Schmandt-Besserat's clay tokens</strong> (c. 8000–3100 BCE)—the tool system that bridged concrete counting and abstract notation.</p>
+
+<p><strong>B8. Writing and administration.</strong> The dot's trajectory from token to tablet to sexagesimal notation constitutes one of history's most consequential technological chains. Clay tokens (c. 8000 BCE) → complex tokens with incised dots (c. 3500 BCE, ~300 subtypes) → tokens sealed in bullae (c. 3300 BCE, Susa envelope, Louvre) → impressed dots on tablets (c. 3200 BCE, Uruk Level IV, ~4,000 tablets) → sexagesimal positional notation (c. 2000 BCE).</p>
+
+<h2>PRIMITIVE 2: THE LINE</h2>
+
+<h3>Part A — The geometry of extension and measurement</h3>
+
+<p>The line is one-dimensional: extension without breadth, defined by two points, infinitely extendable in both directions. It is the basis of all measurement, all construction, all writing. Formally, lines can be parallel (never meeting), perpendicular (meeting at 90°), or intersecting at any angle, generating the entire vocabulary of angular geometry.</p>
+
+<p>Babylonian mathematics formalized the line through <strong>standardized measurement units</strong>: the cubit (~518.5 mm per the Nippur standard), the nindan/rod (6 cubits, ~5.94 m), and the eš₂-gana₂ surveyor's rope (10 nindan). The oldest preserved measuring rod is a <strong>copper-alloy bar from Nippur, c. 2650 BCE</strong> (Istanbul Archaeological Museum), marked with 4 large units each subdivided into 16 smaller divisions.</p>
+
+<p><strong>Transformations</strong> of the line generate the entire decorative vocabulary of ancient ceramics: parallel lines (bands), reflected lines (zigzags, chevrons), rotated lines (radial arrangements), and crossed lines (hatching, crosshatching, herringbone). Tools include the reed stylus, stretched cords/ropes for surveying, combed tools for parallel lines, straightedges, and plumb lines.</p>
+
+<h3>Part B — Material culture inventory</h3>
+
+<p><strong>B1. Ceramics.</strong> Line decoration is the most fundamental and universal element on Near Eastern pottery. Hassuna ware (c. 6500–6000 BCE, Tell Hassuna, Iraq Museum) represents the earliest painted linear decoration in northern Mesopotamia—cream slip with reddish paint in linear designs. Samarra pottery (c. 5500–4800 BCE, Tell es-Sawwan, Tell Baghouz) features painted and incised geometric designs with crosshatching, zigzag bands, and parallel lines.</p>
+
+<p><strong>B2. Seals.</strong> The <strong>ground line</strong> is the primary organizing device of cylinder seal composition. By Early Dynastic I (c. 2900–2700 BCE), figures were "solidly placed on a groundline." Register lines—horizontal bands dividing scenes into narrative tiers—appear on Proto-Historical seals (3000–2700 BCE).</p>
+
+<p><strong>B4. Architecture.</strong> Brick courses form the fundamental horizontal line of Mesopotamian construction. Varied brick types were deployed: Patzen (80×40×15 cm, Late Uruk), Riemchen (16×16 cm square section, Late Uruk), plano-convex (Early Dynastic). <strong>Recessed niching</strong>—vertical articulation of walls with projecting and recessed elements—appears from the 5th millennium BCE onward, creating "coloristic effects based on light and shadow."</p>
+
+<p><strong>B5. Jewelry.</strong> Gold wire appears at the Royal Cemetery of Ur (c. 2600–2400 BCE). Wire work—drawing metal into linear filaments—is a metalworking innovation. Bar pendants and incised linear decorations on beads are found from Early Neolithic onward.</p>`;
 
 export default function Reader() {
   const [, setLocation] = useLocation();
@@ -38,7 +101,52 @@ export default function Reader() {
   const [activeTab, setActiveTab] = useState<'search' | 'saved'>('search');
   const [brokenImages, setBrokenImages] = useState<Set<string>>(new Set());
 
-  const contentRef = useRef<HTMLDivElement>(null);
+  const editor = useEditor({
+    extensions: [
+      StarterKit,
+      Highlight.configure({ multicolor: true }),
+      Placeholder.configure({ placeholder: "Start writing or paste your research text here..." }),
+    ],
+    content: INITIAL_CONTENT,
+    editorProps: {
+      attributes: {
+        class: "prose prose-invert prose-lg font-serif max-w-none focus:outline-none selection:bg-primary/30 selection:text-white min-h-[60vh]",
+      },
+    },
+    onSelectionUpdate: ({ editor }) => {
+      const { from, to } = editor.state.selection;
+      if (from === to) {
+        setSelectionRect(null);
+        setSelectedText("");
+        return;
+      }
+
+      const text = editor.state.doc.textBetween(from, to, " ");
+      if (text.trim().length > 0) {
+        setSelectedText(text.trim());
+      }
+    },
+  });
+
+  const handleTextSelect = useCallback(() => {
+    const selection = window.getSelection();
+    if (selection && selection.toString().trim().length > 1) {
+      const range = selection.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
+      setSelectionRect({
+        top: rect.top + window.scrollY,
+        left: rect.left + window.scrollX,
+        width: rect.width,
+      });
+    } else {
+      setSelectionRect(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    document.addEventListener("mouseup", handleTextSelect);
+    return () => document.removeEventListener("mouseup", handleTextSelect);
+  }, [handleTextSelect]);
 
   const { data: savedImages = [] } = useQuery<SavedImage[]>({
     queryKey: ["/api/saved-images"],
@@ -75,30 +183,6 @@ export default function Reader() {
     },
   });
 
-  const handleSelection = () => {
-    const selection = window.getSelection();
-    if (selection && selection.toString().trim().length > 0 && contentRef.current?.contains(selection.anchorNode)) {
-      const text = selection.toString().trim();
-      const range = selection.getRangeAt(0);
-      const rect = range.getBoundingClientRect();
-
-      setSelectedText(text);
-      setSelectionRect({
-        top: rect.top + window.scrollY,
-        left: rect.left + window.scrollX,
-        width: rect.width
-      });
-    } else {
-      setSelectionRect(null);
-      setSelectedText("");
-    }
-  };
-
-  useEffect(() => {
-    document.addEventListener("selectionchange", handleSelection);
-    return () => document.removeEventListener("selectionchange", handleSelection);
-  }, []);
-
   const handleSearch = async () => {
     if (!selectedText) return;
 
@@ -110,8 +194,6 @@ export default function Reader() {
     setSearchResults([]);
     setBrokenImages(new Set());
 
-    window.getSelection()?.removeAllRanges();
-
     try {
       const res = await fetch("/api/search-images", {
         method: "POST",
@@ -119,9 +201,7 @@ export default function Reader() {
         body: JSON.stringify({ query: selectedText }),
       });
 
-      if (!res.ok) {
-        throw new Error("Search failed");
-      }
+      if (!res.ok) throw new Error("Search failed");
 
       const data = await res.json();
       setSearchResults(data.results || []);
@@ -162,160 +242,148 @@ export default function Reader() {
             </div>
           </div>
 
-          <Button
-            data-testid="button-saved-toggle"
-            variant="outline"
-            className="rounded-full gap-2"
-            onClick={() => { setIsSidebarOpen(!isSidebarOpen); setActiveTab('saved'); }}
-          >
-            <Bookmark className="w-4 h-4" />
-            Saved ({savedImages.length})
-          </Button>
+          <div className="flex items-center gap-2">
+            {editor && (
+              <div className="hidden md:flex items-center gap-0.5 bg-muted p-1 rounded-lg mr-2">
+                <Button
+                  data-testid="button-undo"
+                  variant="ghost" size="icon" className="h-7 w-7 rounded"
+                  onClick={() => editor.chain().focus().undo().run()}
+                  disabled={!editor.can().undo()}
+                >
+                  <Undo className="w-3.5 h-3.5" />
+                </Button>
+                <Button
+                  data-testid="button-redo"
+                  variant="ghost" size="icon" className="h-7 w-7 rounded"
+                  onClick={() => editor.chain().focus().redo().run()}
+                  disabled={!editor.can().redo()}
+                >
+                  <Redo className="w-3.5 h-3.5" />
+                </Button>
+                <div className="w-px h-5 bg-border mx-1" />
+                <Button
+                  data-testid="button-bold"
+                  variant={editor.isActive("bold") ? "secondary" : "ghost"}
+                  size="icon" className="h-7 w-7 rounded"
+                  onClick={() => editor.chain().focus().toggleBold().run()}
+                >
+                  <Bold className="w-3.5 h-3.5" />
+                </Button>
+                <Button
+                  data-testid="button-italic"
+                  variant={editor.isActive("italic") ? "secondary" : "ghost"}
+                  size="icon" className="h-7 w-7 rounded"
+                  onClick={() => editor.chain().focus().toggleItalic().run()}
+                >
+                  <Italic className="w-3.5 h-3.5" />
+                </Button>
+                <Button
+                  data-testid="button-strike"
+                  variant={editor.isActive("strike") ? "secondary" : "ghost"}
+                  size="icon" className="h-7 w-7 rounded"
+                  onClick={() => editor.chain().focus().toggleStrike().run()}
+                >
+                  <Strikethrough className="w-3.5 h-3.5" />
+                </Button>
+                <Button
+                  data-testid="button-highlight"
+                  variant={editor.isActive("highlight") ? "secondary" : "ghost"}
+                  size="icon" className="h-7 w-7 rounded"
+                  onClick={() => editor.chain().focus().toggleHighlight().run()}
+                >
+                  <Highlighter className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            )}
+
+            <Button
+              data-testid="button-saved-toggle"
+              variant="outline"
+              className="rounded-full gap-2"
+              onClick={() => { setIsSidebarOpen(!isSidebarOpen); setActiveTab('saved'); }}
+            >
+              <Bookmark className="w-4 h-4" />
+              Saved ({savedImages.length})
+            </Button>
+          </div>
         </header>
 
         <ScrollArea className="h-[calc(100vh-73px)]">
           <div className="max-w-3xl mx-auto py-12 px-8">
-            <div
-              ref={contentRef}
-              className="prose prose-invert prose-lg font-serif selection:bg-primary/30 selection:text-white"
-            >
-              <h1 className="text-4xl mb-8 leading-tight">Seven Geometric Primitives in Ancient Mesopotamian Material Culture</h1>
+            {editor && (
+              <BubbleMenu
+                editor={editor}
+                tippyOptions={{ duration: 150, placement: "top" }}
+                shouldShow={({ editor }) => {
+                  const { from, to } = editor.state.selection;
+                  return from !== to;
+                }}
+              >
+                <div className="bg-popover border border-border shadow-xl rounded-xl p-1.5 flex items-center gap-1 backdrop-blur-md">
+                  <Button
+                    data-testid="bubble-bold"
+                    variant={editor.isActive("bold") ? "secondary" : "ghost"}
+                    size="icon" className="h-7 w-7 rounded"
+                    onClick={() => editor.chain().focus().toggleBold().run()}
+                  >
+                    <Bold className="w-3.5 h-3.5" />
+                  </Button>
+                  <Button
+                    data-testid="bubble-italic"
+                    variant={editor.isActive("italic") ? "secondary" : "ghost"}
+                    size="icon" className="h-7 w-7 rounded"
+                    onClick={() => editor.chain().focus().toggleItalic().run()}
+                  >
+                    <Italic className="w-3.5 h-3.5" />
+                  </Button>
+                  <Button
+                    data-testid="bubble-highlight"
+                    variant={editor.isActive("highlight") ? "secondary" : "ghost"}
+                    size="icon" className="h-7 w-7 rounded"
+                    onClick={() => editor.chain().focus().toggleHighlight().run()}
+                  >
+                    <Highlighter className="w-3.5 h-3.5" />
+                  </Button>
+                  <Button
+                    data-testid="bubble-h2"
+                    variant={editor.isActive("heading", { level: 2 }) ? "secondary" : "ghost"}
+                    size="icon" className="h-7 w-7 rounded"
+                    onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+                  >
+                    <Heading2 className="w-3.5 h-3.5" />
+                  </Button>
+                  <Button
+                    data-testid="bubble-h3"
+                    variant={editor.isActive("heading", { level: 3 }) ? "secondary" : "ghost"}
+                    size="icon" className="h-7 w-7 rounded"
+                    onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+                  >
+                    <Heading3 className="w-3.5 h-3.5" />
+                  </Button>
+                  <div className="w-px h-5 bg-border mx-0.5" />
+                  <Button
+                    data-testid="bubble-find-images"
+                    size="sm"
+                    className="rounded-lg h-7 px-3 text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5"
+                    onClick={handleSearch}
+                    disabled={isSearching || !selectedText}
+                  >
+                    {isSearching ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <ImageIcon className="w-3 h-3" />
+                    )}
+                    Find Images
+                  </Button>
+                </div>
+              </BubbleMenu>
+            )}
 
-              <p className="lead text-xl text-muted-foreground mb-12">
-                The geometric vocabulary of human civilization rests on seven elemental forms—dot, line, triangle, circle, square, eight-pointed star, and crescent—each traceable from Paleolithic cognitive origins through Mesopotamian urban complexity.
-              </p>
-
-              <h2 className="text-2xl mt-12 mb-6 border-b border-border pb-2">PRIMITIVE 1: THE DOT / POINT</h2>
-
-              <h3 className="text-xl mt-8 mb-4 text-primary">Part A — Mathematical properties and the science of position</h3>
-
-              <p className="mb-6 leading-relaxed">
-                The dot is geometry's zero-dimensional atom: position without extension, location without magnitude. Formally, it possesses no symmetry axes, no angles, no ratios—it is pure <em>where</em>. Yet this seemingly trivial element generated the most consequential cognitive technology in Mesopotamian history: <strong>the numeral</strong>.
-              </p>
-
-              <p className="mb-6 leading-relaxed">
-                Babylonian mathematics exploited the dot through two innovations. First, the <strong>clay token system</strong> (c. 8000–3100 BCE), documented by Denise Schmandt-Besserat across more than 8,000 artifacts, used small geometric clay shapes—spheres, cones, disks—as one-to-one counters for commodities. A sphere equaled one large measure of grain; a cone, one small measure. These tokens are literally three-dimensional dots. When pressed into wet clay, tokens produced circular impressions—<strong>two-dimensional dots that became the first numerals</strong> (c. 3200 BCE, Susa and Uruk). The round-tipped stylus created circular marks for tens while the wedge-tipped end produced unit marks, establishing the proto-cuneiform numerical system visible on some 4,000 tablets from Uruk Level IV.
-              </p>
-
-              <p className="mb-6 leading-relaxed">
-                Second, the <strong>sexagesimal positional notation</strong> (emerging c. 2000 BCE) combined vertical wedges (units) and horizontal wedges (tens) in a base-60 system that required understanding position—where a sign sat determined its value. By the 3rd century BCE, Babylonian astronomers introduced a placeholder symbol for empty positions, a functional zero. The dot as abstract numerical position had traveled from physical token to conceptual placeholder across five millennia.
-              </p>
-
-              <p className="mb-6 leading-relaxed">
-                <strong>Tools that create dots</strong> include pointed styli (reed and bone), blunt circular stylus ends for numerical impressions, bow drills for bead perforation and seal engraving, and flint punches. The transition from stone to copper drills (3rd millennium BCE) enabled finer work on seals and jewelry.
-              </p>
-
-              <h3 className="text-xl mt-10 mb-4 text-primary">Part B — Material culture inventory</h3>
-
-              <p className="mb-6 leading-relaxed">
-                <strong>B1. Ceramics.</strong> Dot patterns constitute one of the oldest decorative vocabularies on Near Eastern pottery. Samarra ware (c. 5500–4800 BCE, Tell es-Sawwan) features geometric dot arrangements on dark-fired backgrounds. Halaf pottery (c. 6100–5100 BCE) from Tell Arpachiyah and Tell Halaf introduced the <strong>dot-circle motif</strong> as a standard element by the Late Halaf phase (c. 4900–4500 BCE), alongside white-on-dark dot compositions on eggshell-thin bowls.
-              </p>
-
-              <p className="mb-6 leading-relaxed">
-                <strong>B2. Cylinder seals and stamp seals.</strong> The <strong>drill-dot technique</strong> is fundamental to seal engraving. Halaf stamp seals (mid-6th millennium BCE) are the earliest personal property markers in the Near East, featuring geometric patterns including dot arrangements. Cylinder seals (invented c. 3500 BCE at Uruk) extensively use drilled dots as filler between figures, as border elements, and as compositional spacing devices.
-              </p>
-
-              <p className="mb-6 leading-relaxed">
-                <strong>B3. Textiles.</strong> Direct evidence is limited, but Schmandt-Besserat documented disk tokens from Uruk (c. 3300 BCE) bearing "different patterns of incised lines or dots, which stood for a variety of textiles and garments." Cone mosaic patterns at Uruk explicitly imitate "matting and textiles." Al-Ubaid figurines bear "painted marks or tattoos" that may represent textile or body-art dot patterns.
-              </p>
-
-              <p className="mb-6 leading-relaxed">
-                <strong>B4. Architecture.</strong> The <strong>cone mosaic</strong> is the dot's most spectacular architectural expression. At the Eanna Precinct in Uruk (c. 3500–3000 BCE), thousands of baked clay cones (~10 cm long) with flat circular ends painted black, red, or white were pressed pointed-end-first into wet mud plaster, creating geometric patterns of colored dots across walls and columns. Each cone tip functions as one dot in a massive architectural pointillist composition.
-              </p>
-
-              <p className="mb-6 leading-relaxed">
-                <strong>B5. Jewelry.</strong> Beads are three-dimensional dots. Stone, shell, and clay beads appear from the earliest Neolithic sites. The <strong>granulation technique</strong> (c. 2500 BCE) represents the dot's most refined metalworking expression: tiny gold spheres (pinhead-sized) are fused to gold surfaces in decorative patterns without conventional solder. The earliest examples come from the Royal Tombs of Ur (c. 2500 BCE), discovered by Woolley.
-              </p>
-
-              <p className="mb-6 leading-relaxed">
-                <strong>B6. Ritual objects.</strong> Al-Ubaid female clay figurines with painted dot-patterns on their bodies (Penn Museum 31-16-733) may represent ritual scarification. Votive animal figurines from Uruk Level III (c. 3000 BCE) bear incised dot patterns. Clay bullae (hollow spherical envelopes containing tokens, c. 3300 BCE, Susa, Louvre) served the temple redistribution economy.
-              </p>
-
-              <p className="mb-6 leading-relaxed">
-                <strong>B7. Tools.</strong> Tools that CREATE dots include: bone/flint/reed awls (Neolithic onward); the reed stylus with its blunt circular end for numerical impressions; bow drills for bead and seal work; copper drills replacing stone (3rd millennium BCE); and most fundamentally, <strong>Schmandt-Besserat's clay tokens</strong> (c. 8000–3100 BCE)—the tool system that bridged concrete counting and abstract notation.
-              </p>
-
-              <p className="mb-6 leading-relaxed">
-                <strong>B8. Writing and administration.</strong> The dot's trajectory from token to tablet to sexagesimal notation constitutes one of history's most consequential technological chains. Clay tokens (c. 8000 BCE) → complex tokens with incised dots (c. 3500 BCE, ~300 subtypes) → tokens sealed in bullae (c. 3300 BCE, Susa envelope, Louvre) → impressed dots on tablets (c. 3200 BCE, Uruk Level IV, ~4,000 tablets) → sexagesimal positional notation (c. 2000 BCE).
-              </p>
-
-              <h2 className="text-2xl mt-12 mb-6 border-b border-border pb-2">PRIMITIVE 2: THE LINE</h2>
-
-              <h3 className="text-xl mt-8 mb-4 text-primary">Part A — The geometry of extension and measurement</h3>
-
-              <p className="mb-6 leading-relaxed">
-                The line is one-dimensional: extension without breadth, defined by two points, infinitely extendable in both directions. It is the basis of all measurement, all construction, all writing. Formally, lines can be parallel (never meeting), perpendicular (meeting at 90°), or intersecting at any angle, generating the entire vocabulary of angular geometry.
-              </p>
-
-              <p className="mb-6 leading-relaxed">
-                Babylonian mathematics formalized the line through <strong>standardized measurement units</strong>: the cubit (~518.5 mm per the Nippur standard), the nindan/rod (6 cubits, ~5.94 m), and the eš₂-gana₂ surveyor's rope (10 nindan). The oldest preserved measuring rod is a <strong>copper-alloy bar from Nippur, c. 2650 BCE</strong> (Istanbul Archaeological Museum), marked with 4 large units each subdivided into 16 smaller divisions.
-              </p>
-
-              <p className="mb-6 leading-relaxed">
-                <strong>Transformations</strong> of the line generate the entire decorative vocabulary of ancient ceramics: parallel lines (bands), reflected lines (zigzags, chevrons), rotated lines (radial arrangements), and crossed lines (hatching, crosshatching, herringbone). Tools include the reed stylus, stretched cords/ropes for surveying, combed tools for parallel lines, straightedges, and plumb lines.
-              </p>
-
-              <h3 className="text-xl mt-10 mb-4 text-primary">Part B — Material culture inventory</h3>
-
-              <p className="mb-6 leading-relaxed">
-                <strong>B1. Ceramics.</strong> Line decoration is the most fundamental and universal element on Near Eastern pottery. Hassuna ware (c. 6500–6000 BCE, Tell Hassuna, Iraq Museum) represents the earliest painted linear decoration in northern Mesopotamia—cream slip with reddish paint in linear designs. Samarra pottery (c. 5500–4800 BCE, Tell es-Sawwan, Tell Baghouz) features painted and incised geometric designs with crosshatching, zigzag bands, and parallel lines.
-              </p>
-
-              <p className="mb-6 leading-relaxed">
-                <strong>B2. Seals.</strong> The <strong>ground line</strong> is the primary organizing device of cylinder seal composition. By Early Dynastic I (c. 2900–2700 BCE), figures were "solidly placed on a groundline." Register lines—horizontal bands dividing scenes into narrative tiers—appear on Proto-Historical seals (3000–2700 BCE).
-              </p>
-
-              <p className="mb-6 leading-relaxed">
-                <strong>B4. Architecture.</strong> Brick courses form the fundamental horizontal line of Mesopotamian construction. Varied brick types were deployed: Patzen (80×40×15 cm, Late Uruk), Riemchen (16×16 cm square section, Late Uruk), plano-convex (Early Dynastic). <strong>Recessed niching</strong>—vertical articulation of walls with projecting and recessed elements—appears from the 5th millennium BCE onward, creating "coloristic effects based on light and shadow."
-              </p>
-
-              <p className="mb-6 leading-relaxed">
-                <strong>B5. Jewelry.</strong> Gold wire appears at the Royal Cemetery of Ur (c. 2600–2400 BCE). Wire work—drawing metal into linear filaments—is a metalworking innovation. Bar pendants and incised linear decorations on beads are found from Early Neolithic onward.
-              </p>
-
-              <div className="h-20" />
-            </div>
+            <EditorContent editor={editor} data-testid="editor-content" />
           </div>
         </ScrollArea>
       </div>
-
-      {/* Floating Action Button for Selection */}
-      <AnimatePresence>
-        {selectionRect && selectedText && (
-          <motion.div
-            initial={{ opacity: 0, y: 10, scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            className="fixed z-50 shadow-2xl"
-            style={{
-              top: selectionRect.top - 60,
-              left: Math.max(10, Math.min(selectionRect.left + (selectionRect.width / 2) - 100, window.innerWidth - 250)),
-            }}
-          >
-            <div className="bg-popover border border-border shadow-xl rounded-full p-1.5 flex items-center gap-1 backdrop-blur-md">
-              <span className="text-xs font-medium px-3 truncate max-w-[150px] text-muted-foreground">
-                "{selectedText.slice(0, 30)}{selectedText.length > 30 ? '...' : ''}"
-              </span>
-              <div className="w-[1px] h-4 bg-border mx-1" />
-              <Button
-                data-testid="button-find-images"
-                size="sm"
-                className="rounded-full h-8 px-4 font-semibold shadow-md bg-primary hover:bg-primary/90 text-primary-foreground gap-2"
-                onClick={handleSearch}
-                disabled={isSearching}
-              >
-                {isSearching ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <ImageIcon className="w-3.5 h-3.5" />
-                )}
-                Find Images
-              </Button>
-            </div>
-            <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-popover border-b border-r border-border rotate-45" />
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* Right Sidebar */}
       <AnimatePresence>
@@ -423,7 +491,6 @@ export default function Reader() {
                                 <Button
                                   data-testid={`button-save-image-${idx}`}
                                   className={`flex-1 ${saved ? 'bg-green-600 hover:bg-green-700 text-white' : ''}`}
-                                  variant={saved ? 'default' : 'default'}
                                   onClick={() => !saved && handleSaveImage(img)}
                                   disabled={saveMutation.isPending}
                                 >
@@ -451,7 +518,7 @@ export default function Reader() {
                         <ImageIcon className="w-8 h-8 text-muted-foreground opacity-50" />
                       </div>
                       <h3 className="text-lg font-medium text-foreground mb-2">Highlight text to search</h3>
-                      <p className="text-muted-foreground text-sm max-w-xs mx-auto">Select any word or phrase in the document, then click "Find Images" to search for related images.</p>
+                      <p className="text-muted-foreground text-sm max-w-xs mx-auto">Select any word or phrase in the editor, then click "Find Images" in the floating toolbar to search for related images.</p>
                     </div>
                   )}
                 </div>
