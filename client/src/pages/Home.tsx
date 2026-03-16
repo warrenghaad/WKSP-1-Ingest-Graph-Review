@@ -4,7 +4,7 @@ import Timeline3D from "@/components/Timeline3D";
 import { Artifact, artifacts } from "@/lib/artifacts";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { ChevronRight, ArrowLeft, Search, Database, Fingerprint, RefreshCw, BookOpen, ExternalLink } from "lucide-react";
+import { ChevronRight, ArrowLeft, Search, Database, Fingerprint, RefreshCw, BookOpen, ExternalLink, Layers } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import bgAbstract from "@/assets/images/bg-abstract.png";
 
@@ -75,7 +75,11 @@ export default function Home() {
         <div className="pointer-events-auto flex gap-4 max-w-sm w-full items-center">
           <Button variant="outline" className="h-10 rounded-full border-white/10 bg-black/40 backdrop-blur-md text-white hover:bg-white/10" onClick={() => window.location.href = '/reader'}>
             <BookOpen className="w-4 h-4 mr-2" />
-            Reader Mode
+            Reader
+          </Button>
+          <Button variant="outline" className="h-10 rounded-full border-white/10 bg-black/40 backdrop-blur-md text-white hover:bg-white/10" onClick={() => window.location.href = '/lab'}>
+            <Layers className="w-4 h-4 mr-2" />
+            Lab
           </Button>
           <div className="relative w-full">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />

@@ -1,0 +1,80 @@
+{
+  "timestamp": "2026-01-16T14:08:26.972Z",
+  "totalDownloaded": 3,
+  "failed": 0,
+  "images": [
+    {
+      "hash": "c32dd75f20431bf3b8fa5e13de72cefa0e4596e345b2ca421c2b280497769cfc",
+      "url": "https://images.metmuseum.org/CRDImages/an/original/DT858.jpg",
+      "title": "Head of a ruler",
+      "artifacts": [
+        "WIII-A-SA3",
+        "WIII-A-SA4",
+        "WIII-A-SA3",
+        "WIII-A-SA5",
+        "WIII-A-SA5",
+        "WIV-A-SA3",
+        "WIV-A-SA4",
+        "WIV-A-SA4",
+        "WIV-A-SA5",
+        "WIV-B-SB5",
+        "WV-A-SA4",
+        "WV-A-SA4",
+        "WV-A-SA3",
+        "WV-A-SA5",
+        "WV-A-SA5",
+        "WV-A-SA6",
+        "WV-B-SB5",
+        "WVI-A-SA3",
+        "WVI-A-SA4",
+        "WVI-A-SA5",
+        "WVI-A-SA5",
+        "WVI-A-SA7",
+        "WVI-A-SA8",
+        "WVI-B-SB1",
+        "WVI-B-SB5",
+        "WVI-B-SB5",
+        "WVI-B-SB6",
+        "WVII-A-SA3",
+        "WVI-B-SB2",
+        "WVII-A-SA5",
+        "WVIII-A-SA3",
+        "WVIII-A-SA4",
+        "WVIII-A-SA4",
+        "WVIII-A-SA5",
+        "WVIII-A-SA5",
+        "WVIII-A-SA5",
+        "WVIII-A-SA6",
+        "WVIII-A-SA4"
+      ],
+      "downloadedAt": "2026-01-16T14:08:24.634Z"
+    },
+    {
+      "hash": "e1b7eaf1b45f84340ebd334cdba825fa709207ff2fda9d492b33c72c44e7a719",
+      "url": "https://images.metmuseum.org/CRDImages/an/original/DT860.jpg",
+      "title": "Cylinder seal and modern impression: hunting scene",
+      "artifacts": [
+        "WIV-A-SA4",
+        "WV-A-SA4",
+        "WVI-A-SA4",
+        "WVI-A-SA5",
+        "WVII-A-SA4"
+      ],
+      "downloadedAt": "2026-01-16T14:08:25.588Z"
+    },
+    {
+      "hash": "aadefce687c31bd2b505cdc42c34d00cc3636306eeb824fc71e458f7a7f21f4d",
+      "url": "https://images.metmuseum.org/CRDImages/an/original/DP-23786-001.jpg",
+      "title": "Statue of Gudea, named “Gudea, the man who built the temple, may his life be long”",
+      "artifacts": [
+        "WIV-A-SA5",
+        "WV-A-SA5",
+        "WVI-A-SA5",
+        "WVII-A-SA5",
+        "WVII-A-SA5",
+        "WVII-B-SB5"
+      ],
+      "downloadedAt": "2026-01-16T14:08:26.471Z"
+    }
+  ]
+}
