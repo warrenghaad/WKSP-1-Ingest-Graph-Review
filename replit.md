@@ -1,19 +1,26 @@
-# Chronos - Artifact Research Archive
+# Chronos - Mesopotamian Artifact Research Archive
 
 ## Overview
-A 3D interactive timeline for exploring historical artifacts, with a reader mode for text-to-image search, and an automation lab for batch museum API searches and AI image generation.
+A 3D interactive timeline for exploring Mesopotamian artifacts (~6500 BCE – 331 BCE), with a reader mode for text-to-image search, and an automation lab for batch museum API searches and AI image generation.
 
 ## Architecture
 - **Frontend**: React + TypeScript with Vite, Tailwind CSS v4, shadcn/ui, Framer Motion, React Three Fiber (3D timeline)
 - **Backend**: Express.js with TypeScript
-- **Routing**: wouter (frontend), Express (API)
+- **Routing**: wouter (frontend SPA routing), Express (API)
 - **AI Integration**: OpenAI (via Replit AI Integrations) for query enhancement and image generation (gpt-image-1), Perplexity API for web-powered image search
 - **Museum APIs**: Metropolitan Museum (CC0, no key), Smithsonian Open Access (DEMO_KEY), Wikimedia Commons (free)
 - **Storage**: In-memory (MemStorage) for saved images
 
 ## Key Features
-1. **3D Timeline** (`/`): Interactive 3D visualization of historical artifacts with research aggregation
-2. **Reader Mode** (`/reader`): Document reader with text-highlight-to-image-search functionality
+1. **3D Timeline** (`/`): Interactive 3D visualization of 12 Mesopotamian artifacts spanning 10 eras (Ubaid through Achaemenid). Features:
+   - Artifacts placed on a scaled horizontal axis (year-to-x mapping)
+   - Era markers (colored bands) along the timeline
+   - Category/era filtering via filter panel
+   - Detail panel with research papers, artifact images, and cross-links to Lab/Reader
+   - Smooth camera animation on selection, OrbitControls for zoom/pan/rotate
+   - Particle field ambient effects
+   - Artifact IDs follow WIII-A-SA3-### convention (Project EUCLID)
+2. **Reader Mode** (`/reader`): Document reader with Tiptap editor and text-highlight-to-image-search
 3. **Automation Lab** (`/lab`): Image search and generation testing ground
    - **Single Search**: Search across all museum APIs + AI simultaneously
    - **Batch Search**: Paste multiple queries, runs them sequentially with SSE streaming progress
