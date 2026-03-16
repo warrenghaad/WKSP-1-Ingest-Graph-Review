@@ -17,6 +17,7 @@ import StarterKit from "@tiptap/starter-kit";
 import Highlight from "@tiptap/extension-highlight";
 import Placeholder from "@tiptap/extension-placeholder";
 import { DOCUMENTS } from "@/lib/documentContent";
+import OfflineIndicator from "@/components/OfflineIndicator";
 
 interface ImageResult {
   url: string;
