@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { CIVILIZATIONS, type Civilization } from "@/lib/braidData";
 import { MAGIC_LABELS, type MAGICVector } from "@/lib/magicFramework";
+import { DII_MILESTONES, type DIIMilestone } from "@/lib/diiMilestones";
 
 const MAGIC_KEYS: (keyof MAGICVector)[] = ["M", "A", "G", "I", "C"];
 const CYCLES = 3;
@@ -52,7 +53,6 @@ function generateStrandPath(
     } else if (cycleT < 0.75) {
       const blend = (cycleT - 0.4) / 0.35;
       const converge = blend * blend;
-
       if (activeInInnovation) {
         spreadRadius = width * 0.42 * (1 - converge * 0.65);
         twistSpeed = 2.5 + converge * 5;
@@ -111,6 +111,196 @@ function generateGreenWrapPath(
   return pointsToPath(points);
 }
 
+interface MilestonePosition {
+  milestone: DIIMilestone;
+  y: number;
+  side: "left" | "right";
+}
+
+function computeMilestonePositions(civId: string, height: number): MilestonePosition[] {
+  const cycles = DII_MILESTONES[civId];
+  if (!cycles) return [];
+
+  const positions: MilestonePosition[] = [];
+  const cycleLen = height / CYCLES;
+
+  for (let c = 0; c < CYCLES && c < cycles.length; c++) {
+    const base = c * cycleLen;
+    const milestones = cycles[c].milestones;
+
+    for (const m of milestones) {
+      let y: number;
+      if (m.phase === "discovery") {
+        y = base + cycleLen * 0.2;
+      } else if (m.phase === "innovation") {
+        y = base + cycleLen * 0.575;
+      } else {
+        y = base + cycleLen * 0.875;
+      }
+
+      positions.push({
+        milestone: m,
+        y,
+        side: m.phase === "innovation" ? "left" : "right",
+      });
+    }
+  }
+
+  return positions;
+}
+
+const PHASE_COLORS: Record<string, string> = {
+  discovery: "#eab308",
+  innovation: "#a855f7",
+  invention: "#22c55e",
+};
+
+const IMG_SIZE = 28;
+
+function MilestoneNode({
+  pos,
+  xCenter,
+  onHover,
+  onLeave,
+  isHovered,
+  clipId,
+}: {
+  pos: MilestonePosition;
+  xCenter: number;
+  onHover: () => void;
+  onLeave: () => void;
+  isHovered: boolean;
+  clipId: string;
+}) {
+  const phaseColor = PHASE_COLORS[pos.milestone.phase];
+  const offset = pos.side === "right" ? BRAID_WIDTH / 2 + 22 : -(BRAID_WIDTH / 2 + 22);
+  const imgX = xCenter + offset - IMG_SIZE / 2;
+  const imgY = pos.y - IMG_SIZE / 2;
+  const connX = pos.side === "right" ? xCenter + BRAID_WIDTH / 2 + 4 : xCenter - BRAID_WIDTH / 2 - 4;
+
+  return (
+    <g
+      onMouseEnter={onHover}
+      onMouseLeave={onLeave}
+      style={{ cursor: "pointer" }}
+    >
+      <line
+        x1={connX}
+        y1={pos.y}
+        x2={xCenter + offset}
+        y2={pos.y}
+        stroke={phaseColor}
+        strokeWidth={0.8}
+        opacity={0.3}
+        strokeDasharray="2 2"
+      />
+
+      <defs>
+        <clipPath id={clipId}>
+          <circle cx={xCenter + offset} cy={pos.y} r={IMG_SIZE / 2} />
+        </clipPath>
+      </defs>
+
+      <circle
+        cx={xCenter + offset}
+        cy={pos.y}
+        r={IMG_SIZE / 2 + 2}
+        fill="none"
+        stroke={phaseColor}
+        strokeWidth={isHovered ? 2 : 1}
+        opacity={isHovered ? 0.9 : 0.4}
+        style={{ transition: "all 0.2s" }}
+      />
+
+      <image
+        href={pos.milestone.imageUrl}
+        x={imgX}
+        y={imgY}
+        width={IMG_SIZE}
+        height={IMG_SIZE}
+        clipPath={`url(#${clipId})`}
+        preserveAspectRatio="xMidYMid slice"
+        opacity={isHovered ? 1 : 0.7}
+        style={{ transition: "opacity 0.2s" }}
+      />
+
+      {isHovered && (
+        <g>
+          <rect
+            x={pos.side === "right" ? xCenter + offset + IMG_SIZE / 2 + 6 : xCenter + offset - IMG_SIZE / 2 - 160}
+            y={pos.y - 32}
+            width={154}
+            height={64}
+            rx={6}
+            fill="black"
+            fillOpacity={0.92}
+            stroke={phaseColor}
+            strokeWidth={0.5}
+            strokeOpacity={0.4}
+          />
+          <text
+            x={pos.side === "right" ? xCenter + offset + IMG_SIZE / 2 + 12 : xCenter + offset - IMG_SIZE / 2 - 154}
+            y={pos.y - 17}
+            fill={phaseColor}
+            fontSize={8}
+            fontWeight={700}
+            fontFamily="Inter, sans-serif"
+            textTransform="uppercase"
+          >
+            {pos.milestone.phase} · {Math.abs(pos.milestone.year)} BCE
+          </text>
+          <text
+            x={pos.side === "right" ? xCenter + offset + IMG_SIZE / 2 + 12 : xCenter + offset - IMG_SIZE / 2 - 154}
+            y={pos.y - 4}
+            fill="white"
+            fontSize={9}
+            fontWeight={600}
+            fontFamily="Inter, sans-serif"
+          >
+            {pos.milestone.title.length > 22 ? pos.milestone.title.slice(0, 22) + "…" : pos.milestone.title}
+          </text>
+          <text
+            x={pos.side === "right" ? xCenter + offset + IMG_SIZE / 2 + 12 : xCenter + offset - IMG_SIZE / 2 - 154}
+            y={pos.y + 10}
+            fill="white"
+            fillOpacity={0.5}
+            fontSize={7}
+            fontFamily="Inter, sans-serif"
+          >
+            {pos.milestone.description.length > 40 ? pos.milestone.description.slice(0, 40) + "…" : pos.milestone.description}
+          </text>
+          <g>
+            {pos.milestone.magicDrivers.map((d, di) => (
+              <g key={di}>
+                <rect
+                  x={(pos.side === "right" ? xCenter + offset + IMG_SIZE / 2 + 12 : xCenter + offset - IMG_SIZE / 2 - 154) + di * 18}
+                  y={pos.y + 16}
+                  width={15}
+                  height={10}
+                  rx={2}
+                  fill={MAGIC_LABELS[d as keyof MAGICVector]?.color || "#888"}
+                  fillOpacity={0.2}
+                />
+                <text
+                  x={(pos.side === "right" ? xCenter + offset + IMG_SIZE / 2 + 12 : xCenter + offset - IMG_SIZE / 2 - 154) + di * 18 + 7.5}
+                  y={pos.y + 24}
+                  fill={MAGIC_LABELS[d as keyof MAGICVector]?.color || "#888"}
+                  fontSize={7}
+                  fontWeight={700}
+                  fontFamily="Inter, sans-serif"
+                  textAnchor="middle"
+                >
+                  {d}
+                </text>
+              </g>
+            ))}
+          </g>
+        </g>
+      )}
+    </g>
+  );
+}
+
 function CivBraidSVG({
   civ,
   xCenter,
@@ -125,6 +315,7 @@ function CivBraidSVG({
   onSelect: () => void;
 }) {
   const [hoveredStrand, setHoveredStrand] = useState<number | null>(null);
+  const [hoveredMilestone, setHoveredMilestone] = useState<number | null>(null);
 
   const strands = useMemo(
     () =>
@@ -151,17 +342,10 @@ function CivBraidSVG({
     return markers;
   }, [height]);
 
-  const phaseLabels = useMemo(() => {
-    const labels: { y: number; label: string; color: string }[] = [];
-    const cycleLen = height / CYCLES;
-    for (let c = 0; c < CYCLES; c++) {
-      const base = c * cycleLen;
-      labels.push({ y: base + cycleLen * 0.2, label: "Discovery", color: "#eab30866" });
-      labels.push({ y: base + cycleLen * 0.575, label: "Innovation", color: "#a855f766" });
-      labels.push({ y: base + cycleLen * 0.875, label: "Invention", color: "#22c55e88" });
-    }
-    return labels;
-  }, [height]);
+  const milestonePositions = useMemo(
+    () => computeMilestonePositions(civ.id, height),
+    [civ.id, height]
+  );
 
   const phaseBands = useMemo(() => {
     const bands: { y: number; h: number; color: string }[] = [];
@@ -263,19 +447,16 @@ function CivBraidSVG({
         </g>
       ))}
 
-      {isSelected && phaseLabels.map((pl, i) => (
-        <text
-          key={`pl-${i}`}
-          x={xCenter - BRAID_WIDTH / 2 - 14}
-          y={pl.y}
-          fill={pl.color}
-          fontSize={8}
-          textAnchor="end"
-          dominantBaseline="middle"
-          fontFamily="Inter, sans-serif"
-        >
-          {pl.label}
-        </text>
+      {milestonePositions.map((pos, i) => (
+        <MilestoneNode
+          key={`ms-${i}`}
+          pos={pos}
+          xCenter={xCenter}
+          onHover={() => setHoveredMilestone(i)}
+          onLeave={() => setHoveredMilestone(null)}
+          isHovered={hoveredMilestone === i}
+          clipId={`clip-${civ.id}-${i}`}
+        />
       ))}
 
       <line
@@ -408,7 +589,7 @@ export default function BraidSVGView({
   onSelectCiv: (id: string | null) => void;
 }) {
   const civCount = CIVILIZATIONS.length;
-  const spacing = BRAID_WIDTH + 40;
+  const spacing = BRAID_WIDTH + 100;
   const totalWidth = civCount * spacing;
   const svgHeight = STRAND_HEIGHT + 60;
 
