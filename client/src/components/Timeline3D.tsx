@@ -22,6 +22,7 @@ interface Timeline3DProps {
   filterCategory: string | null;
   filterEra: string | null;
   searchQuery: string;
+  filterSection?: string | null;
 }
 
 const YEAR_SCALE = 0.003;
@@ -424,12 +425,14 @@ const Scene = ({
   filterCategory,
   filterEra,
   searchQuery,
+  filterSection,
 }: Timeline3DProps) => {
   const filteredIds = useMemo(() => {
     const q = searchQuery.toLowerCase();
     const filtered = sortedArtifacts.filter((a) => {
       if (filterCategory && a.category !== filterCategory) return false;
       if (filterEra && a.era !== filterEra) return false;
+      if (filterSection && !a.magic?.sectionRoles.includes(filterSection)) return false;
       if (q) {
         return (
           a.name.toLowerCase().includes(q) ||
@@ -441,7 +444,7 @@ const Scene = ({
       return true;
     });
     return new Set(filtered.map((a) => a.id));
-  }, [filterCategory, filterEra, searchQuery]);
+  }, [filterCategory, filterEra, searchQuery, filterSection]);
 
   return (
     <>

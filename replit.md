@@ -1,7 +1,7 @@
 # Chronos - Mesopotamian Artifact Research Archive
 
 ## Overview
-A 3D interactive timeline for exploring Mesopotamian artifacts (~6500 BCE – 331 BCE), with a reader mode for text-to-image search, and an automation lab for batch museum API searches and AI image generation.
+A 3D interactive timeline for exploring Mesopotamian artifacts (~6500 BCE – 331 BCE), structured around the MAGIC theoretical framework (Mathematics, Aesthetics/Art, Geometry, Institutionalization/Internalization, Control/Power). Includes a reader mode for text-to-image search and an automation lab for batch museum API searches and AI image generation.
 
 ## Architecture
 - **Frontend**: React + TypeScript with Vite, Tailwind CSS v4, shadcn/ui, Framer Motion, React Three Fiber (3D timeline)
@@ -11,27 +11,44 @@ A 3D interactive timeline for exploring Mesopotamian artifacts (~6500 BCE – 33
 - **Museum APIs**: Metropolitan Museum (CC0, no key), Smithsonian Open Access (DEMO_KEY), Wikimedia Commons (free)
 - **Storage**: In-memory (MemStorage) for saved images
 
+## MAGIC Framework
+The theoretical backbone of the platform. Five drivers form a weight vector per lesson section:
+- **M** (Mathematics): Formal properties, proofs, measurement
+- **A** (Aesthetics/Art): Visual rhetoric, craft, perceptual affordance
+- **G** (Geometry): Spatial organization, GEA/GEM composition
+- **I** (Institutionalization): Ideology, mythology, ritual, tradition
+- **C** (Control/Power): Who funds, controls, permits, suppresses
+
+### Lesson Architecture (15 sections, two-day arc)
+- **Day A (A1–A7)**: Metaphor/Rhetoric register — "What does it MEAN?"
+- **Day B (B1–B8)**: Function register — "What does it DO?"
+- **A7/B1**: Dual-register pivot — "It MEANS and it DOES"
+- Each section has a MAGIC weight vector [M,A,G,I,C] ∈ [0,1]
+- Artifacts are tagged with section roles (which lesson sections they can serve)
+
+### Data Layer
+- `magicFramework.ts`: All 15 lesson sections with vectors, cognitive operations, GE tags, keyword templates
+- `artifacts.ts`: 18 artifacts with MAGIC metadata (sectionRoles, GEA/GEM tags, E×C×D specs, RWI tags)
+- `MAGICRadar.tsx`: Pentagon radar chart + horizontal bar chart for weight vectors
+- `LessonArc.tsx`: Interactive lesson architecture viewer with section bars and detail panel
+
 ## Key Features
-1. **3D Timeline** (`/`): Interactive 3D visualization of 12 Mesopotamian artifacts spanning 10 eras (Ubaid through Achaemenid). Features:
+1. **3D Timeline** (`/`): Interactive 3D visualization of 18 Mesopotamian artifacts spanning 12 eras (Ubaid through Achaemenid). Features:
    - Artifacts placed on a scaled horizontal axis (year-to-x mapping)
    - Era markers (colored bands) along the timeline
-   - Category/era filtering via filter panel
-   - Detail panel with research papers, artifact images, and cross-links to Lab/Reader
+   - Category/era/lesson-section filtering via filter panel
+   - MAGIC view toggle showing the Lesson Architecture panel
+   - Detail panel with MAGIC profile (radar chart, weight bars, GEA/GEM/E×C×D), research papers, museum links
    - Smooth camera animation on selection, OrbitControls for zoom/pan/rotate
-   - Particle field ambient effects
    - Artifact IDs follow WIII-A-SA3-### convention (Project EUCLID)
 2. **Reader Mode** (`/reader`): Document reader with Tiptap editor and text-highlight-to-image-search
 3. **Automation Lab** (`/lab`): Image search and generation testing ground
-   - **Single Search**: Search across all museum APIs + AI simultaneously
-   - **Batch Search**: Paste multiple queries, runs them sequentially with SSE streaming progress
-   - **AI Generate**: Generate custom artifact images using OpenAI gpt-image-1
-   - Batch save results to collection
 
 ## API Routes
 - `POST /api/search-images` - AI-powered image search (Perplexity + OpenAI)
 - `POST /api/search-museums` - Direct museum API search (Met, Smithsonian, Wikimedia)
-- `POST /api/batch-search` - SSE streaming batch search (body: `{ queries: string[], searchType: "all"|"museums"|"ai" }`)
-- `POST /api/generate-image` - AI image generation (body: `{ prompt: string, size?: string }`)
+- `POST /api/batch-search` - SSE streaming batch search
+- `POST /api/generate-image` - AI image generation
 - `GET /api/saved-images` - Get all saved images
 - `POST /api/saved-images` - Save an image
 - `POST /api/saved-images/batch` - Batch save images
@@ -40,16 +57,19 @@ A 3D interactive timeline for exploring Mesopotamian artifacts (~6500 BCE – 33
 ## Environment Variables
 - `AI_INTEGRATIONS_OPENAI_API_KEY` - Set automatically by Replit AI Integrations
 - `AI_INTEGRATIONS_OPENAI_BASE_URL` - Set automatically by Replit AI Integrations
-- `PERPLEXITY_API_KEY` - Required for Perplexity web search (optional, falls back to OpenAI)
+- `PERPLEXITY_API_KEY` - Required for Perplexity web search (optional)
 
 ## File Structure
-- `client/src/pages/Home.tsx` - 3D timeline page
+- `client/src/pages/Home.tsx` - 3D timeline page with MAGIC framework integration
 - `client/src/pages/Reader.tsx` - Reader mode with image search
-- `client/src/pages/Lab.tsx` - Automation lab (batch search, generation)
+- `client/src/pages/Lab.tsx` - Automation lab
 - `client/src/components/Timeline3D.tsx` - Three.js 3D timeline component
-- `client/src/lib/artifacts.ts` - Artifact data model
+- `client/src/components/MAGICRadar.tsx` - MAGIC weight vector radar chart and bar chart
+- `client/src/components/LessonArc.tsx` - Lesson Architecture interactive viewer
+- `client/src/lib/magicFramework.ts` - MAGIC data layer (sections, vectors, ziggurat layers)
+- `client/src/lib/artifacts.ts` - Artifact data model with MAGIC metadata
 - `server/routes.ts` - API route definitions
-- `server/imageSearch.ts` - Image search logic (OpenAI + Perplexity)
-- `server/museumSearch.ts` - Direct museum API integrations (Met, Smithsonian, Wikimedia)
-- `server/storage.ts` - In-memory storage for saved images
+- `server/imageSearch.ts` - Image search logic
+- `server/museumSearch.ts` - Museum API integrations
+- `server/storage.ts` - In-memory storage
 - `shared/schema.ts` - Data schemas
