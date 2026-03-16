@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
-import BraidScene from "@/components/BraidScene";
+import BraidSVGView from "@/components/BraidSVG";
 import MAGICRadar, { MAGICBar } from "@/components/MAGICRadar";
 import { CIVILIZATIONS } from "@/lib/braidData";
 import { MAGIC_LABELS, type MAGICVector } from "@/lib/magicFramework";
@@ -28,8 +28,8 @@ export default function Braid() {
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-background text-foreground selection:bg-primary/30">
-      <div className="absolute inset-0 z-10 cursor-grab active:cursor-grabbing">
-        <BraidScene selectedCiv={selectedCiv} onSelectCiv={setSelectedCiv} />
+      <div className="absolute inset-0 z-10">
+        <BraidSVGView selectedCiv={selectedCiv} onSelectCiv={setSelectedCiv} />
       </div>
 
       <header className="absolute top-0 left-0 right-0 z-20 p-4 md:p-6 flex justify-between items-start pointer-events-none">
@@ -127,20 +127,20 @@ export default function Braid() {
             <div className="px-6 py-3 rounded-xl flex flex-col items-center gap-2 bg-black/50 backdrop-blur-xl border border-white/10">
               <div className="flex items-center gap-5 w-full justify-center">
                 <span className="text-xs text-white/60 font-medium">
-                  Orbit to rotate
-                </span>
-                <div className="w-1 h-1 bg-primary rounded-full" />
-                <span className="text-xs text-white/60 font-medium">
                   Click braid to inspect
                 </span>
                 <div className="w-1 h-1 bg-primary rounded-full" />
                 <span className="text-xs text-white/60 font-medium">
                   Hover strand for MAGIC
                 </span>
+                <div className="w-1 h-1 bg-primary rounded-full" />
+                <span className="text-xs text-white/60 font-medium">
+                  Scroll to explore
+                </span>
               </div>
               <p className="text-[10px] text-white/30 text-center leading-relaxed max-w-sm">
-                Each braid shows 5 MAGIC strands (M·A·G·I·C) circumnutating — strand
-                thickness reflects weight in the civilization's profile
+                Each braid repeats the DII cycle: Discovery (strands separate) → Innovation
+                (2–4 cross) → Invention (all 5 converge + green G-wrap)
               </p>
             </div>
           </motion.div>
