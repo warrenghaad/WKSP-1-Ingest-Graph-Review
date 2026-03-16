@@ -15,6 +15,7 @@ import { BubbleMenu } from "@tiptap/react/menus";
 import StarterKit from "@tiptap/starter-kit";
 import Highlight from "@tiptap/extension-highlight";
 import Placeholder from "@tiptap/extension-placeholder";
+import { DOCUMENT_CONTENT } from "@/lib/documentContent";
 
 interface ImageResult {
   url: string;
@@ -31,7 +32,7 @@ interface SavedImage {
   createdAt: string;
 }
 
-const INITIAL_CONTENT = `<h1>Seven Geometric Primitives in Ancient Mesopotamian Material Culture</h1>
+const INITIAL_CONTENT = DOCUMENT_CONTENT || `<h1>Seven Geometric Primitives in Ancient Mesopotamian Material Culture</h1>
 
 <p><em>The geometric vocabulary of human civilization rests on seven elemental forms—dot, line, triangle, circle, square, eight-pointed star, and crescent—each traceable from Paleolithic cognitive origins through Mesopotamian urban complexity.</em></p>
 
