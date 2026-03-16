@@ -5,7 +5,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Search, Bookmark, ArrowLeft, Image as ImageIcon, Check, Download, X,
   AlertCircle, Loader2, Bold, Italic, Heading1, Heading2, Heading3,
-  List, ListOrdered, Quote, Undo, Redo, Strikethrough, Highlighter
+  List, ListOrdered, Quote, Undo, Redo, Strikethrough, Highlighter,
+  FileText, ChevronDown
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
@@ -15,7 +16,7 @@ import { BubbleMenu } from "@tiptap/react/menus";
 import StarterKit from "@tiptap/starter-kit";
 import Highlight from "@tiptap/extension-highlight";
 import Placeholder from "@tiptap/extension-placeholder";
-import { DOCUMENT_CONTENT } from "@/lib/documentContent";
+import { DOCUMENTS } from "@/lib/documentContent";
 
 interface ImageResult {
   url: string;
@@ -32,7 +33,7 @@ interface SavedImage {
   createdAt: string;
 }
 
-const INITIAL_CONTENT = DOCUMENT_CONTENT || `<h1>Seven Geometric Primitives in Ancient Mesopotamian Material Culture</h1>
+const INITIAL_CONTENT = DOCUMENTS[0]?.content || `<h1>Seven Geometric Primitives in Ancient Mesopotamian Material Culture</h1>
 
 <p><em>The geometric vocabulary of human civilization rests on seven elemental forms—dot, line, triangle, circle, square, eight-pointed star, and crescent—each traceable from Paleolithic cognitive origins through Mesopotamian urban complexity.</em></p>
 
@@ -91,6 +92,10 @@ export default function Reader() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  const [currentDocIndex, setCurrentDocIndex] = useState(0);
+  const [docPickerOpen, setDocPickerOpen] = useState(false);
+  const currentDoc = DOCUMENTS[currentDocIndex];
+
   const [selectedText, setSelectedText] = useState("");
   const [selectionRect, setSelectionRect] = useState<{ top: number; left: number; width: number } | null>(null);
 
@@ -129,6 +134,14 @@ export default function Reader() {
     },
   });
 
+  const switchDocument = useCallback((index: number) => {
+    if (editor && DOCUMENTS[index]) {
+      setCurrentDocIndex(index);
+      editor.commands.setContent(DOCUMENTS[index].content);
+      setDocPickerOpen(false);
+    }
+  }, [editor]);
+
   const handleTextSelect = useCallback(() => {
     const selection = window.getSelection();
     if (selection && selection.toString().trim().length > 1) {
@@ -148,6 +161,14 @@ export default function Reader() {
     document.addEventListener("mouseup", handleTextSelect);
     return () => document.removeEventListener("mouseup", handleTextSelect);
   }, [handleTextSelect]);
+
+  useEffect(() => {
+    const handleClickOutside = () => setDocPickerOpen(false);
+    if (docPickerOpen) {
+      setTimeout(() => document.addEventListener("click", handleClickOutside), 0);
+      return () => document.removeEventListener("click", handleClickOutside);
+    }
+  }, [docPickerOpen]);
 
   const { data: savedImages = [] } = useQuery<SavedImage[]>({
     queryKey: ["/api/saved-images"],
@@ -237,9 +258,46 @@ export default function Reader() {
             <Button data-testid="button-back" variant="ghost" size="icon" onClick={() => setLocation("/")} className="rounded-full">
               <ArrowLeft className="w-5 h-5" />
             </Button>
-            <div>
-              <h1 className="text-xl font-serif font-bold">Seven Geometric Primitives</h1>
-              <p className="text-xs text-muted-foreground font-sans uppercase tracking-wider">Ancient Mesopotamian Material Culture</p>
+            <div className="relative">
+              <button
+                data-testid="button-doc-picker"
+                onClick={() => setDocPickerOpen(!docPickerOpen)}
+                className="text-left hover:bg-muted/50 rounded-lg px-3 py-1.5 -ml-3 transition-colors group"
+              >
+                <div className="flex items-center gap-2">
+                  <h1 className="text-xl font-serif font-bold">{currentDoc?.title}</h1>
+                  <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${docPickerOpen ? 'rotate-180' : ''}`} />
+                </div>
+                <p className="text-xs text-muted-foreground font-sans uppercase tracking-wider">{currentDoc?.subtitle}</p>
+              </button>
+
+              <AnimatePresence>
+                {docPickerOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -5 }}
+                    className="absolute top-full left-0 mt-1 w-[380px] bg-popover border border-border rounded-xl shadow-xl z-50 overflow-hidden"
+                  >
+                    {DOCUMENTS.map((doc, idx) => (
+                      <button
+                        key={doc.id}
+                        data-testid={`doc-option-${doc.id}`}
+                        onClick={() => switchDocument(idx)}
+                        className={`w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-muted/50 transition-colors border-b border-border last:border-0 ${
+                          idx === currentDocIndex ? 'bg-primary/5' : ''
+                        }`}
+                      >
+                        <FileText className={`w-4 h-4 mt-0.5 flex-shrink-0 ${idx === currentDocIndex ? 'text-primary' : 'text-muted-foreground'}`} />
+                        <div>
+                          <p className={`text-sm font-medium ${idx === currentDocIndex ? 'text-primary' : 'text-foreground'}`}>{doc.title}</p>
+                          <p className="text-xs text-muted-foreground">{doc.subtitle}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
 
