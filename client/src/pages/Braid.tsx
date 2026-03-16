@@ -2,6 +2,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
 import BraidSVGView from "@/components/BraidSVG";
+import AdventCalendar from "@/components/AdventCalendar";
 import MAGICRadar, { MAGICBar } from "@/components/MAGICRadar";
 import { CIVILIZATIONS } from "@/lib/braidData";
 import { MAGIC_LABELS, type MAGICVector } from "@/lib/magicFramework";
@@ -14,12 +15,14 @@ import {
   Layers,
   BookOpen,
   ChevronLeft,
+  CalendarDays,
 } from "lucide-react";
 
 const MAGIC_KEYS: (keyof MAGICVector)[] = ["M", "A", "G", "I", "C"];
 
 export default function Braid() {
   const [selectedCiv, setSelectedCiv] = useState<string | null>(null);
+  const [view, setView] = useState<"braid" | "calendar">("braid");
   const [, navigate] = useLocation();
 
   const civ = selectedCiv
@@ -29,10 +32,14 @@ export default function Braid() {
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-background text-foreground selection:bg-primary/30">
       <div className="absolute inset-0 z-10">
-        <BraidSVGView selectedCiv={selectedCiv} onSelectCiv={setSelectedCiv} />
+        {view === "braid" ? (
+          <BraidSVGView selectedCiv={selectedCiv} onSelectCiv={setSelectedCiv} />
+        ) : (
+          <AdventCalendar onBack={() => setView("braid")} onNavigate={navigate} />
+        )}
       </div>
 
-      <header className="absolute top-0 left-0 right-0 z-20 p-4 md:p-6 flex justify-between items-start pointer-events-none">
+      <header className={`absolute top-0 left-0 right-0 z-20 p-4 md:p-6 flex justify-between items-start pointer-events-none ${view === "calendar" ? "hidden" : ""}`}>
         <div className="pointer-events-auto">
           <motion.div
             initial={{ opacity: 0, y: -20 }}
@@ -54,6 +61,18 @@ export default function Braid() {
         </div>
 
         <div className="pointer-events-auto flex gap-2 items-center">
+          <Button
+            data-testid="button-toggle-calendar"
+            variant="outline"
+            size="sm"
+            className={`rounded-full border-white/10 backdrop-blur-md text-white h-9 ${
+              view === "calendar" ? "bg-primary/20 border-primary/30" : "bg-black/40 hover:bg-white/10"
+            }`}
+            onClick={() => setView(view === "braid" ? "calendar" : "braid")}
+          >
+            <CalendarDays className="w-3.5 h-3.5 mr-1.5" />
+            {view === "calendar" ? "Braids" : "Calendar"}
+          </Button>
           <Button
             data-testid="button-nav-home"
             variant="outline"

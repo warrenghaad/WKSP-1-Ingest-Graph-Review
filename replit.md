@@ -35,6 +35,15 @@ Each civilization gets a 3D braid showing the DII (Discovery-Innovation-Inventio
 - Then strands separate and the cycle restarts (3 cycles per braid)
 - 7 civilizations: Sumerian, Akkadian, Babylonian, Assyrian, Elamite, Egyptian, Persian
 
+### DII Advent Calendar (`/braid` → Calendar toggle)
+A 3D-styled card grid where each milestone appears as a "door":
+- 7 civilizations × 3 cycles × 3 phases = 63 doors
+- Click a door to open it and reveal the milestone description + MAGIC drivers
+- "Find Images" button searches Met Museum, Smithsonian, and Wikimedia Commons + AI-powered Perplexity search
+- Click a search result to link that image to the milestone
+- Linked images persist in view and show on closed door cards as thumbnails
+- Cards have 3D hover tilt effect (perspective + rotateY/rotateX)
+
 ### Data Layer
 - `magicFramework.ts`: All 15 lesson sections with vectors, cognitive operations, GE tags, keyword templates
 - `artifacts.ts`: 18 artifacts with MAGIC metadata (sectionRoles, GEA/GEM tags, E×C×D specs, RWI tags)
