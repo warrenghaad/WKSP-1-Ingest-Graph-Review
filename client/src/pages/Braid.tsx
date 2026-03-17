@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
 import BraidSVGView from "@/components/BraidSVG";
 import AdventCalendar from "@/components/AdventCalendar";
+import MemoryPalace from "@/components/MemoryPalace";
+import PeopleGraph from "@/components/PeopleGraph";
 import MAGICRadar, { MAGICBar } from "@/components/MAGICRadar";
 import { CIVILIZATIONS } from "@/lib/braidData";
 import { MAGIC_LABELS, type MAGICVector } from "@/lib/magicFramework";
@@ -16,13 +18,15 @@ import {
   BookOpen,
   ChevronLeft,
   CalendarDays,
+  Building2,
+  Users,
 } from "lucide-react";
 
 const MAGIC_KEYS: (keyof MAGICVector)[] = ["M", "A", "G", "I", "C"];
 
 export default function Braid() {
   const [selectedCiv, setSelectedCiv] = useState<string | null>(null);
-  const [view, setView] = useState<"braid" | "calendar">("braid");
+  const [view, setView] = useState<"braid" | "calendar" | "palace" | "people">("braid");
   const [, navigate] = useLocation();
 
   const civ = selectedCiv
@@ -32,14 +36,21 @@ export default function Braid() {
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-background text-foreground selection:bg-primary/30">
       <div className="absolute inset-0 z-10">
-        {view === "braid" ? (
+        {view === "braid" && (
           <BraidSVGView selectedCiv={selectedCiv} onSelectCiv={setSelectedCiv} />
-        ) : (
+        )}
+        {view === "calendar" && (
           <AdventCalendar onBack={() => setView("braid")} onNavigate={navigate} />
+        )}
+        {view === "palace" && (
+          <MemoryPalace onBack={() => setView("braid")} />
+        )}
+        {view === "people" && (
+          <PeopleGraph onBack={() => setView("braid")} />
         )}
       </div>
 
-      <header className={`absolute top-0 left-0 right-0 z-20 p-4 md:p-6 flex justify-between items-start pointer-events-none ${view === "calendar" ? "hidden" : ""}`}>
+      <header className={`absolute top-0 left-0 right-0 z-20 p-4 md:p-6 flex justify-between items-start pointer-events-none ${view !== "braid" ? "hidden" : ""}`}>
         <div className="pointer-events-auto">
           <motion.div
             initial={{ opacity: 0, y: -20 }}
@@ -65,13 +76,31 @@ export default function Braid() {
             data-testid="button-toggle-calendar"
             variant="outline"
             size="sm"
-            className={`rounded-full border-white/10 backdrop-blur-md text-white h-9 ${
-              view === "calendar" ? "bg-primary/20 border-primary/30" : "bg-black/40 hover:bg-white/10"
-            }`}
-            onClick={() => setView(view === "braid" ? "calendar" : "braid")}
+            className="rounded-full border-white/10 bg-black/40 backdrop-blur-md text-white hover:bg-white/10 h-9"
+            onClick={() => setView("calendar")}
           >
             <CalendarDays className="w-3.5 h-3.5 mr-1.5" />
-            {view === "calendar" ? "Braids" : "Calendar"}
+            Calendar
+          </Button>
+          <Button
+            data-testid="button-toggle-palace"
+            variant="outline"
+            size="sm"
+            className="rounded-full border-white/10 bg-black/40 backdrop-blur-md text-white hover:bg-white/10 h-9"
+            onClick={() => setView("palace")}
+          >
+            <Building2 className="w-3.5 h-3.5 mr-1.5" />
+            Palace
+          </Button>
+          <Button
+            data-testid="button-toggle-people"
+            variant="outline"
+            size="sm"
+            className="rounded-full border-white/10 bg-black/40 backdrop-blur-md text-white hover:bg-white/10 h-9"
+            onClick={() => setView("people")}
+          >
+            <Users className="w-3.5 h-3.5 mr-1.5" />
+            People
           </Button>
           <Button
             data-testid="button-nav-home"
