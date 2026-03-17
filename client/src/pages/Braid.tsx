@@ -100,7 +100,7 @@ export default function Braid() {
             onClick={() => setView("people")}
           >
             <Users className="w-3.5 h-3.5 mr-1.5" />
-            People
+            Meetings
           </Button>
           <Button
             data-testid="button-nav-home"

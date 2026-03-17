@@ -1,42 +1,19 @@
-import { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { CIVILIZATIONS } from "@/lib/braidData";
 import { DII_MILESTONES, type DIIMilestone } from "@/lib/diiMilestones";
 import { MAGIC_LABELS, type MAGICVector } from "@/lib/magicFramework";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { X, Search, Loader2, ExternalLink, Users, Zap } from "lucide-react";
+import { X, Search, Loader2, Users, Zap, BookOpen } from "lucide-react";
 
-const MAGIC_KEYS: (keyof MAGICVector)[] = ["M", "A", "G", "I", "C"];
+const MK: (keyof MAGICVector)[] = ["M", "A", "G", "I", "C"];
 
 const PHASE_COLORS: Record<string, string> = {
   discovery: "#eab308",
   innovation: "#a855f7",
   invention: "#22c55e",
 };
-
-interface PersonNode {
-  id: string;
-  milestone: DIIMilestone;
-  civId: string;
-  civColor: string;
-  civName: string;
-  cycle: number;
-  x: number;
-  y: number;
-  radius: number;
-  connections: number;
-  isIsolated: boolean;
-}
-
-interface InteractionEdge {
-  fromId: string;
-  toId: string;
-  type: "war" | "trade" | "cultural" | "conquest";
-  year: number;
-  description: string;
-  intensity: number;
-}
 
 const EDGE_COLORS: Record<string, string> = {
   trade: "#22c55e",
@@ -45,80 +22,171 @@ const EDGE_COLORS: Record<string, string> = {
   conquest: "#f97316",
 };
 
-function buildGraph(): { nodes: PersonNode[]; edges: InteractionEdge[] } {
-  const nodes: PersonNode[] = [];
-  const edges: InteractionEdge[] = [];
+interface MeetingTable {
+  id: string;
+  milestone: DIIMilestone;
+  civId: string;
+  civColor: string;
+  civName: string;
+  cycle: number;
+  x: number;
+  y: number;
+  seats: SeatState[];
+  knowledgeLevel: number;
+  connections: number;
+  isIsolated: boolean;
+}
 
-  const civSpacing = 180;
-  const timeScale = 0.08;
-  const minYear = -5000;
+interface SeatState {
+  key: keyof MAGICVector;
+  active: boolean;
+  knowledge: number;
+  color: string;
+  name: string;
+}
+
+interface BraidEdge {
+  fromId: string;
+  toId: string;
+  type: "war" | "trade" | "cultural" | "conquest" | "internal";
+  label: string;
+  year: number;
+}
+
+function computeKnowledgeAccum(civId: string): Map<string, number> {
+  const cycles = DII_MILESTONES[civId];
+  if (!cycles) return new Map();
+  const accum = new Map<string, number>();
+  const driverCounts: Record<string, number> = { M: 0, A: 0, G: 0, I: 0, C: 0 };
+
+  const all = cycles
+    .flatMap((c) => c.milestones.map((m) => ({ ...m, cycle: c.cycle })))
+    .sort((a, b) => a.year - b.year);
+
+  for (const m of all) {
+    for (const d of m.magicDrivers) {
+      driverCounts[d] = (driverCounts[d] || 0) + 1;
+    }
+    const total = Object.values(driverCounts).reduce((s, v) => s + v, 0);
+    accum.set(`${civId}-${m.cycle}-${m.phase}`, total);
+  }
+  return accum;
+}
+
+function buildMeetings(): { tables: MeetingTable[]; edges: BraidEdge[] } {
+  const tables: MeetingTable[] = [];
+  const edges: BraidEdge[] = [];
+  const allAccum = new Map<string, number>();
+
+  for (const civ of CIVILIZATIONS) {
+    const civAccum = computeKnowledgeAccum(civ.id);
+    civAccum.forEach((v, k) => allAccum.set(k, v));
+  }
+
+  const maxKnowledge = Math.max(1, ...allAccum.values());
+
+  const ROOM_W = 200;
+  const ROOM_GAP = 30;
+  const PHASE_Y: Record<string, number> = { discovery: 100, innovation: 220, invention: 340 };
+  const CYCLE_X_OFF = 55;
 
   for (let ci = 0; ci < CIVILIZATIONS.length; ci++) {
     const civ = CIVILIZATIONS[ci];
     const cycles = DII_MILESTONES[civ.id];
     if (!cycles) continue;
 
-    const baseX = 80 + ci * civSpacing;
+    const roomLeft = ci * (ROOM_W + ROOM_GAP) + 40;
 
     for (const cycle of cycles) {
       for (const m of cycle.milestones) {
-        const yearOffset = (m.year - minYear) * timeScale;
-        const phaseJitter =
-          m.phase === "discovery" ? -25 : m.phase === "innovation" ? 0 : 25;
-        const cycleJitter = (cycle.cycle - 2) * 12;
+        const id = `${civ.id}-${cycle.cycle}-${m.phase}`;
+        const cx = roomLeft + (cycle.cycle - 1) * CYCLE_X_OFF + CYCLE_X_OFF;
+        const cy = PHASE_Y[m.phase];
+        const kn = allAccum.get(id) || 0;
+        const knNorm = kn / maxKnowledge;
 
-        nodes.push({
-          id: `${civ.id}-${cycle.cycle}-${m.phase}`,
+        const seats: SeatState[] = MK.map((key) => ({
+          key,
+          active: m.magicDrivers.includes(key),
+          knowledge: m.magicDrivers.includes(key) ? knNorm : 0,
+          color: MAGIC_LABELS[key].color,
+          name: MAGIC_LABELS[key].name,
+        }));
+
+        tables.push({
+          id,
           milestone: m,
           civId: civ.id,
           civColor: civ.color,
           civName: civ.shortName,
           cycle: cycle.cycle,
-          x: baseX + phaseJitter + cycleJitter,
-          y: 60 + yearOffset,
-          radius: m.phase === "invention" ? 18 : m.phase === "innovation" ? 14 : 10,
+          x: cx,
+          y: cy,
+          seats,
+          knowledgeLevel: knNorm,
           connections: 0,
           isIsolated: true,
+        });
+      }
+
+      for (let i = 0; i < cycle.milestones.length - 1; i++) {
+        const a = cycle.milestones[i];
+        const b = cycle.milestones[i + 1];
+        edges.push({
+          fromId: `${civ.id}-${cycle.cycle}-${a.phase}`,
+          toId: `${civ.id}-${cycle.cycle}-${b.phase}`,
+          type: "internal",
+          label: "knowledge flow",
+          year: b.year,
+        });
+      }
+    }
+
+    if (cycles.length > 1) {
+      for (let c = 0; c < cycles.length - 1; c++) {
+        const prev = cycles[c].milestones[cycles[c].milestones.length - 1];
+        const next = cycles[c + 1].milestones[0];
+        edges.push({
+          fromId: `${civ.id}-${cycles[c].cycle}-${prev.phase}`,
+          toId: `${civ.id}-${cycles[c + 1].cycle}-${next.phase}`,
+          type: "internal",
+          label: "cycle bridge",
+          year: next.year,
         });
       }
     }
   }
 
-  const civIndexMap = new Map(CIVILIZATIONS.map((c, i) => [c.id, i]));
-
   for (const civ of CIVILIZATIONS) {
-    for (const interaction of civ.interactions) {
-      const targetCiv = CIVILIZATIONS.find((c) => c.id === interaction.targetCivId);
-      if (!targetCiv) continue;
+    for (const inter of civ.interactions) {
+      const fromTables = tables.filter((t) => t.civId === civ.id);
+      const toTables = tables.filter((t) => t.civId === inter.targetCivId);
 
-      const fromNodes = nodes.filter((n) => n.civId === civ.id);
-      const toNodes = nodes.filter((n) => n.civId === targetCiv.id);
-
-      let bestFrom: PersonNode | null = null;
-      let bestTo: PersonNode | null = null;
+      let bestFrom: MeetingTable | null = null;
+      let bestTo: MeetingTable | null = null;
       let bestDist = Infinity;
-
-      for (const fn of fromNodes) {
-        for (const tn of toNodes) {
-          const yearDist = Math.abs(fn.milestone.year - interaction.year) + Math.abs(tn.milestone.year - interaction.year);
-          if (yearDist < bestDist) {
-            bestDist = yearDist;
-            bestFrom = fn;
-            bestTo = tn;
+      for (const f of fromTables) {
+        for (const t of toTables) {
+          const d =
+            Math.abs(f.milestone.year - inter.year) +
+            Math.abs(t.milestone.year - inter.year);
+          if (d < bestDist) {
+            bestDist = d;
+            bestFrom = f;
+            bestTo = t;
           }
         }
       }
 
       if (bestFrom && bestTo) {
-        const edgeId = [bestFrom.id, bestTo.id].sort().join("-");
-        if (!edges.find((e) => [e.fromId, e.toId].sort().join("-") === edgeId)) {
+        const key = [bestFrom.id, bestTo.id].sort().join("~");
+        if (!edges.find((e) => [e.fromId, e.toId].sort().join("~") === key)) {
           edges.push({
             fromId: bestFrom.id,
             toId: bestTo.id,
-            type: interaction.type,
-            year: interaction.year,
-            description: interaction.description,
-            intensity: interaction.intensity,
+            type: inter.type,
+            label: inter.description,
+            year: inter.year,
           });
           bestFrom.connections++;
           bestTo.connections++;
@@ -129,50 +197,32 @@ function buildGraph(): { nodes: PersonNode[]; edges: InteractionEdge[] } {
     }
   }
 
-  for (const civ of CIVILIZATIONS) {
-    const civNodes = nodes.filter((n) => n.civId === civ.id);
-    for (let i = 0; i < civNodes.length; i++) {
-      for (let j = i + 1; j < civNodes.length; j++) {
-        const a = civNodes[i];
-        const b = civNodes[j];
-        const yearDist = Math.abs(a.milestone.year - b.milestone.year);
-        if (yearDist < 500) {
-          const sharedDrivers = a.milestone.magicDrivers.filter((d) =>
-            b.milestone.magicDrivers.includes(d)
-          );
-          if (sharedDrivers.length > 0) {
-            a.connections++;
-            b.connections++;
-            a.isIsolated = false;
-            b.isIsolated = false;
-          }
-        }
-      }
-    }
-  }
-
-  return { nodes, edges };
+  return { tables, edges };
 }
 
-function PersonAvatar({
-  node,
+function TableSVG({
+  table,
   isSelected,
   isHovered,
+  highlightEdge,
   onSelect,
   onHover,
   onLeave,
 }: {
-  node: PersonNode;
+  table: MeetingTable;
   isSelected: boolean;
   isHovered: boolean;
+  highlightEdge: boolean;
   onSelect: () => void;
   onHover: () => void;
   onLeave: () => void;
 }) {
-  const phaseColor = PHASE_COLORS[node.milestone.phase];
-  const r = node.radius;
-  const pulseR = r + 4;
-  const clipId = `avatar-${node.id}`;
+  const { x, y, seats, milestone, knowledgeLevel } = table;
+  const phaseColor = PHASE_COLORS[milestone.phase];
+  const tableR = 20 + knowledgeLevel * 6;
+  const seatR = 6 + knowledgeLevel * 2;
+  const seatDist = tableR + seatR + 3;
+  const active = isSelected || isHovered || highlightEdge;
 
   return (
     <g
@@ -184,117 +234,186 @@ function PersonAvatar({
       onMouseLeave={onLeave}
       style={{ cursor: "pointer" }}
     >
-      {node.isIsolated && (
-        <circle
-          cx={node.x}
-          cy={node.y}
-          r={r + 8}
+      {table.isIsolated && (
+        <rect
+          x={x - tableR - seatR - 10}
+          y={y - tableR - seatR - 10}
+          width={(tableR + seatR) * 2 + 20}
+          height={(tableR + seatR) * 2 + 20}
+          rx={6}
           fill="none"
           stroke="#ef4444"
           strokeWidth={0.5}
-          strokeDasharray="3 3"
-          opacity={0.25}
+          strokeDasharray="4 4"
+          opacity={active ? 0.4 : 0.15}
         />
       )}
 
-      {(isSelected || isHovered) && (
+      {active && (
         <circle
-          cx={node.x}
-          cy={node.y}
-          r={pulseR}
-          fill="none"
+          cx={x}
+          cy={y}
+          r={tableR + seatR + 12}
+          fill={phaseColor}
+          fillOpacity={0.03}
           stroke={phaseColor}
-          strokeWidth={2}
-          opacity={0.6}
+          strokeWidth={0.5}
+          strokeOpacity={0.2}
         />
       )}
 
       <circle
-        cx={node.x}
-        cy={node.y}
-        r={r}
-        fill="#111"
-        stroke={isSelected ? "white" : node.isIsolated ? "#ef444466" : phaseColor}
-        strokeWidth={isSelected ? 2 : 1.5}
-        style={{ transition: "all 0.2s" }}
+        cx={x}
+        cy={y}
+        r={tableR}
+        fill="#0a0a12"
+        stroke={active ? "white" : phaseColor}
+        strokeWidth={active ? 1.5 : 0.8}
+        strokeOpacity={active ? 0.8 : 0.3}
       />
 
-      <defs>
-        <clipPath id={clipId}>
-          <circle cx={node.x} cy={node.y} r={r - 1.5} />
-        </clipPath>
-      </defs>
-
-      {node.milestone.imageUrl && (
-        <image
-          href={node.milestone.imageUrl}
-          x={node.x - r + 1.5}
-          y={node.y - r + 1.5}
-          width={(r - 1.5) * 2}
-          height={(r - 1.5) * 2}
-          clipPath={`url(#${clipId})`}
-          preserveAspectRatio="xMidYMid slice"
-          opacity={isHovered || isSelected ? 1 : node.isIsolated ? 0.3 : 0.7}
-          style={{ transition: "opacity 0.2s" }}
-        />
-      )}
-
       <circle
-        cx={node.x + r * 0.6}
-        cy={node.y - r * 0.6}
-        r={4}
+        cx={x}
+        cy={y}
+        r={tableR * knowledgeLevel}
         fill={phaseColor}
-        stroke="#111"
-        strokeWidth={1}
+        fillOpacity={0.06 + knowledgeLevel * 0.08}
       />
+
+      {milestone.imageUrl && (
+        <>
+          <defs>
+            <clipPath id={`tbl-${table.id}`}>
+              <circle cx={x} cy={y} r={tableR - 2} />
+            </clipPath>
+          </defs>
+          <image
+            href={milestone.imageUrl}
+            x={x - tableR + 2}
+            y={y - tableR + 2}
+            width={(tableR - 2) * 2}
+            height={(tableR - 2) * 2}
+            clipPath={`url(#tbl-${table.id})`}
+            preserveAspectRatio="xMidYMid slice"
+            opacity={active ? 0.35 : 0.15}
+            style={{ transition: "opacity 0.3s" }}
+          />
+        </>
+      )}
+
+      {seats.map((seat, i) => {
+        const angle = (i / 5) * Math.PI * 2 - Math.PI / 2;
+        const sx = x + Math.cos(angle) * seatDist;
+        const sy = y + Math.sin(angle) * seatDist;
+        const r = seat.active ? seatR : seatR * 0.5;
+
+        return (
+          <g key={seat.key}>
+            {seat.active && (
+              <circle
+                cx={sx}
+                cy={sy}
+                r={r + 2}
+                fill={seat.color}
+                fillOpacity={0.08 + seat.knowledge * 0.12}
+              />
+            )}
+
+            <circle
+              cx={sx}
+              cy={sy}
+              r={r}
+              fill={seat.active ? seat.color : "#1a1a2e"}
+              fillOpacity={seat.active ? 0.3 + seat.knowledge * 0.5 : 0.15}
+              stroke={seat.color}
+              strokeWidth={seat.active ? 1.2 : 0.4}
+              strokeOpacity={seat.active ? 0.8 : 0.2}
+            />
+
+            <text
+              x={sx}
+              y={sy + 0.5}
+              fill={seat.active ? "white" : seat.color}
+              fillOpacity={seat.active ? 0.9 : 0.25}
+              fontSize={seat.active ? 7 : 5}
+              fontWeight={seat.active ? 700 : 400}
+              textAnchor="middle"
+              dominantBaseline="central"
+              fontFamily="Inter, sans-serif"
+            >
+              {seat.key}
+            </text>
+
+            {seat.active && seat.knowledge > 0.3 && (
+              <>
+                {Array.from({ length: Math.floor(seat.knowledge * 3) }).map((_, j) => (
+                  <circle
+                    key={j}
+                    cx={sx + (j - seat.knowledge * 1.5) * 3}
+                    cy={sy + r + 4}
+                    r={1.2}
+                    fill={seat.color}
+                    fillOpacity={0.3 + j * 0.15}
+                  />
+                ))}
+              </>
+            )}
+          </g>
+        );
+      })}
+
+      <text
+        x={x}
+        y={y + tableR + seatR + 18}
+        fill="white"
+        fillOpacity={active ? 0.7 : 0.3}
+        fontSize={7}
+        fontWeight={600}
+        textAnchor="middle"
+        fontFamily="Inter, sans-serif"
+      >
+        {milestone.title.length > 22
+          ? milestone.title.slice(0, 22) + "…"
+          : milestone.title}
+      </text>
 
       {isHovered && !isSelected && (
         <g>
           <rect
-            x={node.x - 60}
-            y={node.y + r + 6}
-            width={120}
-            height={42}
-            rx={6}
+            x={x - 70}
+            y={y - tableR - seatR - 44}
+            width={140}
+            height={36}
+            rx={8}
             fill="black"
-            fillOpacity={0.92}
+            fillOpacity={0.95}
             stroke={phaseColor}
             strokeWidth={0.5}
           />
           <text
-            x={node.x}
-            y={node.y + r + 19}
-            fill="white"
+            x={x}
+            y={y - tableR - seatR - 30}
+            fill={phaseColor}
             fontSize={8}
             fontWeight={600}
             textAnchor="middle"
             fontFamily="Inter, sans-serif"
+            textTransform="uppercase"
           >
-            {node.milestone.title.length > 20
-              ? node.milestone.title.slice(0, 20) + "…"
-              : node.milestone.title}
+            {milestone.phase} · Cycle {table.cycle}
           </text>
           <text
-            x={node.x}
-            y={node.y + r + 30}
-            fill={node.civColor}
-            fontSize={7}
-            textAnchor="middle"
-            fontFamily="Inter, sans-serif"
-          >
-            {node.civName} · {Math.abs(node.milestone.year)} BCE
-          </text>
-          <text
-            x={node.x}
-            y={node.y + r + 40}
+            x={x}
+            y={y - tableR - seatR - 18}
             fill="white"
-            fillOpacity={0.4}
+            fillOpacity={0.5}
             fontSize={7}
             textAnchor="middle"
             fontFamily="Inter, sans-serif"
           >
-            {node.connections} connection{node.connections !== 1 ? "s" : ""}
-            {node.isIsolated ? " · STAGNANT" : ""}
+            {table.connections > 0
+              ? `${table.connections} braids · knowledge ${Math.round(knowledgeLevel * 100)}%`
+              : "no braids · stagnant"}
           </text>
         </g>
       )}
@@ -302,68 +421,133 @@ function PersonAvatar({
   );
 }
 
-function InternalBond({
-  a,
-  b,
-  sharedDrivers,
+function EdgeLine({
+  from,
+  to,
+  edge,
+  active,
 }: {
-  a: PersonNode;
-  b: PersonNode;
-  sharedDrivers: string[];
+  from: MeetingTable;
+  to: MeetingTable;
+  edge: BraidEdge;
+  active: boolean;
 }) {
-  if (sharedDrivers.length === 0) return null;
-  const color = MAGIC_LABELS[sharedDrivers[0] as keyof MAGICVector]?.color || "#666";
+  const isInternal = edge.type === "internal";
+  const color = isInternal ? from.civColor : EDGE_COLORS[edge.type] || "#666";
+
+  if (isInternal) {
+    return (
+      <line
+        x1={from.x}
+        y1={from.y}
+        x2={to.x}
+        y2={to.y}
+        stroke={color}
+        strokeWidth={active ? 1.5 : 0.6}
+        strokeOpacity={active ? 0.4 : 0.08}
+        strokeDasharray="3 5"
+        style={{ transition: "all 0.2s" }}
+      />
+    );
+  }
+
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const mx = (from.x + to.x) / 2;
+  const my = (from.y + to.y) / 2;
+  const bulge = Math.min(80, Math.abs(dx) * 0.3 + 20);
+  const cx1 = mx + (dy > 0 ? -bulge : bulge);
+  const cy1 = my;
+
   return (
-    <line
-      x1={a.x}
-      y1={a.y}
-      x2={b.x}
-      y2={b.y}
-      stroke={color}
-      strokeWidth={0.5 + sharedDrivers.length * 0.3}
-      opacity={0.12}
-      strokeDasharray="2 4"
-    />
+    <g>
+      <path
+        d={`M ${from.x} ${from.y} Q ${cx1} ${cy1} ${to.x} ${to.y}`}
+        fill="none"
+        stroke={color}
+        strokeWidth={active ? 2.5 : 1}
+        strokeOpacity={active ? 0.6 : 0.12}
+        style={{ transition: "all 0.2s" }}
+      />
+      <circle
+        cx={mx}
+        cy={my}
+        r={active ? 3 : 2}
+        fill={color}
+        fillOpacity={active ? 0.5 : 0.15}
+      />
+      {active && (
+        <text
+          x={mx + 5}
+          y={my - 5}
+          fill={color}
+          fontSize={7}
+          fontWeight={600}
+          fontFamily="Inter, sans-serif"
+          fillOpacity={0.7}
+        >
+          {edge.type}
+        </text>
+      )}
+    </g>
   );
 }
 
 function DetailPanel({
-  node,
-  allNodes,
+  table,
+  allTables,
   edges,
   onClose,
 }: {
-  node: PersonNode;
-  allNodes: PersonNode[];
-  edges: InteractionEdge[];
+  table: MeetingTable;
+  allTables: MeetingTable[];
+  edges: BraidEdge[];
   onClose: () => void;
 }) {
   const [isSearching, setIsSearching] = useState(false);
-  const [results, setResults] = useState<{ title: string; url: string; source: string }[]>([]);
-  const phaseColor = PHASE_COLORS[node.milestone.phase];
+  const [results, setResults] = useState<
+    { title: string; url: string; source: string }[]
+  >([]);
+  const phaseColor = PHASE_COLORS[table.milestone.phase];
 
   const connectedEdges = edges.filter(
-    (e) => e.fromId === node.id || e.toId === node.id
+    (e) =>
+      (e.fromId === table.id || e.toId === table.id) && e.type !== "internal"
   );
 
   const handleSearch = async () => {
     setIsSearching(true);
     try {
-      const query = `${node.milestone.title} ancient artifact archaeological`;
-      const res = await fetch("/api/search-museums", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query }),
-      });
-      const data = await res.json();
-      if (data.results) {
-        setResults(
-          data.results
-            .filter((r: any) => r.imageUrl)
-            .map((r: any) => ({ title: r.title, url: r.imageUrl, source: r.source || "Museum" }))
-            .slice(0, 6)
-        );
+      const query = `${table.milestone.title} ancient artifact`;
+      const [museumRes, imageRes] = await Promise.allSettled([
+        fetch("/api/search-museums", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query }),
+        }).then((r) => r.json()),
+        fetch("/api/search-images", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query }),
+        }).then((r) => r.json()),
+      ]);
+
+      const combined: { title: string; url: string; source: string }[] = [];
+      const urls = new Set<string>();
+      const addResult = (r: any, src: string) => {
+        if (r.imageUrl && !urls.has(r.imageUrl)) {
+          urls.add(r.imageUrl);
+          combined.push({ title: r.title, url: r.imageUrl, source: src });
+        }
+      };
+
+      if (museumRes.status === "fulfilled" && museumRes.value.results) {
+        museumRes.value.results.forEach((r: any) => addResult(r, "Museum"));
       }
+      if (imageRes.status === "fulfilled" && imageRes.value.results) {
+        imageRes.value.results.forEach((r: any) => addResult(r, "Image"));
+      }
+      setResults(combined.slice(0, 8));
     } catch {
     } finally {
       setIsSearching(false);
@@ -381,23 +565,31 @@ function DetailPanel({
       <div className="h-full border-l border-white/10 bg-black/90 backdrop-blur-2xl flex flex-col shadow-2xl">
         <div
           className="absolute top-0 left-0 right-0 h-24 pointer-events-none"
-          style={{ background: `linear-gradient(to bottom, ${phaseColor}15, transparent)` }}
+          style={{
+            background: `linear-gradient(to bottom, ${phaseColor}15, transparent)`,
+          }}
         />
 
         <div className="p-4 border-b border-white/10 flex justify-between items-center relative z-10">
           <div className="flex items-center gap-2">
             <span
               className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded"
-              style={{ color: phaseColor, backgroundColor: phaseColor + "15" }}
+              style={{
+                color: phaseColor,
+                backgroundColor: phaseColor + "15",
+              }}
             >
-              {node.milestone.phase}
+              {table.milestone.phase} meeting
             </span>
-            <span className="text-[10px] font-mono" style={{ color: node.civColor }}>
-              {node.civName}
+            <span
+              className="text-[10px] font-mono"
+              style={{ color: table.civColor }}
+            >
+              {table.civName} · Cycle {table.cycle}
             </span>
           </div>
           <Button
-            data-testid="button-close-person"
+            data-testid="button-close-meeting"
             variant="ghost"
             size="sm"
             onClick={onClose}
@@ -411,78 +603,150 @@ function DetailPanel({
           <div className="p-5 space-y-4 pb-12">
             <div>
               <span className="text-[10px] text-white/40 font-mono">
-                {Math.abs(node.milestone.year)} BCE · Cycle {node.cycle}
+                {Math.abs(table.milestone.year)} BCE
               </span>
               <h2 className="text-xl font-serif font-bold text-white mt-1 leading-tight">
-                {node.milestone.title}
+                {table.milestone.title}
               </h2>
             </div>
 
-            {node.milestone.imageUrl && (
+            {table.milestone.imageUrl && (
               <div className="relative w-full h-36 rounded-xl overflow-hidden border border-white/10">
                 <img
-                  src={node.milestone.imageUrl}
-                  alt={node.milestone.title}
+                  src={table.milestone.imageUrl}
+                  alt={table.milestone.title}
                   className="w-full h-full object-cover"
                 />
               </div>
             )}
 
             <p className="text-xs text-white/60 leading-relaxed">
-              {node.milestone.description}
+              {table.milestone.description}
             </p>
 
-            <div className="flex gap-1.5">
-              {node.milestone.magicDrivers.map((d) => (
-                <span
-                  key={d}
-                  className="text-[9px] font-bold px-2 py-1 rounded-lg border"
-                  style={{
-                    color: MAGIC_LABELS[d as keyof MAGICVector]?.color,
-                    borderColor: (MAGIC_LABELS[d as keyof MAGICVector]?.color || "#888") + "30",
-                    backgroundColor: (MAGIC_LABELS[d as keyof MAGICVector]?.color || "#888") + "10",
-                  }}
-                >
-                  {d} {MAGIC_LABELS[d as keyof MAGICVector]?.name}
-                </span>
-              ))}
+            <div className="space-y-2">
+              <span className="text-[9px] text-white/30 uppercase tracking-wider">
+                People at the Table
+              </span>
+              <div className="grid grid-cols-5 gap-1.5">
+                {table.seats.map((seat) => (
+                  <div
+                    key={seat.key}
+                    className="flex flex-col items-center p-2 rounded-lg border"
+                    style={{
+                      borderColor: seat.active
+                        ? seat.color + "40"
+                        : "rgba(255,255,255,0.05)",
+                      backgroundColor: seat.active
+                        ? seat.color + "08"
+                        : "transparent",
+                    }}
+                  >
+                    <div
+                      className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold mb-1"
+                      style={{
+                        backgroundColor: seat.active
+                          ? seat.color + "30"
+                          : "rgba(255,255,255,0.03)",
+                        color: seat.active ? "white" : "rgba(255,255,255,0.2)",
+                      }}
+                    >
+                      {seat.key}
+                    </div>
+                    <span
+                      className="text-[7px] text-center leading-tight"
+                      style={{
+                        color: seat.active
+                          ? seat.color
+                          : "rgba(255,255,255,0.2)",
+                      }}
+                    >
+                      {seat.name.slice(0, 5)}
+                    </span>
+                    {seat.active && (
+                      <div className="flex gap-0.5 mt-1">
+                        {Array.from({
+                          length: Math.max(1, Math.ceil(seat.knowledge * 5)),
+                        }).map((_, j) => (
+                          <div
+                            key={j}
+                            className="w-1.5 h-1.5 rounded-full"
+                            style={{
+                              backgroundColor: seat.color,
+                              opacity: 0.3 + j * 0.15,
+                            }}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
 
             <div className="p-3 rounded-xl border border-white/5 bg-white/[0.02] space-y-2">
-              <div className="flex items-center gap-2">
-                {node.isIsolated ? (
-                  <>
-                    <div className="w-2 h-2 rounded-full bg-red-500/50" />
-                    <span className="text-[10px] text-red-400/70 font-medium uppercase tracking-wider">
-                      Stagnant — No External Pressure
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <Zap className="w-3 h-3 text-green-400/70" />
-                    <span className="text-[10px] text-green-400/70 font-medium uppercase tracking-wider">
-                      {node.connections} Connection{node.connections !== 1 ? "s" : ""} — Active Growth
-                    </span>
-                  </>
-                )}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <BookOpen className="w-3 h-3 text-white/30" />
+                  <span className="text-[10px] text-white/50">
+                    Accumulated Knowledge
+                  </span>
+                </div>
+                <span className="text-[10px] font-mono text-white/60">
+                  {Math.round(table.knowledgeLevel * 100)}%
+                </span>
               </div>
+              <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: `${table.knowledgeLevel * 100}%`,
+                    background: `linear-gradient(to right, ${phaseColor}40, ${phaseColor})`,
+                  }}
+                />
+              </div>
+            </div>
 
-              {node.isIsolated && (
-                <p className="text-[10px] text-white/30 leading-relaxed">
-                  This milestone developed in relative isolation — no cross-civilization
-                  interactions nearby to drive competitive pressure or knowledge exchange.
-                </p>
+            <div className="p-3 rounded-xl border border-white/5 bg-white/[0.02]">
+              {table.isIsolated ? (
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-red-500/50" />
+                  <div>
+                    <span className="text-[10px] text-red-400/70 font-medium uppercase tracking-wider block">
+                      No External Braids — Stagnant
+                    </span>
+                    <p className="text-[9px] text-white/30 mt-1 leading-relaxed">
+                      This meeting developed without cross-civilization pressure.
+                      No trade, war, or cultural exchange to catalyze growth.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <Zap className="w-3 h-3 text-green-400/70" />
+                  <div>
+                    <span className="text-[10px] text-green-400/70 font-medium uppercase tracking-wider block">
+                      {table.connections} Braid
+                      {table.connections !== 1 ? "s" : ""} — Active Pressure
+                    </span>
+                    <p className="text-[9px] text-white/30 mt-1 leading-relaxed">
+                      External interactions drove knowledge exchange at this
+                      meeting.
+                    </p>
+                  </div>
+                </div>
               )}
             </div>
 
             {connectedEdges.length > 0 && (
               <div className="space-y-2">
                 <span className="text-[9px] text-white/30 uppercase tracking-wider">
-                  Interactions
+                  Braids (Cross-Table Meetings)
                 </span>
                 {connectedEdges.map((edge, i) => {
-                  const otherId = edge.fromId === node.id ? edge.toId : edge.fromId;
-                  const otherNode = allNodes.find((n) => n.id === otherId);
+                  const otherId =
+                    edge.fromId === table.id ? edge.toId : edge.fromId;
+                  const other = allTables.find((t) => t.id === otherId);
                   const color = EDGE_COLORS[edge.type];
 
                   return (
@@ -494,13 +758,19 @@ function DetailPanel({
                         <div className="flex items-center gap-2">
                           <span
                             className="text-[8px] font-bold uppercase px-1.5 py-0.5 rounded"
-                            style={{ color, backgroundColor: color + "15" }}
+                            style={{
+                              color,
+                              backgroundColor: color + "15",
+                            }}
                           >
                             {edge.type}
                           </span>
-                          {otherNode && (
-                            <span className="text-[10px]" style={{ color: otherNode.civColor }}>
-                              {otherNode.civName}
+                          {other && (
+                            <span
+                              className="text-[10px]"
+                              style={{ color: other.civColor }}
+                            >
+                              {other.civName} table
                             </span>
                           )}
                         </div>
@@ -509,7 +779,7 @@ function DetailPanel({
                         </span>
                       </div>
                       <p className="text-[10px] text-white/40 leading-relaxed">
-                        {edge.description}
+                        {edge.label}
                       </p>
                     </div>
                   );
@@ -520,7 +790,7 @@ function DetailPanel({
             <div className="h-px bg-white/5" />
 
             <Button
-              data-testid="button-search-person"
+              data-testid="button-search-meeting"
               variant="outline"
               size="sm"
               className="w-full h-8 text-xs rounded-lg border-white/10 bg-white/5 hover:bg-white/10 text-white/70"
@@ -532,7 +802,7 @@ function DetailPanel({
               ) : (
                 <Search className="w-3 h-3 mr-1.5" />
               )}
-              {isSearching ? "Searching…" : "Search for Images"}
+              {isSearching ? "Searching…" : "Find Artifact Images"}
             </Button>
 
             {results.length > 0 && (
@@ -554,7 +824,9 @@ function DetailPanel({
                       }}
                     />
                     <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-1">
-                      <p className="text-[7px] text-white/70 truncate">{r.title}</p>
+                      <p className="text-[7px] text-white/70 truncate">
+                        {r.title}
+                      </p>
                     </div>
                   </a>
                 ))}
@@ -571,66 +843,73 @@ export default function PeopleGraph({ onBack }: { onBack: () => void }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
-  const { nodes, edges } = useMemo(() => buildGraph(), []);
+  const { tables, edges } = useMemo(() => buildMeetings(), []);
 
-  const internalBonds = useMemo(() => {
-    const bonds: { a: PersonNode; b: PersonNode; shared: string[] }[] = [];
-    for (const civ of CIVILIZATIONS) {
-      const civNodes = nodes.filter((n) => n.civId === civ.id);
-      for (let i = 0; i < civNodes.length; i++) {
-        for (let j = i + 1; j < civNodes.length; j++) {
-          const yearDist = Math.abs(civNodes[i].milestone.year - civNodes[j].milestone.year);
-          if (yearDist < 500) {
-            const shared = civNodes[i].milestone.magicDrivers.filter((d) =>
-              civNodes[j].milestone.magicDrivers.includes(d)
-            );
-            if (shared.length > 0) {
-              bonds.push({ a: civNodes[i], b: civNodes[j], shared });
-            }
-          }
-        }
-      }
+  const selectedTable = selectedId
+    ? tables.find((t) => t.id === selectedId)
+    : null;
+
+  const highlightSet = useMemo(() => {
+    if (!selectedId && !hoveredId) return new Set<string>();
+    const active = selectedId || hoveredId;
+    const set = new Set<string>();
+    set.add(active!);
+    for (const e of edges) {
+      if (e.fromId === active) set.add(e.toId);
+      if (e.toId === active) set.add(e.fromId);
     }
-    return bonds;
-  }, [nodes]);
+    return set;
+  }, [selectedId, hoveredId, edges]);
 
-  const selectedNode = selectedId ? nodes.find((n) => n.id === selectedId) : null;
+  const isolatedCount = tables.filter((t) => t.isIsolated).length;
+  const activeCount = tables.length - isolatedCount;
 
-  const isolatedCount = nodes.filter((n) => n.isIsolated).length;
-  const connectedCount = nodes.length - isolatedCount;
-
-  const maxX = Math.max(...nodes.map((n) => n.x)) + 100;
-  const maxY = Math.max(...nodes.map((n) => n.y)) + 80;
+  const ROOM_W = 200;
+  const ROOM_GAP = 30;
+  const svgW = CIVILIZATIONS.length * (ROOM_W + ROOM_GAP) + 60;
+  const svgH = 460;
 
   return (
     <div className="w-full h-full flex flex-col bg-[#030308]">
       <div className="flex-shrink-0 px-4 py-3 border-b border-white/5 flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-serif font-bold text-white tracking-tight flex items-center gap-2">
+          <h2
+            className="text-lg font-serif font-bold text-white tracking-tight flex items-center gap-2"
+            data-testid="text-meetings-heading"
+          >
             <Users className="w-4 h-4 text-primary" />
-            People & Pressure
+            Meeting Tables
           </h2>
           <p className="text-[10px] text-white/40 mt-0.5">
-            Plot points as people · Connections = growth pressure · Isolation = stagnation
+            Tables = meetings · MAGIC people carry knowledge · Braids = cross-table encounters · Isolation = stagnation
           </p>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1">
               <Zap className="w-3 h-3 text-green-400/60" />
-              <span className="text-[9px] text-green-400/50">{connectedCount} active</span>
+              <span className="text-[9px] text-green-400/50">
+                {activeCount} braided
+              </span>
             </div>
             <div className="flex items-center gap-1">
               <div className="w-2 h-2 rounded-full border border-dashed border-red-400/40" />
-              <span className="text-[9px] text-red-400/50">{isolatedCount} stagnant</span>
+              <span className="text-[9px] text-red-400/50">
+                {isolatedCount} stagnant
+              </span>
             </div>
           </div>
           <div className="w-px h-4 bg-white/10" />
           <div className="flex items-center gap-2">
             {Object.entries(PHASE_COLORS).map(([phase, color]) => (
               <div key={phase} className="flex items-center gap-1">
-                <div className="w-2 h-2 rounded-sm" style={{ backgroundColor: color, opacity: 0.7 }} />
-                <span className="text-[8px] text-white/40 capitalize">{phase}</span>
+                <div
+                  className="w-2 h-2 rounded-full"
+                  style={{ backgroundColor: color, opacity: 0.7 }}
+                />
+                <span className="text-[8px] text-white/40 capitalize">
+                  {phase}
+                </span>
               </div>
             ))}
           </div>
@@ -638,8 +917,13 @@ export default function PeopleGraph({ onBack }: { onBack: () => void }) {
           <div className="flex items-center gap-2">
             {Object.entries(EDGE_COLORS).map(([type, color]) => (
               <div key={type} className="flex items-center gap-1">
-                <div className="w-3 h-0.5 rounded" style={{ backgroundColor: color, opacity: 0.7 }} />
-                <span className="text-[8px] text-white/40 capitalize">{type}</span>
+                <div
+                  className="w-3 h-0.5 rounded"
+                  style={{ backgroundColor: color, opacity: 0.7 }}
+                />
+                <span className="text-[8px] text-white/40 capitalize">
+                  {type}
+                </span>
               </div>
             ))}
           </div>
@@ -657,94 +941,87 @@ export default function PeopleGraph({ onBack }: { onBack: () => void }) {
 
       <div className="flex-1 overflow-auto relative">
         <div className="min-w-fit p-4">
-          <svg width={maxX} height={maxY} viewBox={`0 0 ${maxX} ${maxY}`}>
-            {CIVILIZATIONS.map((civ, i) => {
-              const civNodes = nodes.filter((n) => n.civId === civ.id);
-              if (civNodes.length === 0) return null;
-              const minX = Math.min(...civNodes.map((n) => n.x)) - 30;
-              const maxCX = Math.max(...civNodes.map((n) => n.x)) + 30;
-              const minY = Math.min(...civNodes.map((n) => n.y)) - 30;
-              const maxCY = Math.max(...civNodes.map((n) => n.y)) + 30;
-
+          <svg width={svgW} height={svgH} viewBox={`0 0 ${svgW} ${svgH}`}>
+            {CIVILIZATIONS.map((civ, ci) => {
+              const left = ci * (ROOM_W + ROOM_GAP) + 40;
               return (
                 <g key={civ.id}>
                   <rect
-                    x={minX}
-                    y={minY}
-                    width={maxCX - minX}
-                    height={maxCY - minY}
+                    x={left}
+                    y={30}
+                    width={ROOM_W}
+                    height={svgH - 60}
                     rx={12}
                     fill={civ.color}
-                    fillOpacity={0.02}
+                    fillOpacity={0.015}
                     stroke={civ.color}
                     strokeWidth={0.5}
-                    strokeOpacity={0.08}
+                    strokeOpacity={0.06}
                   />
                   <text
-                    x={(minX + maxCX) / 2}
-                    y={minY - 6}
+                    x={left + ROOM_W / 2}
+                    y={22}
                     fill={civ.color}
-                    fontSize={10}
+                    fontSize={11}
                     fontWeight={700}
                     textAnchor="middle"
                     fontFamily="Inter, sans-serif"
                     fillOpacity={0.5}
                   >
-                    {civ.name}
+                    {civ.name} Room
                   </text>
+
+                  {Object.entries({ discovery: 100, innovation: 220, invention: 340 }).map(
+                    ([phase, py]) => (
+                      <text
+                        key={phase}
+                        x={left + 8}
+                        y={py - 28}
+                        fill={PHASE_COLORS[phase]}
+                        fontSize={7}
+                        fontWeight={600}
+                        fillOpacity={0.25}
+                        fontFamily="Inter, sans-serif"
+                        textTransform="uppercase"
+                      >
+                        {phase}
+                      </text>
+                    )
+                  )}
                 </g>
               );
             })}
-
-            {internalBonds.map((bond, i) => (
-              <InternalBond key={i} a={bond.a} b={bond.b} sharedDrivers={bond.shared} />
-            ))}
 
             {edges.map((edge, i) => {
-              const from = nodes.find((n) => n.id === edge.fromId);
-              const to = nodes.find((n) => n.id === edge.toId);
+              const from = tables.find((t) => t.id === edge.fromId);
+              const to = tables.find((t) => t.id === edge.toId);
               if (!from || !to) return null;
-
-              const color = EDGE_COLORS[edge.type];
-              const midX = (from.x + to.x) / 2;
-              const midY = (from.y + to.y) / 2;
-              const isHighlighted =
-                selectedId === edge.fromId ||
-                selectedId === edge.toId ||
-                hoveredId === edge.fromId ||
-                hoveredId === edge.toId;
-
+              const active =
+                highlightSet.has(edge.fromId) && highlightSet.has(edge.toId);
               return (
-                <g key={i}>
-                  <line
-                    x1={from.x}
-                    y1={from.y}
-                    x2={to.x}
-                    y2={to.y}
-                    stroke={color}
-                    strokeWidth={isHighlighted ? 2 : 0.8 + edge.intensity * 0.5}
-                    opacity={isHighlighted ? 0.7 : 0.15}
-                    style={{ transition: "all 0.2s" }}
-                  />
-                  <circle
-                    cx={midX}
-                    cy={midY}
-                    r={2}
-                    fill={color}
-                    opacity={isHighlighted ? 0.6 : 0.2}
-                  />
-                </g>
+                <EdgeLine
+                  key={i}
+                  from={from}
+                  to={to}
+                  edge={edge}
+                  active={active}
+                />
               );
             })}
 
-            {nodes.map((node) => (
-              <PersonAvatar
-                key={node.id}
-                node={node}
-                isSelected={selectedId === node.id}
-                isHovered={hoveredId === node.id}
-                onSelect={() => setSelectedId(selectedId === node.id ? null : node.id)}
-                onHover={() => setHoveredId(node.id)}
+            {tables.map((table) => (
+              <TableSVG
+                key={table.id}
+                table={table}
+                isSelected={selectedId === table.id}
+                isHovered={hoveredId === table.id}
+                highlightEdge={
+                  highlightSet.size > 0 && highlightSet.has(table.id) && selectedId !== table.id && hoveredId !== table.id
+                }
+                onSelect={() =>
+                  setSelectedId(selectedId === table.id ? null : table.id)
+                }
+                onHover={() => setHoveredId(table.id)}
                 onLeave={() => setHoveredId(null)}
               />
             ))}
@@ -752,11 +1029,11 @@ export default function PeopleGraph({ onBack }: { onBack: () => void }) {
         </div>
 
         <AnimatePresence>
-          {selectedNode && (
+          {selectedTable && (
             <DetailPanel
-              key={selectedNode.id}
-              node={selectedNode}
-              allNodes={nodes}
+              key={selectedTable.id}
+              table={selectedTable}
+              allTables={tables}
               edges={edges}
               onClose={() => setSelectedId(null)}
             />
