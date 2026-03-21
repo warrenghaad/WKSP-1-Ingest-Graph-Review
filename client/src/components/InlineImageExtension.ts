@@ -1,7 +1,7 @@
 import { Mark, mergeAttributes } from "@tiptap/core";
 
 export interface ImageAnnotationOptions {
-  HTMLAttributes: Record<string, any>;
+  HTMLAttributes: Record<string, string>;
 }
 
 declare module "@tiptap/core" {

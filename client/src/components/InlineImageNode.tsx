@@ -1,5 +1,6 @@
 import { Node, mergeAttributes } from "@tiptap/core";
 import { ReactNodeViewRenderer, NodeViewWrapper } from "@tiptap/react";
+import type { NodeViewProps } from "@tiptap/react";
 import { useState } from "react";
 import { X } from "lucide-react";
 
@@ -16,17 +17,26 @@ declare module "@tiptap/core" {
   }
 }
 
-const InlineImageComponent = ({ node, deleteNode }: any) => {
-  const { src, title, source } = node.attrs;
+interface InlineImageAttrs {
+  src: string | null;
+  title: string;
+  source: string;
+  query: string;
+}
+
+const InlineImageComponent = (props: NodeViewProps) => {
+  const { node, deleteNode } = props;
+  const attrs = node.attrs as InlineImageAttrs;
+  const { src, title, source } = attrs;
   const [expanded, setExpanded] = useState(false);
   const [imgError, setImgError] = useState(false);
 
-  if (imgError) return null;
+  if (imgError || !src) return null;
 
   return (
     <NodeViewWrapper as="span" className="inline-image-node-wrapper" data-testid="inline-image-node">
       <span
-        className="inline-image-container"
+        className="inline-image-anchor"
         contentEditable={false}
         onMouseEnter={() => setExpanded(true)}
         onMouseLeave={() => setExpanded(false)}
@@ -40,26 +50,26 @@ const InlineImageComponent = ({ node, deleteNode }: any) => {
             draggable={false}
             data-testid="inline-image-preview"
           />
-          <button
-            className="inline-image-remove"
-            onClick={(e) => { e.stopPropagation(); deleteNode(); }}
-            data-testid="inline-image-remove"
-            title="Remove image"
-          >
-            <X size={10} />
-          </button>
         </span>
+        <button
+          className="inline-image-remove"
+          onClick={(e) => { e.stopPropagation(); deleteNode(); }}
+          data-testid="inline-image-remove"
+          title="Remove image"
+        >
+          <X size={10} />
+        </button>
         {expanded && (
-          <span className="inline-image-expanded" data-testid="inline-image-expanded">
+          <span className="inline-image-popover" data-testid="inline-image-expanded">
             <img
               src={src}
               alt={title || ""}
-              className="inline-image-expanded-img"
+              className="inline-image-popover-img"
               draggable={false}
             />
-            <span className="inline-image-meta">
-              <span className="inline-image-title">{title}</span>
-              <span className="inline-image-source">{source}</span>
+            <span className="inline-image-popover-meta">
+              <span className="inline-image-popover-title">{title}</span>
+              <span className="inline-image-popover-source">{source}</span>
             </span>
           </span>
         )}

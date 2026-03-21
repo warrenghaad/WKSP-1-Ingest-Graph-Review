@@ -197,15 +197,15 @@ export default function Reader() {
     setSearchResults([]);
     setBrokenImages(new Set());
 
-    const selection = window.getSelection();
-    if (selection && selection.rangeCount > 0) {
-      const range = selection.getRangeAt(0);
-      const rect = range.getBoundingClientRect();
+    if (editor && selectionRange) {
+      const startCoords = editor.view.coordsAtPos(selectionRange.from);
+      const endCoords = editor.view.coordsAtPos(selectionRange.to);
+      const midX = (startCoords.left + endCoords.right) / 2;
       const panelHeight = 360;
       const panelWidth = 400;
-      let top = rect.top - panelHeight - 10;
-      if (top < 10) top = rect.bottom + 10;
-      let left = rect.left + rect.width / 2 - panelWidth / 2;
+      let top = startCoords.top - panelHeight - 10;
+      if (top < 10) top = endCoords.bottom + 10;
+      let left = midX - panelWidth / 2;
       left = Math.max(10, Math.min(left, window.innerWidth - panelWidth - 10));
       setFloatingSearchPos({ top, left });
     }
