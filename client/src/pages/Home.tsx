@@ -41,6 +41,7 @@ import {
   Calendar,
   Tag,
   Hexagon,
+  FileText,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
@@ -172,6 +173,16 @@ export default function Home() {
           >
             <Layers className="w-3.5 h-3.5 mr-1.5" />
             Lab
+          </Button>
+          <Button
+            data-testid="button-nav-textreader"
+            variant="outline"
+            size="sm"
+            className="rounded-full border-white/10 bg-black/40 backdrop-blur-md text-white hover:bg-white/10 h-9"
+            onClick={() => navigate("/textreader")}
+          >
+            <FileText className="w-3.5 h-3.5 mr-1.5" />
+            Textreader
           </Button>
           <Button
             data-testid="button-toggle-filters"

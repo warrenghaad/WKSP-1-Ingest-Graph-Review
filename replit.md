@@ -9,7 +9,8 @@ A 3D interactive timeline for exploring Mesopotamian artifacts (~6500 BCE – 33
 - **Routing**: wouter (frontend SPA routing), Express (API)
 - **AI Integration**: OpenAI (via Replit AI Integrations) for query enhancement and image generation (gpt-image-1), Perplexity API for web-powered image search
 - **Museum APIs**: Metropolitan Museum (CC0, no key), Smithsonian Open Access (DEMO_KEY), Wikimedia Commons (free)
-- **Storage**: In-memory (MemStorage) for saved images
+- **Database**: PostgreSQL with Drizzle ORM (sessions, concept cards, candidates, saved images)
+- **Storage**: DatabaseStorage backed by PostgreSQL
 - **Notion Integration**: Connected via MCP for reading Project Euclid databases (Geometric Element Atomics, Primitives × Civilizations, GEM Production Matrix)
 
 ## MAGIC Framework
@@ -97,8 +98,19 @@ Data files:
    - DAM sidebar: grid gallery of all curated assets, filterable by search query
    - Custom Tiptap ImageAnnotation mark extension stores url/title/source/query per annotation
 3. **Automation Lab** (`/lab`): Image search and generation testing ground
+4. **Euclid First-Run Textreader** (`/textreader`): Narrow first-run worker for text-to-image preparation. Features:
+   - 4-zone layout: top bar, left intake pane, center concept board, right detail drawer
+   - Paste research text → AI extracts atomic visual concepts with labels, descriptions, visual types, priorities, tags
+   - Each concept card follows a state machine: draft → parsed → query_ready → searching → candidates_ready → selected → ai_prompt_ready → ready_for_handoff → sent_to_backend
+   - Concept cards show provenance labels (source_type + accuracy_status) on every candidate
+   - Source mode selector: open_web_fast, museum_context, ai_reconstruction, hybrid
+   - Right drawer shows search queries (auto-generated), AI prompts, candidate image grid with approve/reject
+   - Backend adapter layer for external mesopotamia-backend (APP_API_BASE env var)
+   - Handoff queue: mark concepts ready, send to backend or export JSON fallback
+   - NOT a CMS/DAM — temporary local draft state only, canonical persistence stays in external backend
 
 ## API Routes
+### Image Search & Generation
 - `POST /api/search-images` - AI-powered image search (Perplexity + OpenAI)
 - `POST /api/search-museums` - Direct museum API search (Met, Smithsonian, Wikimedia)
 - `POST /api/batch-search` - SSE streaming batch search
@@ -108,10 +120,28 @@ Data files:
 - `POST /api/saved-images/batch` - Batch save images
 - `DELETE /api/saved-images/:id` - Delete a saved image
 
+### Textreader
+- `GET /api/textreader/backend-status` - Check external backend connectivity
+- `POST /api/textreader/sessions` - Create a textreader session
+- `GET /api/textreader/sessions` - List all sessions
+- `GET /api/textreader/sessions/:id` - Get session with concepts
+- `DELETE /api/textreader/sessions/:id` - Delete session + concepts + candidates
+- `POST /api/textreader/extract` - Extract atomic visual concepts from text (AI-powered)
+- `PATCH /api/textreader/concepts/:id` - Update concept card (state, queries, prompts)
+- `DELETE /api/textreader/concepts/:id` - Delete concept card
+- `POST /api/textreader/concepts/:id/search` - Run multi-provider image search for a concept
+- `GET /api/textreader/concepts/:id/candidates` - Get candidate images for a concept
+- `PATCH /api/textreader/candidates/:id` - Update candidate (approve/reject)
+- `POST /api/textreader/concepts/:id/generate-queries` - Regenerate search queries and AI prompts
+- `POST /api/textreader/handoff` - Send ready concepts to external backend (or export JSON)
+
 ## Environment Variables
 - `AI_INTEGRATIONS_OPENAI_API_KEY` - Set automatically by Replit AI Integrations
 - `AI_INTEGRATIONS_OPENAI_BASE_URL` - Set automatically by Replit AI Integrations
 - `PERPLEXITY_API_KEY` - Required for Perplexity web search (optional)
+- `DATABASE_URL` - PostgreSQL connection string (auto-configured by Replit)
+- `APP_API_BASE` - External backend URL for handoff (optional, enables backend adapter)
+- `APP_API_KEY` - External backend auth key (optional)
 
 ## File Structure
 - `client/src/pages/Home.tsx` - 3D timeline page with MAGIC framework integration
@@ -130,8 +160,12 @@ Data files:
 - `client/src/lib/diiMilestones.ts` - 63 DII milestones with Met Museum images
 - `client/src/lib/primitivesTheory.ts` - Geometric primitives theory data
 - `client/src/components/BraidSVG.tsx` - SVG braid visualization
-- `server/routes.ts` - API route definitions
-- `server/imageSearch.ts` - Image search logic
-- `server/museumSearch.ts` - Museum API integrations
-- `server/storage.ts` - In-memory storage
-- `shared/schema.ts` - Data schemas
+- `client/src/pages/Textreader.tsx` - Euclid First-Run Textreader (4-zone layout)
+- `server/routes.ts` - API route definitions (image search, textreader, saved images)
+- `server/imageSearch.ts` - AI image search logic (Perplexity + OpenAI)
+- `server/museumSearch.ts` - Museum API integrations (Met, Smithsonian, Wikimedia)
+- `server/conceptExtractor.ts` - AI concept extraction from text (OpenAI)
+- `server/backendAdapter.ts` - External backend adapter (proxy to mesopotamia-backend)
+- `server/storage.ts` - DatabaseStorage backed by PostgreSQL
+- `server/db.ts` - Drizzle ORM database connection
+- `shared/schema.ts` - Drizzle schema (users, savedImages, textreaderSessions, conceptCards, conceptCandidates)

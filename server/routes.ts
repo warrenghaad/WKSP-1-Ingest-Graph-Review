@@ -2,8 +2,10 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { searchImages } from "./imageSearch";
-import { searchAllMuseums, searchMetMuseum } from "./museumSearch";
-import { insertSavedImageSchema } from "@shared/schema";
+import { searchAllMuseums, searchMetMuseum, searchWikimediaCommons, searchSmithsonian } from "./museumSearch";
+import { insertSavedImageSchema, insertSessionSchema, insertConceptCardSchema, insertCandidateSchema } from "@shared/schema";
+import { extractConcepts, generateQueryPack } from "./conceptExtractor";
+import { checkBackendStatus, sendResearchIngest, buildHandoffPacket } from "./backendAdapter";
 import OpenAI from "openai";
 
 const openai = new OpenAI({
@@ -16,7 +18,6 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
 
-  // AI-powered image search (Perplexity + OpenAI)
   app.post("/api/search-images", async (req, res) => {
     try {
       const { query } = req.body;
@@ -31,7 +32,6 @@ export async function registerRoutes(
     }
   });
 
-  // Direct museum API search (Met, Smithsonian, Wikimedia)
   app.post("/api/search-museums", async (req, res) => {
     try {
       const { query } = req.body;
@@ -46,7 +46,6 @@ export async function registerRoutes(
     }
   });
 
-  // Batch search - run multiple queries at once
   app.post("/api/batch-search", async (req, res) => {
     try {
       const { queries, searchType = "all" } = req.body;
@@ -109,7 +108,6 @@ export async function registerRoutes(
     }
   });
 
-  // AI image generation
   app.post("/api/generate-image", async (req, res) => {
     try {
       const { prompt, size = "1024x1024" } = req.body;
@@ -135,7 +133,6 @@ export async function registerRoutes(
     }
   });
 
-  // Saved images CRUD
   app.get("/api/saved-images", async (_req, res) => {
     try {
       const images = await storage.getSavedImages();
@@ -193,6 +190,277 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error deleting saved image:", error);
       res.status(500).json({ error: "Failed to delete saved image" });
+    }
+  });
+
+  // ====== TEXTREADER ENDPOINTS ======
+
+  app.get("/api/textreader/backend-status", async (_req, res) => {
+    const status = await checkBackendStatus();
+    res.json(status);
+  });
+
+  app.post("/api/textreader/sessions", async (req, res) => {
+    try {
+      const parsed = insertSessionSchema.parse(req.body);
+      const session = await storage.createSession(parsed);
+      res.status(201).json(session);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message || "Failed to create session" });
+    }
+  });
+
+  app.get("/api/textreader/sessions", async (_req, res) => {
+    try {
+      const sessions = await storage.getSessions();
+      res.json(sessions);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch sessions" });
+    }
+  });
+
+  app.get("/api/textreader/sessions/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+      const session = await storage.getSession(id);
+      if (!session) return res.status(404).json({ error: "Session not found" });
+      const concepts = await storage.getConceptCards(id);
+      res.json({ session, concepts });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch session" });
+    }
+  });
+
+  app.delete("/api/textreader/sessions/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+      await storage.deleteSession(id);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete session" });
+    }
+  });
+
+  app.post("/api/textreader/extract", async (req, res) => {
+    try {
+      const { sessionId, text, maxConcepts = 8 } = req.body;
+      if (!text || typeof text !== "string") {
+        return res.status(400).json({ error: "Text is required" });
+      }
+
+      const extracted = await extractConcepts(text, maxConcepts);
+
+      if (sessionId) {
+        const cards = [];
+        for (const concept of extracted) {
+          const card = await storage.createConceptCard({
+            sessionId,
+            conceptId: concept.concept_id,
+            label: concept.label,
+            description: concept.description,
+            visualType: concept.visual_type,
+            priority: concept.priority,
+            state: "parsed",
+            searchQueries: concept.search_queries,
+            aiPrompts: concept.ai_prompts,
+            diagramPrompt: concept.diagram_prompt,
+            tags: concept.tags,
+            sourceMode: "open_web_fast",
+            sourceType: "open_web",
+            accuracyStatus: "unreviewed",
+          });
+          cards.push(card);
+        }
+        return res.json({ concepts: cards });
+      }
+
+      res.json({ concepts: extracted });
+    } catch (error: any) {
+      console.error("Concept extraction error:", error);
+      res.status(500).json({ error: "Failed to extract concepts" });
+    }
+  });
+
+  app.patch("/api/textreader/concepts/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+      const updated = await storage.updateConceptCard(id, req.body);
+      if (!updated) return res.status(404).json({ error: "Concept not found" });
+      res.json(updated);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message || "Failed to update concept" });
+    }
+  });
+
+  app.delete("/api/textreader/concepts/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+      await storage.deleteConceptCard(id);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete concept" });
+    }
+  });
+
+  app.post("/api/textreader/concepts/:id/search", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+
+      const card = await storage.getConceptCard(id);
+      if (!card) return res.status(404).json({ error: "Concept not found" });
+
+      const { sourceMode = card.sourceMode } = req.body;
+
+      await storage.updateConceptCard(id, { state: "searching" });
+
+      const queries = card.searchQueries || [card.label];
+      const allCandidates = [];
+
+      for (const query of queries.slice(0, 3)) {
+        try {
+          let results: any[] = [];
+
+          if (sourceMode === "open_web_fast" || sourceMode === "hybrid") {
+            const [museumResults, aiResults] = await Promise.all([
+              searchAllMuseums(query),
+              searchImages(query),
+            ]);
+            results.push(
+              ...museumResults.map(r => ({ ...r, sourceType: "museum" as const })),
+              ...aiResults.map(r => ({ ...r, sourceType: "open_web" as const })),
+            );
+          } else if (sourceMode === "museum_context") {
+            const museumResults = await searchAllMuseums(query);
+            results.push(...museumResults.map(r => ({ ...r, sourceType: "museum" as const })));
+          } else if (sourceMode === "ai_reconstruction") {
+            const aiResults = await searchImages(query);
+            results.push(...aiResults.map(r => ({ ...r, sourceType: "open_web" as const })));
+          }
+
+          for (const r of results) {
+            const candidate = await storage.createCandidate({
+              conceptCardId: id,
+              imageUrl: r.url,
+              title: r.title || null,
+              source: r.source || null,
+              objectUrl: r.objectUrl || null,
+              sourceType: r.sourceType || "open_web",
+              accuracyStatus: "unreviewed",
+              approved: "pending",
+              metadata: null,
+            });
+            allCandidates.push(candidate);
+          }
+        } catch (err) {
+          console.error(`Search failed for query "${query}":`, err);
+        }
+      }
+
+      await storage.updateConceptCard(id, {
+        state: allCandidates.length > 0 ? "candidates_ready" : "query_ready",
+      });
+
+      res.json({ candidates: allCandidates, count: allCandidates.length });
+    } catch (error: any) {
+      console.error("Concept search error:", error);
+      res.status(500).json({ error: "Failed to search for concept" });
+    }
+  });
+
+  app.get("/api/textreader/concepts/:id/candidates", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+      const candidates = await storage.getCandidates(id);
+      res.json(candidates);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch candidates" });
+    }
+  });
+
+  app.patch("/api/textreader/candidates/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+      const updated = await storage.updateCandidate(id, req.body);
+      if (!updated) return res.status(404).json({ error: "Candidate not found" });
+      res.json(updated);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message || "Failed to update candidate" });
+    }
+  });
+
+  app.post("/api/textreader/concepts/:id/generate-queries", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+
+      const card = await storage.getConceptCard(id);
+      if (!card) return res.status(404).json({ error: "Concept not found" });
+
+      const pack = await generateQueryPack(card.label, card.description || "");
+
+      const updated = await storage.updateConceptCard(id, {
+        searchQueries: pack.queries,
+        aiPrompts: pack.prompts,
+        state: "query_ready",
+      });
+
+      res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ error: "Failed to generate queries" });
+    }
+  });
+
+  app.post("/api/textreader/handoff", async (req, res) => {
+    try {
+      const { sessionId } = req.body;
+      if (!sessionId) return res.status(400).json({ error: "sessionId is required" });
+
+      const session = await storage.getSession(sessionId);
+      if (!session) return res.status(404).json({ error: "Session not found" });
+
+      const concepts = await storage.getConceptCards(sessionId);
+      const readyConcepts = concepts.filter(c => c.state === "ready_for_handoff");
+
+      const allCandidates = [];
+      for (const concept of readyConcepts) {
+        const candidates = await storage.getCandidates(concept.id);
+        allCandidates.push(...candidates);
+      }
+
+      const packet = buildHandoffPacket(session, readyConcepts, allCandidates);
+
+      const result = await sendResearchIngest({
+        title: session.title,
+        excerpt: session.rawText,
+        sourceUrl: session.sourceUrl || undefined,
+        citation: session.citation || undefined,
+        tags: {
+          grade: session.grade,
+          week: session.week,
+          section: session.sectionId,
+        },
+        autoSearchImages: false,
+        maxConcepts: readyConcepts.length,
+      });
+
+      if (result.ok) {
+        for (const concept of readyConcepts) {
+          await storage.updateConceptCard(concept.id, { state: "sent_to_backend" });
+        }
+        res.json({ success: true, backendResponse: result.data, packet });
+      } else {
+        res.json({ success: false, error: result.error, packet, fallbackExport: true });
+      }
+    } catch (error: any) {
+      console.error("Handoff error:", error);
+      res.status(500).json({ error: "Handoff failed" });
     }
   });
 

@@ -8,6 +8,7 @@ import Home from "@/pages/Home";
 import Reader from "@/pages/Reader";
 import Lab from "@/pages/Lab";
 import Braid from "@/pages/Braid";
+import Textreader from "@/pages/Textreader";
 
 function Router() {
   return (
@@ -16,6 +17,7 @@ function Router() {
       <Route path="/reader" component={Reader}/>
       <Route path="/lab" component={Lab}/>
       <Route path="/braid" component={Braid}/>
+      <Route path="/textreader" component={Textreader}/>
       <Route component={NotFound} />
     </Switch>
   );
