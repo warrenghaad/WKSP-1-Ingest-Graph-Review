@@ -89,7 +89,13 @@ Data files:
    - Detail panel with MAGIC profile (radar chart, weight bars, GEA/GEM/E×C×D), research papers, museum links
    - Smooth camera animation on selection, OrbitControls for zoom/pan/rotate
    - Artifact IDs follow WIII-A-SA3-### convention (Project EUCLID)
-2. **Reader Mode** (`/reader`): Document reader with Tiptap editor and text-highlight-to-image-search
+2. **Reader / DAM** (`/reader`): Visual-first Digital Asset Manager with Tiptap editor. Features:
+   - Highlight text → BubbleMenu → "Find Images" searches museum + AI sources
+   - Search results appear in a floating panel above the highlighted text (not just sidebar)
+   - Click an image to: anchor it inline above the text (ImageAnnotation mark) AND auto-save to DAM
+   - Annotated text gets gold underline + dot indicator; hover shows image tooltip
+   - DAM sidebar: grid gallery of all curated assets, filterable by search query
+   - Custom Tiptap ImageAnnotation mark extension stores url/title/source/query per annotation
 3. **Automation Lab** (`/lab`): Image search and generation testing ground
 
 ## API Routes
@@ -109,7 +115,8 @@ Data files:
 
 ## File Structure
 - `client/src/pages/Home.tsx` - 3D timeline page with MAGIC framework integration
-- `client/src/pages/Reader.tsx` - Reader mode with image search
+- `client/src/pages/Reader.tsx` - Visual-first DAM with inline image annotations
+- `client/src/components/InlineImageExtension.ts` - Custom Tiptap ImageAnnotation mark extension
 - `client/src/pages/Lab.tsx` - Automation lab
 - `client/src/pages/Braid.tsx` - Braid Theory page with 4 views (braid, calendar, palace, meetings)
 - `client/src/components/Timeline3D.tsx` - Three.js 3D timeline component

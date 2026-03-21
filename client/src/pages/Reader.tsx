@@ -1,12 +1,13 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Search, Bookmark, ArrowLeft, Image as ImageIcon, Check, Download, X,
-  AlertCircle, Loader2, Bold, Italic, Heading1, Heading2, Heading3,
-  List, ListOrdered, Quote, Undo, Redo, Strikethrough, Highlighter,
-  FileText, ChevronDown
+  AlertCircle, Loader2, Bold, Italic, Heading2, Heading3,
+  Undo, Redo, Strikethrough, Highlighter,
+  FileText, ChevronDown, Grid3x3, Filter, Eye, Trash2,
+  CheckCircle2, RefreshCw, ExternalLink
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
@@ -16,6 +17,7 @@ import { BubbleMenu } from "@tiptap/react/menus";
 import StarterKit from "@tiptap/starter-kit";
 import Highlight from "@tiptap/extension-highlight";
 import Placeholder from "@tiptap/extension-placeholder";
+import { ImageAnnotation } from "@/components/InlineImageExtension";
 import { DOCUMENTS } from "@/lib/documentContent";
 import OfflineIndicator from "@/components/OfflineIndicator";
 
@@ -34,59 +36,7 @@ interface SavedImage {
   createdAt: string;
 }
 
-const INITIAL_CONTENT = DOCUMENTS[0]?.content || `<h1>Seven Geometric Primitives in Ancient Mesopotamian Material Culture</h1>
-
-<p><em>The geometric vocabulary of human civilization rests on seven elemental forms—dot, line, triangle, circle, square, eight-pointed star, and crescent—each traceable from Paleolithic cognitive origins through Mesopotamian urban complexity.</em></p>
-
-<h2>PRIMITIVE 1: THE DOT / POINT</h2>
-
-<h3>Part A — Mathematical properties and the science of position</h3>
-
-<p>The dot is geometry's zero-dimensional atom: position without extension, location without magnitude. Formally, it possesses no symmetry axes, no angles, no ratios—it is pure <em>where</em>. Yet this seemingly trivial element generated the most consequential cognitive technology in Mesopotamian history: <strong>the numeral</strong>.</p>
-
-<p>Babylonian mathematics exploited the dot through two innovations. First, the <strong>clay token system</strong> (c. 8000–3100 BCE), documented by Denise Schmandt-Besserat across more than 8,000 artifacts, used small geometric clay shapes—spheres, cones, disks—as one-to-one counters for commodities. A sphere equaled one large measure of grain; a cone, one small measure. These tokens are literally three-dimensional dots. When pressed into wet clay, tokens produced circular impressions—<strong>two-dimensional dots that became the first numerals</strong> (c. 3200 BCE, Susa and Uruk). The round-tipped stylus created circular marks for tens while the wedge-tipped end produced unit marks, establishing the proto-cuneiform numerical system visible on some 4,000 tablets from Uruk Level IV.</p>
-
-<p>Second, the <strong>sexagesimal positional notation</strong> (emerging c. 2000 BCE) combined vertical wedges (units) and horizontal wedges (tens) in a base-60 system that required understanding position—where a sign sat determined its value. By the 3rd century BCE, Babylonian astronomers introduced a placeholder symbol for empty positions, a functional zero. The dot as abstract numerical position had traveled from physical token to conceptual placeholder across five millennia.</p>
-
-<p><strong>Tools that create dots</strong> include pointed styli (reed and bone), blunt circular stylus ends for numerical impressions, bow drills for bead perforation and seal engraving, and flint punches. The transition from stone to copper drills (3rd millennium BCE) enabled finer work on seals and jewelry.</p>
-
-<h3>Part B — Material culture inventory</h3>
-
-<p><strong>B1. Ceramics.</strong> Dot patterns constitute one of the oldest decorative vocabularies on Near Eastern pottery. Samarra ware (c. 5500–4800 BCE, Tell es-Sawwan) features geometric dot arrangements on dark-fired backgrounds. Halaf pottery (c. 6100–5100 BCE) from Tell Arpachiyah and Tell Halaf introduced the <strong>dot-circle motif</strong> as a standard element by the Late Halaf phase (c. 4900–4500 BCE), alongside white-on-dark dot compositions on eggshell-thin bowls.</p>
-
-<p><strong>B2. Cylinder seals and stamp seals.</strong> The <strong>drill-dot technique</strong> is fundamental to seal engraving. Halaf stamp seals (mid-6th millennium BCE) are the earliest personal property markers in the Near East, featuring geometric patterns including dot arrangements. Cylinder seals (invented c. 3500 BCE at Uruk) extensively use drilled dots as filler between figures, as border elements, and as compositional spacing devices.</p>
-
-<p><strong>B3. Textiles.</strong> Direct evidence is limited, but Schmandt-Besserat documented disk tokens from Uruk (c. 3300 BCE) bearing "different patterns of incised lines or dots, which stood for a variety of textiles and garments." Cone mosaic patterns at Uruk explicitly imitate "matting and textiles." Al-Ubaid figurines bear "painted marks or tattoos" that may represent textile or body-art dot patterns.</p>
-
-<p><strong>B4. Architecture.</strong> The <strong>cone mosaic</strong> is the dot's most spectacular architectural expression. At the Eanna Precinct in Uruk (c. 3500–3000 BCE), thousands of baked clay cones (~10 cm long) with flat circular ends painted black, red, or white were pressed pointed-end-first into wet mud plaster, creating geometric patterns of colored dots across walls and columns. Each cone tip functions as one dot in a massive architectural pointillist composition.</p>
-
-<p><strong>B5. Jewelry.</strong> Beads are three-dimensional dots. Stone, shell, and clay beads appear from the earliest Neolithic sites. The <strong>granulation technique</strong> (c. 2500 BCE) represents the dot's most refined metalworking expression: tiny gold spheres (pinhead-sized) are fused to gold surfaces in decorative patterns without conventional solder. The earliest examples come from the Royal Tombs of Ur (c. 2500 BCE), discovered by Woolley.</p>
-
-<p><strong>B6. Ritual objects.</strong> Al-Ubaid female clay figurines with painted dot-patterns on their bodies (Penn Museum 31-16-733) may represent ritual scarification. Votive animal figurines from Uruk Level III (c. 3000 BCE) bear incised dot patterns. Clay bullae (hollow spherical envelopes containing tokens, c. 3300 BCE, Susa, Louvre) served the temple redistribution economy.</p>
-
-<p><strong>B7. Tools.</strong> Tools that CREATE dots include: bone/flint/reed awls (Neolithic onward); the reed stylus with its blunt circular end for numerical impressions; bow drills for bead and seal work; copper drills replacing stone (3rd millennium BCE); and most fundamentally, <strong>Schmandt-Besserat's clay tokens</strong> (c. 8000–3100 BCE)—the tool system that bridged concrete counting and abstract notation.</p>
-
-<p><strong>B8. Writing and administration.</strong> The dot's trajectory from token to tablet to sexagesimal notation constitutes one of history's most consequential technological chains. Clay tokens (c. 8000 BCE) → complex tokens with incised dots (c. 3500 BCE, ~300 subtypes) → tokens sealed in bullae (c. 3300 BCE, Susa envelope, Louvre) → impressed dots on tablets (c. 3200 BCE, Uruk Level IV, ~4,000 tablets) → sexagesimal positional notation (c. 2000 BCE).</p>
-
-<h2>PRIMITIVE 2: THE LINE</h2>
-
-<h3>Part A — The geometry of extension and measurement</h3>
-
-<p>The line is one-dimensional: extension without breadth, defined by two points, infinitely extendable in both directions. It is the basis of all measurement, all construction, all writing. Formally, lines can be parallel (never meeting), perpendicular (meeting at 90°), or intersecting at any angle, generating the entire vocabulary of angular geometry.</p>
-
-<p>Babylonian mathematics formalized the line through <strong>standardized measurement units</strong>: the cubit (~518.5 mm per the Nippur standard), the nindan/rod (6 cubits, ~5.94 m), and the eš₂-gana₂ surveyor's rope (10 nindan). The oldest preserved measuring rod is a <strong>copper-alloy bar from Nippur, c. 2650 BCE</strong> (Istanbul Archaeological Museum), marked with 4 large units each subdivided into 16 smaller divisions.</p>
-
-<p><strong>Transformations</strong> of the line generate the entire decorative vocabulary of ancient ceramics: parallel lines (bands), reflected lines (zigzags, chevrons), rotated lines (radial arrangements), and crossed lines (hatching, crosshatching, herringbone). Tools include the reed stylus, stretched cords/ropes for surveying, combed tools for parallel lines, straightedges, and plumb lines.</p>
-
-<h3>Part B — Material culture inventory</h3>
-
-<p><strong>B1. Ceramics.</strong> Line decoration is the most fundamental and universal element on Near Eastern pottery. Hassuna ware (c. 6500–6000 BCE, Tell Hassuna, Iraq Museum) represents the earliest painted linear decoration in northern Mesopotamia—cream slip with reddish paint in linear designs. Samarra pottery (c. 5500–4800 BCE, Tell es-Sawwan, Tell Baghouz) features painted and incised geometric designs with crosshatching, zigzag bands, and parallel lines.</p>
-
-<p><strong>B2. Seals.</strong> The <strong>ground line</strong> is the primary organizing device of cylinder seal composition. By Early Dynastic I (c. 2900–2700 BCE), figures were "solidly placed on a groundline." Register lines—horizontal bands dividing scenes into narrative tiers—appear on Proto-Historical seals (3000–2700 BCE).</p>
-
-<p><strong>B4. Architecture.</strong> Brick courses form the fundamental horizontal line of Mesopotamian construction. Varied brick types were deployed: Patzen (80×40×15 cm, Late Uruk), Riemchen (16×16 cm square section, Late Uruk), plano-convex (Early Dynastic). <strong>Recessed niching</strong>—vertical articulation of walls with projecting and recessed elements—appears from the 5th millennium BCE onward, creating "coloristic effects based on light and shadow."</p>
-
-<p><strong>B5. Jewelry.</strong> Gold wire appears at the Royal Cemetery of Ur (c. 2600–2400 BCE). Wire work—drawing metal into linear filaments—is a metalworking innovation. Bar pendants and incised linear decorations on beads are found from Early Neolithic onward.</p>`;
+const INITIAL_CONTENT = DOCUMENTS[0]?.content || "";
 
 export default function Reader() {
   const [, setLocation] = useLocation();
@@ -98,21 +48,31 @@ export default function Reader() {
   const currentDoc = DOCUMENTS[currentDocIndex];
 
   const [selectedText, setSelectedText] = useState("");
-  const [selectionRect, setSelectionRect] = useState<{ top: number; left: number; width: number } | null>(null);
 
   const [searchResults, setSearchResults] = useState<ImageResult[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'search' | 'saved'>('search');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [brokenImages, setBrokenImages] = useState<Set<string>>(new Set());
+  const [damFilter, setDamFilter] = useState<string | null>(null);
+  const [hoveredAnnotation, setHoveredAnnotation] = useState<{
+    url: string; title: string; source: string; rect: DOMRect;
+  } | null>(null);
+
+  const [floatingSearchPos, setFloatingSearchPos] = useState<{
+    top: number; left: number;
+  } | null>(null);
+  const [selectionRange, setSelectionRange] = useState<{ from: number; to: number } | null>(null);
+
+  const editorContainerRef = useRef<HTMLDivElement>(null);
 
   const editor = useEditor({
     extensions: [
       StarterKit,
       Highlight.configure({ multicolor: true }),
       Placeholder.configure({ placeholder: "Start writing or paste your research text here..." }),
+      ImageAnnotation,
     ],
     content: INITIAL_CONTENT,
     editorProps: {
@@ -123,14 +83,14 @@ export default function Reader() {
     onSelectionUpdate: ({ editor }) => {
       const { from, to } = editor.state.selection;
       if (from === to) {
-        setSelectionRect(null);
         setSelectedText("");
+        setSelectionRange(null);
         return;
       }
-
       const text = editor.state.doc.textBetween(from, to, " ");
       if (text.trim().length > 0) {
         setSelectedText(text.trim());
+        setSelectionRange({ from, to });
       }
     },
   });
@@ -140,28 +100,15 @@ export default function Reader() {
       setCurrentDocIndex(index);
       editor.commands.setContent(DOCUMENTS[index].content);
       setDocPickerOpen(false);
+      setSelectionRange(null);
+      setSelectedText("");
+      setFloatingSearchPos(null);
+      setSearchResults([]);
+      setSearchQuery("");
+      setIsSearching(false);
+      setSearchError(null);
     }
   }, [editor]);
-
-  const handleTextSelect = useCallback(() => {
-    const selection = window.getSelection();
-    if (selection && selection.toString().trim().length > 1) {
-      const range = selection.getRangeAt(0);
-      const rect = range.getBoundingClientRect();
-      setSelectionRect({
-        top: rect.top + window.scrollY,
-        left: rect.left + window.scrollX,
-        width: rect.width,
-      });
-    } else {
-      setSelectionRect(null);
-    }
-  }, []);
-
-  useEffect(() => {
-    document.addEventListener("mouseup", handleTextSelect);
-    return () => document.removeEventListener("mouseup", handleTextSelect);
-  }, [handleTextSelect]);
 
   useEffect(() => {
     const handleClickOutside = () => setDocPickerOpen(false);
@@ -170,6 +117,40 @@ export default function Reader() {
       return () => document.removeEventListener("click", handleClickOutside);
     }
   }, [docPickerOpen]);
+
+  useEffect(() => {
+    const container = editorContainerRef.current;
+    if (!container) return;
+
+    const handleMouseOver = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const annotation = target.closest(".image-annotation") as HTMLElement;
+      if (annotation) {
+        const url = annotation.getAttribute("data-image-url");
+        const title = annotation.getAttribute("data-image-title");
+        const source = annotation.getAttribute("data-image-source");
+        if (url) {
+          const rect = annotation.getBoundingClientRect();
+          setHoveredAnnotation({ url, title: title || "", source: source || "", rect });
+        }
+      }
+    };
+
+    const handleMouseOut = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const related = e.relatedTarget as HTMLElement;
+      if (target.closest(".image-annotation") && (!related || !related.closest(".image-annotation"))) {
+        setHoveredAnnotation(null);
+      }
+    };
+
+    container.addEventListener("mouseover", handleMouseOver);
+    container.addEventListener("mouseout", handleMouseOut);
+    return () => {
+      container.removeEventListener("mouseover", handleMouseOver);
+      container.removeEventListener("mouseout", handleMouseOut);
+    };
+  }, []);
 
   const { data: savedImages = [] } = useQuery<SavedImage[]>({
     queryKey: ["/api/saved-images"],
@@ -192,7 +173,6 @@ export default function Reader() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/saved-images"] });
-      toast({ title: "Image Saved", description: "Added to your collection.", duration: 2000 });
     },
   });
 
@@ -212,24 +192,50 @@ export default function Reader() {
     setSearchQuery(selectedText);
     setIsSearching(true);
     setSearchError(null);
-    setIsSidebarOpen(true);
-    setActiveTab('search');
     setSearchResults([]);
     setBrokenImages(new Set());
 
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
+      const panelHeight = 360;
+      const panelWidth = 400;
+      let top = rect.top - panelHeight - 10;
+      if (top < 10) top = rect.bottom + 10;
+      let left = rect.left + rect.width / 2 - panelWidth / 2;
+      left = Math.max(10, Math.min(left, window.innerWidth - panelWidth - 10));
+      setFloatingSearchPos({ top, left });
+    }
+
     try {
-      const res = await fetch("/api/search-images", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: selectedText }),
-      });
+      const [aiRes, museumRes] = await Promise.allSettled([
+        fetch("/api/search-images", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: selectedText }),
+        }).then(r => r.ok ? r.json() : { results: [] }),
+        fetch("/api/search-museums", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: selectedText }),
+        }).then(r => r.ok ? r.json() : { results: [] }),
+      ]);
 
-      if (!res.ok) throw new Error("Search failed");
+      const aiResults = aiRes.status === "fulfilled" ? (aiRes.value.results || []) : [];
+      const museumResults = museumRes.status === "fulfilled" ? (museumRes.value.results || []) : [];
 
-      const data = await res.json();
-      setSearchResults(data.results || []);
+      const seen = new Set<string>();
+      const combined: ImageResult[] = [];
+      for (const img of [...museumResults, ...aiResults]) {
+        if (!seen.has(img.url)) {
+          seen.add(img.url);
+          combined.push(img);
+        }
+      }
 
-      if (!data.results || data.results.length === 0) {
+      setSearchResults(combined);
+      if (combined.length === 0) {
         setSearchError("No images found. Try selecting different text.");
       }
     } catch (err: any) {
@@ -239,21 +245,64 @@ export default function Reader() {
     }
   };
 
-  const handleSaveImage = (image: ImageResult) => {
-    saveMutation.mutate({
-      url: image.url,
-      title: image.title,
-      source: image.source,
-      query: searchQuery,
+  const handleApproveImage = (image: ImageResult) => {
+    if (!editor || !selectionRange) {
+      toast({ title: "No text selected", description: "Please select text first.", duration: 2000 });
+      return;
+    }
+
+    editor.chain().focus()
+      .setTextSelection(selectionRange)
+      .setImageAnnotation({
+        url: image.url,
+        title: image.title,
+        source: image.source,
+        query: searchQuery,
+      })
+      .run();
+
+    if (!isImageSaved(image.url)) {
+      saveMutation.mutate({
+        url: image.url,
+        title: image.title,
+        source: image.source,
+        query: searchQuery,
+      });
+    }
+
+    toast({
+      title: "Image anchored & saved",
+      description: "Added to your DAM collection.",
+      duration: 2000,
     });
+
+    setFloatingSearchPos(null);
+    setSearchResults([]);
+    setSearchQuery("");
+  };
+
+  const handleSearchMore = () => {
+    handleSearch();
+  };
+
+  const dismissFloatingSearch = () => {
+    setFloatingSearchPos(null);
+    setSearchResults([]);
+    setSearchQuery("");
+    setIsSearching(false);
+    setSearchError(null);
   };
 
   const isImageSaved = (url: string) => savedImages.some(img => img.url === url);
 
+  const damQueries = [...new Set(savedImages.map(img => img.query).filter(Boolean))] as string[];
+  const filteredImages = damFilter
+    ? savedImages.filter(img => img.query === damFilter)
+    : savedImages;
+
   return (
     <div className="relative w-screen h-screen bg-background text-foreground flex overflow-hidden">
-
-      <div className={`flex-1 transition-all duration-300 ${isSidebarOpen ? 'pr-[420px]' : ''}`}>
+      <div className={`flex-1 transition-all duration-300 ${isSidebarOpen ? 'pr-[480px]' : ''}`}>
         <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border p-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Button data-testid="button-back" variant="ghost" size="icon" onClick={() => setLocation("/")} className="rounded-full">
@@ -305,72 +354,48 @@ export default function Reader() {
           <div className="flex items-center gap-2">
             {editor && (
               <div className="hidden md:flex items-center gap-0.5 bg-muted p-1 rounded-lg mr-2">
-                <Button
-                  data-testid="button-undo"
-                  variant="ghost" size="icon" className="h-7 w-7 rounded"
-                  onClick={() => editor.chain().focus().undo().run()}
-                  disabled={!editor.can().undo()}
-                >
+                <Button data-testid="button-undo" variant="ghost" size="icon" className="h-7 w-7 rounded"
+                  onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()}>
                   <Undo className="w-3.5 h-3.5" />
                 </Button>
-                <Button
-                  data-testid="button-redo"
-                  variant="ghost" size="icon" className="h-7 w-7 rounded"
-                  onClick={() => editor.chain().focus().redo().run()}
-                  disabled={!editor.can().redo()}
-                >
+                <Button data-testid="button-redo" variant="ghost" size="icon" className="h-7 w-7 rounded"
+                  onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()}>
                   <Redo className="w-3.5 h-3.5" />
                 </Button>
                 <div className="w-px h-5 bg-border mx-1" />
-                <Button
-                  data-testid="button-bold"
-                  variant={editor.isActive("bold") ? "secondary" : "ghost"}
-                  size="icon" className="h-7 w-7 rounded"
-                  onClick={() => editor.chain().focus().toggleBold().run()}
-                >
+                <Button data-testid="button-bold" variant={editor.isActive("bold") ? "secondary" : "ghost"}
+                  size="icon" className="h-7 w-7 rounded" onClick={() => editor.chain().focus().toggleBold().run()}>
                   <Bold className="w-3.5 h-3.5" />
                 </Button>
-                <Button
-                  data-testid="button-italic"
-                  variant={editor.isActive("italic") ? "secondary" : "ghost"}
-                  size="icon" className="h-7 w-7 rounded"
-                  onClick={() => editor.chain().focus().toggleItalic().run()}
-                >
+                <Button data-testid="button-italic" variant={editor.isActive("italic") ? "secondary" : "ghost"}
+                  size="icon" className="h-7 w-7 rounded" onClick={() => editor.chain().focus().toggleItalic().run()}>
                   <Italic className="w-3.5 h-3.5" />
                 </Button>
-                <Button
-                  data-testid="button-strike"
-                  variant={editor.isActive("strike") ? "secondary" : "ghost"}
-                  size="icon" className="h-7 w-7 rounded"
-                  onClick={() => editor.chain().focus().toggleStrike().run()}
-                >
+                <Button data-testid="button-strike" variant={editor.isActive("strike") ? "secondary" : "ghost"}
+                  size="icon" className="h-7 w-7 rounded" onClick={() => editor.chain().focus().toggleStrike().run()}>
                   <Strikethrough className="w-3.5 h-3.5" />
                 </Button>
-                <Button
-                  data-testid="button-highlight"
-                  variant={editor.isActive("highlight") ? "secondary" : "ghost"}
-                  size="icon" className="h-7 w-7 rounded"
-                  onClick={() => editor.chain().focus().toggleHighlight().run()}
-                >
+                <Button data-testid="button-highlight" variant={editor.isActive("highlight") ? "secondary" : "ghost"}
+                  size="icon" className="h-7 w-7 rounded" onClick={() => editor.chain().focus().toggleHighlight().run()}>
                   <Highlighter className="w-3.5 h-3.5" />
                 </Button>
               </div>
             )}
 
             <Button
-              data-testid="button-saved-toggle"
-              variant="outline"
+              data-testid="button-dam-toggle"
+              variant={isSidebarOpen ? "default" : "outline"}
               className="rounded-full gap-2"
-              onClick={() => { setIsSidebarOpen(!isSidebarOpen); setActiveTab('saved'); }}
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
             >
-              <Bookmark className="w-4 h-4" />
-              Saved ({savedImages.length})
+              <Grid3x3 className="w-4 h-4" />
+              DAM ({savedImages.length})
             </Button>
           </div>
         </header>
 
         <ScrollArea className="h-[calc(100vh-73px)]">
-          <div className="max-w-3xl mx-auto py-12 px-8">
+          <div className="max-w-3xl mx-auto py-12 px-8" ref={editorContainerRef}>
             {editor && (
               <BubbleMenu
                 editor={editor}
@@ -381,44 +406,24 @@ export default function Reader() {
                 }}
               >
                 <div className="bg-popover border border-border shadow-xl rounded-xl p-1.5 flex items-center gap-1 backdrop-blur-md">
-                  <Button
-                    data-testid="bubble-bold"
-                    variant={editor.isActive("bold") ? "secondary" : "ghost"}
-                    size="icon" className="h-7 w-7 rounded"
-                    onClick={() => editor.chain().focus().toggleBold().run()}
-                  >
+                  <Button data-testid="bubble-bold" variant={editor.isActive("bold") ? "secondary" : "ghost"}
+                    size="icon" className="h-7 w-7 rounded" onClick={() => editor.chain().focus().toggleBold().run()}>
                     <Bold className="w-3.5 h-3.5" />
                   </Button>
-                  <Button
-                    data-testid="bubble-italic"
-                    variant={editor.isActive("italic") ? "secondary" : "ghost"}
-                    size="icon" className="h-7 w-7 rounded"
-                    onClick={() => editor.chain().focus().toggleItalic().run()}
-                  >
+                  <Button data-testid="bubble-italic" variant={editor.isActive("italic") ? "secondary" : "ghost"}
+                    size="icon" className="h-7 w-7 rounded" onClick={() => editor.chain().focus().toggleItalic().run()}>
                     <Italic className="w-3.5 h-3.5" />
                   </Button>
-                  <Button
-                    data-testid="bubble-highlight"
-                    variant={editor.isActive("highlight") ? "secondary" : "ghost"}
-                    size="icon" className="h-7 w-7 rounded"
-                    onClick={() => editor.chain().focus().toggleHighlight().run()}
-                  >
+                  <Button data-testid="bubble-highlight" variant={editor.isActive("highlight") ? "secondary" : "ghost"}
+                    size="icon" className="h-7 w-7 rounded" onClick={() => editor.chain().focus().toggleHighlight().run()}>
                     <Highlighter className="w-3.5 h-3.5" />
                   </Button>
-                  <Button
-                    data-testid="bubble-h2"
-                    variant={editor.isActive("heading", { level: 2 }) ? "secondary" : "ghost"}
-                    size="icon" className="h-7 w-7 rounded"
-                    onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-                  >
+                  <Button data-testid="bubble-h2" variant={editor.isActive("heading", { level: 2 }) ? "secondary" : "ghost"}
+                    size="icon" className="h-7 w-7 rounded" onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}>
                     <Heading2 className="w-3.5 h-3.5" />
                   </Button>
-                  <Button
-                    data-testid="bubble-h3"
-                    variant={editor.isActive("heading", { level: 3 }) ? "secondary" : "ghost"}
-                    size="icon" className="h-7 w-7 rounded"
-                    onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-                  >
+                  <Button data-testid="bubble-h3" variant={editor.isActive("heading", { level: 3 }) ? "secondary" : "ghost"}
+                    size="icon" className="h-7 w-7 rounded" onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}>
                     <Heading3 className="w-3.5 h-3.5" />
                   </Button>
                   <div className="w-px h-5 bg-border mx-0.5" />
@@ -429,11 +434,7 @@ export default function Reader() {
                     onClick={handleSearch}
                     disabled={isSearching || !selectedText}
                   >
-                    {isSearching ? (
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                    ) : (
-                      <ImageIcon className="w-3 h-3" />
-                    )}
+                    {isSearching ? <Loader2 className="w-3 h-3 animate-spin" /> : <ImageIcon className="w-3 h-3" />}
                     Find Images
                   </Button>
                 </div>
@@ -445,205 +446,271 @@ export default function Reader() {
         </ScrollArea>
       </div>
 
-      {/* Right Sidebar */}
+      {/* Floating Search Results Panel - appears above selected text */}
       <AnimatePresence>
-        {isSidebarOpen && (
+        {floatingSearchPos && (isSearching || searchResults.length > 0 || searchError) && (
           <motion.div
-            initial={{ opacity: 0, x: 400 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 400 }}
-            transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className="fixed top-0 right-0 w-[420px] h-full bg-card border-l border-border shadow-2xl z-40 flex flex-col"
+            data-testid="floating-search-panel"
+            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.95 }}
+            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+            className="fixed z-50"
+            style={{
+              top: `${floatingSearchPos.top}px`,
+              left: `${floatingSearchPos.left}px`,
+            }}
           >
-            <div className="p-4 border-b border-border flex items-center justify-between bg-background/50 backdrop-blur-sm sticky top-0 z-10">
-              <div className="flex gap-1 bg-muted p-1 rounded-lg">
-                <Button
-                  data-testid="tab-search"
-                  variant={activeTab === 'search' ? 'secondary' : 'ghost'}
-                  size="sm"
-                  className={`rounded-md px-4 ${activeTab === 'search' ? 'shadow-sm bg-background text-foreground' : 'text-muted-foreground'}`}
-                  onClick={() => setActiveTab('search')}
-                >
-                  <Search className="w-4 h-4 mr-2" />
-                  Search
-                </Button>
-                <Button
-                  data-testid="tab-saved"
-                  variant={activeTab === 'saved' ? 'secondary' : 'ghost'}
-                  size="sm"
-                  className={`rounded-md px-4 ${activeTab === 'saved' ? 'shadow-sm bg-background text-foreground' : 'text-muted-foreground'}`}
-                  onClick={() => setActiveTab('saved')}
-                >
-                  <Bookmark className="w-4 h-4 mr-2" />
-                  Saved ({savedImages.length})
-                </Button>
+            <div className="w-[400px] bg-card/95 backdrop-blur-xl border border-border rounded-2xl shadow-2xl overflow-hidden">
+              <div className="p-3 border-b border-border bg-background/50 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Search className="w-4 h-4 text-primary" />
+                  <span className="text-sm font-medium truncate max-w-[250px]">"{searchQuery}"</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button data-testid="floating-search-more" variant="ghost" size="icon" className="h-6 w-6 rounded"
+                    onClick={handleSearchMore} disabled={isSearching} title="Search again">
+                    <RefreshCw className={`w-3 h-3 ${isSearching ? 'animate-spin' : ''}`} />
+                  </Button>
+                  <Button data-testid="floating-search-close" variant="ghost" size="icon" className="h-6 w-6 rounded"
+                    onClick={dismissFloatingSearch}>
+                    <X className="w-3 h-3" />
+                  </Button>
+                </div>
               </div>
-              <Button data-testid="button-close-sidebar" variant="ghost" size="icon" className="rounded-full" onClick={() => setIsSidebarOpen(false)}>
-                <X className="w-5 h-5 text-muted-foreground" />
-              </Button>
-            </div>
 
-            <ScrollArea className="flex-1 p-4 bg-background/30">
-              {activeTab === 'search' && (
-                <div className="space-y-6 pb-20">
-                  {searchQuery && (
-                    <div className="bg-muted/50 p-4 rounded-xl border border-border">
-                      <p className="text-sm text-muted-foreground mb-1">Searching for:</p>
-                      <p className="text-base font-medium italic">"{searchQuery}"</p>
-                    </div>
-                  )}
+              <div className="max-h-[280px] overflow-y-auto p-2">
+                {isSearching && (
+                  <div className="flex flex-col items-center justify-center py-8 gap-3">
+                    <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                    <p className="text-sm text-muted-foreground">Searching museums & archives...</p>
+                  </div>
+                )}
 
-                  {isSearching && (
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-3 p-4 bg-primary/5 border border-primary/20 rounded-xl">
-                        <Loader2 className="w-5 h-5 text-primary animate-spin" />
-                        <div>
-                          <p className="text-sm font-medium text-foreground">Searching databases...</p>
-                          <p className="text-xs text-muted-foreground">Finding images from museums and academic sources</p>
-                        </div>
-                      </div>
-                      {[1, 2, 3].map(i => (
-                        <div key={i} className="rounded-xl border border-border overflow-hidden bg-card animate-pulse">
-                          <div className="aspect-video bg-muted w-full" />
-                          <div className="p-3">
-                            <div className="h-4 bg-muted rounded w-2/3 mb-2" />
-                            <div className="h-3 bg-muted rounded w-1/3" />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                {searchError && !isSearching && (
+                  <div className="flex items-center gap-2 p-3 text-sm text-muted-foreground">
+                    <AlertCircle className="w-4 h-4 text-destructive flex-shrink-0" />
+                    {searchError}
+                  </div>
+                )}
 
-                  {searchError && !isSearching && (
-                    <div className="flex items-start gap-3 p-4 bg-destructive/5 border border-destructive/20 rounded-xl">
-                      <AlertCircle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
-                      <div>
-                        <p className="text-sm font-medium text-foreground">Search Issue</p>
-                        <p className="text-xs text-muted-foreground">{searchError}</p>
-                      </div>
-                    </div>
-                  )}
-
-                  {!isSearching && searchResults.length > 0 && (
-                    <div className="space-y-5">
-                      <p className="text-xs text-muted-foreground">{searchResults.length} results from web search</p>
-                      {searchResults.map((img, idx) => {
-                        const saved = isImageSaved(img.url);
-                        const broken = brokenImages.has(img.url);
-                        if (broken) return null;
-                        return (
-                          <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: idx * 0.08 }}
-                            key={img.url + idx}
-                            className="group rounded-xl border border-border overflow-hidden bg-card hover:border-primary/50 transition-colors shadow-sm"
-                          >
-                            <div className="aspect-[4/3] w-full relative overflow-hidden bg-muted">
-                              <img
-                                src={img.url}
-                                alt={img.title}
-                                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                                onError={() => setBrokenImages(prev => new Set(prev).add(img.url))}
-                                loading="lazy"
-                              />
-                              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
-                                <Button
-                                  data-testid={`button-save-image-${idx}`}
-                                  className={`flex-1 ${saved ? 'bg-green-600 hover:bg-green-700 text-white' : ''}`}
-                                  onClick={() => !saved && handleSaveImage(img)}
-                                  disabled={saveMutation.isPending}
-                                >
-                                  {saved ? (
-                                    <><Check className="w-4 h-4 mr-2" /> Saved</>
-                                  ) : (
-                                    <><Bookmark className="w-4 h-4 mr-2" /> Save to Collection</>
-                                  )}
-                                </Button>
+                {!isSearching && searchResults.length > 0 && (
+                  <div className="grid grid-cols-2 gap-2">
+                    {searchResults.slice(0, 8).map((img, idx) => {
+                      const broken = brokenImages.has(img.url);
+                      if (broken) return null;
+                      const saved = isImageSaved(img.url);
+                      return (
+                        <motion.div
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ delay: idx * 0.05 }}
+                          key={img.url + idx}
+                          data-testid={`floating-result-${idx}`}
+                          className="group relative rounded-lg overflow-hidden border border-border bg-muted cursor-pointer hover:border-primary/60 transition-all hover:shadow-lg"
+                          onClick={() => handleApproveImage(img)}
+                        >
+                          <div className="aspect-square w-full relative overflow-hidden">
+                            <img
+                              src={img.url}
+                              alt={img.title}
+                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                              onError={() => setBrokenImages(prev => new Set(prev).add(img.url))}
+                              loading="lazy"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                              <div className="absolute bottom-0 left-0 right-0 p-2">
+                                <p className="text-[10px] text-white/90 line-clamp-2 font-medium">{img.title}</p>
+                                <p className="text-[9px] text-white/60">{img.source}</p>
+                              </div>
+                              <div className="absolute top-2 right-2">
+                                {saved ? (
+                                  <div className="bg-green-500/90 rounded-full p-1">
+                                    <Check className="w-3 h-3 text-white" />
+                                  </div>
+                                ) : (
+                                  <div className="bg-primary/90 rounded-full p-1">
+                                    <CheckCircle2 className="w-3 h-3 text-white" />
+                                  </div>
+                                )}
                               </div>
                             </div>
-                            <div className="p-3 bg-card border-t border-border">
-                              <p className="text-sm font-medium text-foreground mb-1 line-clamp-2">{img.title}</p>
-                              <p className="text-xs text-muted-foreground">{img.source}</p>
-                            </div>
-                          </motion.div>
-                        );
-                      })}
-                    </div>
-                  )}
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
 
-                  {!isSearching && !searchError && searchResults.length === 0 && !searchQuery && (
-                    <div className="text-center py-20">
-                      <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
-                        <ImageIcon className="w-8 h-8 text-muted-foreground opacity-50" />
-                      </div>
-                      <h3 className="text-lg font-medium text-foreground mb-2">Highlight text to search</h3>
-                      <p className="text-muted-foreground text-sm max-w-xs mx-auto">Select any word or phrase in the editor, then click "Find Images" in the floating toolbar to search for related images.</p>
-                    </div>
-                  )}
+              {!isSearching && searchResults.length > 0 && (
+                <div className="p-2 border-t border-border bg-background/50 text-center">
+                  <p className="text-[10px] text-muted-foreground">Click an image to anchor it above the selected text & save to DAM</p>
                 </div>
               )}
 
-              {activeTab === 'saved' && (
-                <div className="space-y-4 pb-20">
-                  {savedImages.length === 0 ? (
-                    <div className="text-center py-20">
-                      <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
-                        <Bookmark className="w-8 h-8 text-muted-foreground opacity-50" />
-                      </div>
-                      <h3 className="text-lg font-medium text-foreground mb-2">Your collection is empty</h3>
-                      <p className="text-muted-foreground text-sm">Highlight text and search to find and save images.</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {savedImages.map((img) => (
-                        <motion.div
-                          initial={{ opacity: 0, scale: 0.95 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          key={img.id}
-                          className="group relative rounded-xl border border-border overflow-hidden bg-card shadow-sm"
-                        >
-                          <div className="aspect-[16/10] w-full relative overflow-hidden bg-muted">
-                            <img
-                              src={img.url}
-                              alt={img.title || "Saved image"}
-                              className="w-full h-full object-cover"
-                              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                            />
-                            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <Button
-                                data-testid={`button-delete-saved-${img.id}`}
-                                size="icon"
-                                variant="destructive"
-                                className="w-8 h-8 rounded-full shadow-lg"
-                                onClick={() => deleteMutation.mutate(img.id)}
-                              >
-                                <X className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          </div>
-                          <div className="p-3 bg-card border-t border-border">
-                            <p className="text-sm font-medium text-foreground mb-1 line-clamp-2">{img.title || "Untitled"}</p>
-                            <div className="flex items-center justify-between">
-                              <p className="text-xs text-muted-foreground">{img.source || "Unknown source"}</p>
+              <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-card/95 border-r border-b border-border rotate-45" />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Hover tooltip for annotated text */}
+      <AnimatePresence>
+        {hoveredAnnotation && (
+          <motion.div
+            data-testid="annotation-tooltip"
+            initial={{ opacity: 0, y: 5 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 5 }}
+            className="fixed z-[60] pointer-events-none"
+            style={{
+              top: `${Math.max(10, hoveredAnnotation.rect.top - 220 < 10 ? hoveredAnnotation.rect.bottom + 10 : hoveredAnnotation.rect.top - 220)}px`,
+              left: `${Math.max(10, Math.min(hoveredAnnotation.rect.left + hoveredAnnotation.rect.width / 2 - 120, window.innerWidth - 260))}px`,
+            }}
+          >
+            <div className="w-[240px] bg-card border border-primary/30 rounded-xl shadow-2xl overflow-hidden">
+              <div className="aspect-[4/3] w-full overflow-hidden bg-muted">
+                <img
+                  src={hoveredAnnotation.url}
+                  alt={hoveredAnnotation.title}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div className="p-2 bg-card">
+                <p className="text-xs font-medium text-foreground line-clamp-2">{hoveredAnnotation.title}</p>
+                <p className="text-[10px] text-muted-foreground">{hoveredAnnotation.source}</p>
+              </div>
+              <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-3 h-3 bg-card border-r border-b border-primary/30 rotate-45" />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* DAM Sidebar */}
+      <AnimatePresence>
+        {isSidebarOpen && (
+          <motion.div
+            initial={{ opacity: 0, x: 480 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 480 }}
+            transition={{ type: "spring", damping: 25, stiffness: 200 }}
+            className="fixed top-0 right-0 w-[480px] h-full bg-card border-l border-border shadow-2xl z-40 flex flex-col"
+          >
+            <div className="p-4 border-b border-border bg-background/50 backdrop-blur-sm">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <Grid3x3 className="w-4 h-4 text-primary" />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-semibold text-foreground">Digital Asset Manager</h2>
+                    <p className="text-[10px] text-muted-foreground">{savedImages.length} assets curated</p>
+                  </div>
+                </div>
+                <Button data-testid="button-close-dam" variant="ghost" size="icon" className="rounded-full" onClick={() => setIsSidebarOpen(false)}>
+                  <X className="w-5 h-5 text-muted-foreground" />
+                </Button>
+              </div>
+
+              {damQueries.length > 0 && (
+                <div className="flex gap-1.5 flex-wrap">
+                  <Button
+                    data-testid="dam-filter-all"
+                    variant={damFilter === null ? "secondary" : "ghost"}
+                    size="sm"
+                    className="h-6 px-2.5 text-[10px] rounded-full"
+                    onClick={() => setDamFilter(null)}
+                  >
+                    All ({savedImages.length})
+                  </Button>
+                  {damQueries.map((q, qi) => {
+                    const count = savedImages.filter(img => img.query === q).length;
+                    const slug = q.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+                    return (
+                      <Button
+                        key={q}
+                        data-testid={`dam-filter-${slug || qi}`}
+                        variant={damFilter === q ? "secondary" : "ghost"}
+                        size="sm"
+                        className="h-6 px-2.5 text-[10px] rounded-full max-w-[120px] truncate"
+                        onClick={() => setDamFilter(damFilter === q ? null : q)}
+                      >
+                        {q} ({count})
+                      </Button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <ScrollArea className="flex-1 bg-background/30">
+              {filteredImages.length === 0 ? (
+                <div className="text-center py-20 px-6">
+                  <div className="w-20 h-20 bg-muted rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <ImageIcon className="w-10 h-10 text-muted-foreground opacity-40" />
+                  </div>
+                  <h3 className="text-lg font-medium text-foreground mb-2">
+                    {damFilter ? "No assets for this query" : "Your DAM is empty"}
+                  </h3>
+                  <p className="text-muted-foreground text-sm max-w-xs mx-auto">
+                    {damFilter
+                      ? "Try a different filter or add more images."
+                      : "Highlight text in the editor and click \"Find Images\" to source and curate visual assets."}
+                  </p>
+                </div>
+              ) : (
+                <div className="p-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    {filteredImages.map((img) => (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        key={img.id}
+                        data-testid={`dam-asset-${img.id}`}
+                        className="group relative rounded-xl border border-border overflow-hidden bg-card shadow-sm hover:border-primary/40 transition-all hover:shadow-md"
+                      >
+                        <div className="aspect-square w-full relative overflow-hidden bg-muted">
+                          <img
+                            src={img.url}
+                            alt={img.title || "Saved image"}
+                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="absolute bottom-2 left-2 right-2 flex gap-1">
                               <a
                                 href={img.url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-xs text-primary hover:underline"
+                                data-testid={`dam-open-${img.id}`}
+                                className="flex-1 flex items-center justify-center gap-1 bg-white/20 backdrop-blur-sm text-white text-[10px] rounded-md py-1 hover:bg-white/30 transition-colors"
                               >
-                                <Download className="w-3 h-3 inline mr-1" />
+                                <ExternalLink className="w-3 h-3" />
                                 Open
                               </a>
+                              <button
+                                data-testid={`dam-delete-${img.id}`}
+                                className="flex items-center justify-center bg-red-500/80 backdrop-blur-sm text-white rounded-md px-2 py-1 hover:bg-red-600 transition-colors"
+                                onClick={() => deleteMutation.mutate(img.id)}
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
                             </div>
-                            {img.query && (
-                              <p className="text-xs text-muted-foreground/70 mt-1 italic">Query: "{img.query}"</p>
-                            )}
                           </div>
-                        </motion.div>
-                      ))}
-                    </div>
-                  )}
+                        </div>
+                        <div className="p-2">
+                          <p className="text-[11px] font-medium text-foreground line-clamp-2 leading-tight">{img.title || "Untitled"}</p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">{img.source || "Unknown"}</p>
+                          {img.query && (
+                            <span className="inline-block mt-1 text-[9px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">
+                              {img.query}
+                            </span>
+                          )}
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
                 </div>
               )}
             </ScrollArea>
