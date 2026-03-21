@@ -1,0 +1,154 @@
+{
+  "generated_at": "2026-02-12",
+  "scope": "/Users/samimajeed/mesopotamia-backend",
+  "summary": {
+    "primary_flow_count": 11,
+    "legacy_optional_count": 1,
+    "live_wired_count": 5,
+    "script_or_agent_count": 6
+  },
+  "flows": [
+    {
+      "id": "flow_rwi_complete_hunger",
+      "name": "RWI Complete Hunger Flow (R->W->I)",
+      "status": "live-wired",
+      "entrypoints": ["POST /api/rwi-complete/hunger/feed"],
+      "evidence": [
+        "rwi-complete-routes.js:11",
+        "rwi-complete-routes.js:17",
+        "rwi-complete-routes.js:56",
+        "rwi-hunger-orchestrator.js:5",
+        "server.js:3007"
+      ]
+    },
+    {
+      "id": "flow_rwi_image_routes",
+      "name": "RWI Image Search->Candidates->Approval Flow",
+      "status": "live-wired",
+      "entrypoints": [
+        "POST /api/rwi/images/search",
+        "POST /api/rwi/images/approve"
+      ],
+      "evidence": [
+        "server/routes/rwi-image-routes.mjs:241",
+        "server/routes/rwi-image-routes.mjs:358",
+        "server/routes/rwi-image-routes.mjs:427",
+        "server.js:2994"
+      ]
+    },
+    {
+      "id": "flow_multi_source_api",
+      "name": "Multi-Source Image Search + Artifact Generation Flow",
+      "status": "live-wired",
+      "entrypoints": [
+        "POST /api/images/search/multi",
+        "POST /api/images/generate/artifact"
+      ],
+      "evidence": [
+        "multi-source-image-api.js:452",
+        "multi-source-image-api.js:596",
+        "multi-source-image-api.js:739",
+        "server.js:3010"
+      ]
+    },
+    {
+      "id": "flow_museum_grade_generation",
+      "name": "Museum-Grade Image Generation Flow",
+      "status": "live-wired",
+      "entrypoints": [
+        "/api/images/generate",
+        "/api/images/generate-period",
+        "/api/images/generate-deity",
+        "/api/images/generate-architecture"
+      ],
+      "evidence": [
+        "museum-grade-image-api.js:14",
+        "museum-grade-image-api.js:20",
+        "museum-grade-image-api.js:67",
+        "museum-grade-image-api.js:120",
+        "museum-grade-image-api.js:159",
+        "server.js:25",
+        "server.js:2953"
+      ]
+    },
+    {
+      "id": "flow_core_museum_validate",
+      "name": "Core Museum Search + Save + Validation Flow",
+      "status": "live-wired",
+      "entrypoints": [
+        "GET /api/museums/search",
+        "POST /api/museums/save-image",
+        "POST /api/images/validate"
+      ],
+      "evidence": ["server.js:892", "server.js:981", "server.js:1904"]
+    },
+    {
+      "id": "flow_pairing_agent",
+      "name": "Pairing Agent Autonomous Flow",
+      "status": "script-entry",
+      "entrypoints": ["node pairing-agent.js"],
+      "evidence": [
+        "pairing-agent.js:2",
+        "pairing-agent.js:62",
+        "pairing-agent.js:72",
+        "pairing-agent.js:93"
+      ]
+    },
+    {
+      "id": "flow_curriculum_generation_orchestrator",
+      "name": "Curriculum Generation Orchestrator Image Phase Flow",
+      "status": "script-entry",
+      "entrypoints": ["node curriculum-generation-agent-system.js"],
+      "evidence": [
+        "curriculum-generation-agent-system.js:2",
+        "curriculum-generation-agent-system.js:585",
+        "curriculum-generation-agent-system.js:631"
+      ]
+    },
+    {
+      "id": "flow_grade_pilot_image_orchestrator",
+      "name": "Grade Pilot Image Sourcing Orchestrator Flow",
+      "status": "script-entry",
+      "entrypoints": ["node scripts/grade-pilot-image-sourcing-orchestrator.js"],
+      "evidence": [
+        "scripts/grade-pilot-image-sourcing-orchestrator.js:3",
+        "scripts/grade-pilot-image-sourcing-orchestrator.js:305"
+      ]
+    },
+    {
+      "id": "flow_curriculum_image_ingestion",
+      "name": "Curriculum Image Ingestion Flow",
+      "status": "script-entry",
+      "entrypoints": ["node curriculum-image-ingestion-system.js"],
+      "evidence": [
+        "curriculum-image-ingestion-system.js:3",
+        "curriculum-image-ingestion-system.js:235"
+      ]
+    },
+    {
+      "id": "flow_image_sourcing_standalone",
+      "name": "Standalone Image Sourcing Pipeline Flow",
+      "status": "script-entry",
+      "entrypoints": ["node image-sourcing-standalone.cjs"],
+      "evidence": ["image-sourcing-standalone.cjs:4"]
+    },
+    {
+      "id": "flow_carwash_image_availability_agent",
+      "name": "Carwash Image Availability Agent Flow",
+      "status": "agent-component",
+      "entrypoints": ["carwash-spine-system/agents/image-availability-checker/agent.cjs"],
+      "evidence": [
+        "carwash-spine-system/agents/image-availability-checker/agent.cjs:5",
+        "carwash-spine-system/agents/image-availability-checker/agent.cjs:61"
+      ]
+    },
+    {
+      "id": "flow_auto_image_pairing_legacy",
+      "name": "Auto Image Pairing System (museum -> AI fallback)",
+      "status": "legacy-not-wired",
+      "entrypoints": ["node auto-image-pairing-system.js"],
+      "evidence": ["auto-image-pairing-system.js:2", "auto-image-pairing-system.js:19"],
+      "notes": "Not currently imported in server.js"
+    }
+  ]
+}

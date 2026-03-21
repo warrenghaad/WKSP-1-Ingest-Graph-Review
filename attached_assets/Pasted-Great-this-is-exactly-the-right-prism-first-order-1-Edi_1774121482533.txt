@@ -1,0 +1,470 @@
+Great — this is exactly the right “prism-first” order: **(1) Editor + Entity Drawer**, **(2) minimal DB schema**, **(3) ingestion + image sourcing**, **(4) prompt generation for missing visuals**. 🧱🖼️✨
+
+Below is a **Prisma schema + endpoint list** designed for **Vite + Express + Prisma + Replit Postgres**, and specifically optimized for:
+
+* TipTap **entity hover → right drawer**
+* “Curated Google image search” via **Google Custom Search JSON API** (official, key-based ✅)
+* Storing image candidates + saved assets
+* Storing **AI prompt recipes** for images you can’t find
+
+---
+
+# 1) Prisma schema (minimal but extensible)
+
+Create `prisma/schema.prisma`:
+
+```prisma
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum EntityType {
+  UNKNOWN
+  PERSON
+  PLACE
+  DEITY
+  ARTIFACT
+  WORK_OF_ART
+  MOTIF
+  GEOMETRY
+  MATH
+  SCIENCE
+  INVENTION
+  PERIOD
+}
+
+enum AssetStatus {
+  CANDIDATE
+  SAVED
+  REJECTED
+}
+
+enum LinkType {
+  ENTITY_PRIMARY
+  ENTITY_SUPPORT
+  DOC_INLINE
+  DOC_FIGURE
+}
+
+model Document {
+  id          String     @id @default(cuid())
+  title       String?
+  sourceType  String     // "url" | "pdf" | "html" | "text"
+  sourceUrl   String?
+  rawText     String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  chunks      DocChunk[]
+  mentions    Mention[]
+}
+
+model DocChunk {
+  id         String   @id @default(cuid())
+  documentId String
+  idx        Int      // chunk order
+  text       String
+  createdAt  DateTime @default(now())
+
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, idx])
+  @@index([documentId])
+}
+
+model Entity {
+  id          String     @id @default(cuid())
+  label       String
+  type        EntityType @default(UNKNOWN)
+  description String?
+  aliases     String[]   @default([])
+  confidence  Float      @default(0.5)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  mentions    Mention[]
+  assets      EntityAsset[]
+  prompts     ImagePrompt[]
+
+  @@unique([label])
+  @@index([type])
+}
+
+model Mention {
+  id         String   @id @default(cuid())
+  documentId String
+  chunkId    String?
+  entityId   String
+  // For future: store offsets within chunk for precise decoration
+  // start      Int?
+  // end        Int?
+  context    String?
+  createdAt  DateTime @default(now())
+
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  chunk      DocChunk? @relation(fields: [chunkId], references: [id], onDelete: SetNull)
+  entity     Entity    @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@index([entityId])
+}
+
+model Asset {
+  id          String      @id @default(cuid())
+  status      AssetStatus @default(CANDIDATE)
+
+  provider    String      // "google" | "commons" | "met" | "pinterest" | "adobe"
+  title       String?
+  pageUrl     String?
+  imageUrl    String?     // original
+  thumbUrl    String?
+  // If you download locally or to object storage later:
+  storedUrl   String?     // where YOU store it (R2/S3/local/public)
+  width       Int?
+  height      Int?
+
+  license     String?     // "CC BY", "Public Domain", "Adobe Stock", etc.
+  attribution String?
+  notes       String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  entityLinks EntityAsset[]
+  docLinks    DocAssetLink[]
+}
+
+model EntityAsset {
+  id        String   @id @default(cuid())
+  entityId  String
+  assetId   String
+  linkType  LinkType @default(ENTITY_SUPPORT)
+  createdAt DateTime @default(now())
+
+  entity    Entity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  asset     Asset  @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@unique([entityId, assetId])
+  @@index([entityId])
+  @@index([assetId])
+}
+
+model DocAssetLink {
+  id         String   @id @default(cuid())
+  documentId String
+  // For TipTap: attach assets to a node via a stable node id ("blockId")
+  blockId    String
+  assetId    String
+  linkType   LinkType @default(DOC_INLINE)
+  createdAt  DateTime @default(now())
+
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  asset      Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@index([blockId])
+  @@unique([documentId, blockId, assetId])
+}
+
+model ImagePrompt {
+  id        String   @id @default(cuid())
+  entityId  String?
+  title     String?
+  prompt    String
+  negative  String?
+  styleTag  String?   // "museum-photo" | "diagram" | "3d-primitive" | "ink"
+  createdAt DateTime @default(now())
+
+  entity    Entity? @relation(fields: [entityId], references: [id], onDelete: SetNull)
+}
+```
+
+### Why this schema works for your “prism”
+
+* **Entity hover** needs: `Entity → EntityAsset → Asset`
+* Ingestion needs: `Document → DocChunk`, plus `Mention` rows for discovered entities
+* You can attach images either to:
+
+  * the **entity** (general reference), or
+  * a specific **document block** (`DocAssetLink` via TipTap node IDs)
+* You can store “AI prompts for missing images” in `ImagePrompt`
+
+Run:
+
+```bash
+npx prisma migrate dev --name init
+```
+
+---
+
+# 2) Endpoint list (MVP order, with request/response shapes)
+
+## A) Prism screen needs these first ✅
+
+### 1) Get a document to display
+
+**GET** `/api/docs/:id`
+
+**Response**
+
+```json
+{
+  "id": "doc_...",
+  "title": "…",
+  "rawText": "…"
+}
+```
+
+### 2) Upsert/fetch entities for hover
+
+**GET** `/api/entities/by-label?q=Uruk`
+
+Returns entity + linked assets (saved + top candidates).
+
+### 3) Entity detail (what the drawer loads)
+
+**GET** `/api/entities/:id`
+
+**Response**
+
+```json
+{
+  "entity": { "id":"...", "label":"Uruk", "type":"PLACE", "aliases":[] },
+  "assets": [
+    { "id":"...", "status":"SAVED", "thumbUrl":"...", "pageUrl":"...", "provider":"commons" }
+  ]
+}
+```
+
+### 4) Curated image search (Google + others)
+
+**POST** `/api/assets/search`
+
+**Body**
+
+```json
+{ "query": "Uruk city map", "providers": ["google", "commons", "met"], "limit": 12 }
+```
+
+**Response**
+
+```json
+{ "results": [ { "provider":"google", "title":"…", "imageUrl":"…", "thumbUrl":"…", "pageUrl":"…" } ] }
+```
+
+✅ For Google, do this via **Google Custom Search JSON API** (official) so you’re not scraping Google Images.
+
+### 5) Save an asset (candidate → saved)
+
+**POST** `/api/assets/save`
+
+**Body**
+
+```json
+{
+  "entityId": "ent_...",
+  "asset": { "provider":"google", "imageUrl":"…", "pageUrl":"…", "title":"…", "license":"unknown" },
+  "linkType": "ENTITY_SUPPORT"
+}
+```
+
+---
+
+## B) Ingestion + auto-sourcing (what you asked for next) 📥🔎
+
+### 6) Ingest a URL (extract readable text)
+
+**POST** `/api/ingest/url`
+
+**Body**
+
+```json
+{ "url": "https://…", "title": "optional" }
+```
+
+Server does:
+
+1. fetch HTML
+2. extract readable content
+3. create `Document`
+4. chunk into `DocChunk`
+5. extract entities → create/update `Entity` + `Mention`
+6. for top entities → run `/assets/search` automatically → store as **CANDIDATE** assets linked to entity
+
+Returns: `{ documentId }`
+
+### 7) Ingest raw text (paste)
+
+**POST** `/api/ingest/text`
+
+Body: `{ "title": "...", "text": "..." }`
+Same pipeline as above.
+
+*(File upload endpoint optional for later if you want PDFs immediately.)*
+
+---
+
+## C) Prompt generation for missing images 🎨🧠
+
+### 8) Generate prompts for an entity
+
+**POST** `/api/prompts/generate`
+
+**Body**
+
+```json
+{ "entityId":"ent_...", "styleTag":"museum-photo", "count": 5 }
+```
+
+Server returns prompt drafts, **and optionally saves them** as `ImagePrompt` rows.
+
+### 9) Save/edit a prompt
+
+**POST** `/api/prompts/save`
+
+Body: `{ "entityId":"...", "title":"...", "prompt":"...", "negative":"..." }`
+
+---
+
+# 3) The “single Prism screen” UI (Editor + Entity Drawer)
+
+### Layout rules (anti-crowd)
+
+* Center editor is always dominant
+* Right drawer is hidden until hover/click
+* Hover = preview popover; click = pin drawer
+
+### UI components
+
+* `EditorCanvas` (TipTap)
+* `EntityDrawer` (right side)
+* `ImageGrid` (thumbnails, save buttons)
+* optional `IngestDrawer` (left) later
+
+---
+
+# 4) TipTap “entity hover” behavior (minimal implementation pattern)
+
+## A) Use an `entity` mark with attributes
+
+You’ll render text spans with metadata like:
+
+* `data-entity-id`
+* `data-entity-label`
+
+### TipTap mark skeleton
+
+```ts
+// client/src/tiptap/EntityMark.ts
+import { Mark, mergeAttributes } from "@tiptap/core";
+
+export const EntityMark = Mark.create({
+  name: "entity",
+
+  addAttributes() {
+    return {
+      entityId: { default: null },
+      label: { default: null },
+    };
+  },
+
+  parseHTML() {
+    return [{ tag: 'span[data-entity-id]' }];
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    return [
+      "span",
+      mergeAttributes(HTMLAttributes, {
+        "data-entity-id": HTMLAttributes.entityId,
+        "data-entity-label": HTMLAttributes.label,
+        class: "entity-mark"
+      }),
+      0
+    ];
+  },
+});
+```
+
+## B) Hover handler in the editor container
+
+Attach a single event listener that catches hover on `.entity-mark`, then loads the drawer:
+
+```ts
+function onMouseOver(e: MouseEvent) {
+  const el = (e.target as HTMLElement).closest(".entity-mark") as HTMLElement | null;
+  if (!el) return;
+  const entityId = el.dataset.entityId!;
+  // fetch entity detail + assets
+  openDrawerForEntity(entityId);
+}
+```
+
+And for selection-based fallback:
+
+* on selection change → `POST /api/assets/search` with selected text
+
+---
+
+# 5) “Curated Google image search” (do it safely ✅)
+
+When you say “Google image search,” the safe/pro way is:
+
+* **Google Custom Search JSON API** (images)
+
+  * requires: `GOOGLE_API_KEY`, `GOOGLE_CSE_ID`
+  * lets you whitelist domains for “curation” (museum sites, wikipedia, etc.)
+
+Your *curation knob* becomes:
+
+* restrict to domains (metmuseum.org, britishmuseum.org, etc.)
+* exclude Pinterest unless you have official access
+* prefer results with clear licensing sources (Commons, museums)
+
+---
+
+# 6) AI prompts for images you can’t find (practical prompt templates)
+
+When an entity has weak results, generate prompt drafts like:
+
+### Museum-photo style
+
+> “High-resolution museum photograph of **{ARTIFACT}**, Mesopotamian, neutral background, soft museum lighting, accurate material texture, no modern objects, sharp focus, documentary style.”
+
+### Diagram/overlay style (for your geometry phases)
+
+> “Clean educational diagram of **{ARTIFACT}** with geometric overlay: radial symmetry axes, labeled points, thin lines, white background, textbook style, no decorative fonts.”
+
+### 3D primitive / scene kit style (for reuse)
+
+> “3D render kit: **{OBJECT}** as a simple primitive form (blockout), neutral gray clay render, orthographic view, no background, consistent scale, game asset reference.”
+
+Store those in `ImagePrompt` so you can iterate and reuse them across weeks.
+
+---
+
+## Recommended build order (exactly what you asked) ✅
+
+1. **Prisma schema + migrate**
+2. **Single Prism screen** (Editor + Entity Drawer)
+3. **Entity hover fetch** (`GET /entities/:id`)
+4. **Image search** (`POST /assets/search`) + show thumbnails
+5. **Save asset** (`POST /assets/save`) + show in drawer
+6. **Ingest** (URL/text) with auto entity extraction + auto candidate fetching
+7. **Prompt generation** when results are weak
+
+---
+
+If you want, I can also paste a **starter Express route file** that wires up:
+
+* `/api/assets/search` (Google CSE + Commons + Met adapters)
+* `/api/assets/save`
+* `/api/entities/:id`
+
+…so you can hand Replit a near-executable spec instead of just the plan.
