@@ -18,6 +18,7 @@ import StarterKit from "@tiptap/starter-kit";
 import Highlight from "@tiptap/extension-highlight";
 import Placeholder from "@tiptap/extension-placeholder";
 import { ImageAnnotation } from "@/components/InlineImageExtension";
+import { InlineImageNode } from "@/components/InlineImageNode";
 import { DOCUMENTS } from "@/lib/documentContent";
 import OfflineIndicator from "@/components/OfflineIndicator";
 
@@ -73,6 +74,7 @@ export default function Reader() {
       Highlight.configure({ multicolor: true }),
       Placeholder.configure({ placeholder: "Start writing or paste your research text here..." }),
       ImageAnnotation,
+      InlineImageNode,
     ],
     content: INITIAL_CONTENT,
     editorProps: {
@@ -255,6 +257,16 @@ export default function Reader() {
       .setTextSelection(selectionRange)
       .setImageAnnotation({
         url: image.url,
+        title: image.title,
+        source: image.source,
+        query: searchQuery,
+      })
+      .run();
+
+    editor.chain().focus()
+      .setTextSelection({ from: selectionRange.from, to: selectionRange.from })
+      .insertInlineImage({
+        src: image.url,
         title: image.title,
         source: image.source,
         query: searchQuery,
