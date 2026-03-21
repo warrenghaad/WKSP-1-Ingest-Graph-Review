@@ -146,11 +146,15 @@ export default function Reader() {
       }
     };
 
+    const handleScroll = () => setHoveredAnnotation(null);
+
     container.addEventListener("mouseover", handleMouseOver);
     container.addEventListener("mouseout", handleMouseOut);
+    window.addEventListener("scroll", handleScroll, true);
     return () => {
       container.removeEventListener("mouseover", handleMouseOver);
       container.removeEventListener("mouseout", handleMouseOut);
+      window.removeEventListener("scroll", handleScroll, true);
     };
   }, []);
 
