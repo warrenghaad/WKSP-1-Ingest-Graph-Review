@@ -30,7 +30,7 @@ export async function registerRoutes(
       }
       const results = await searchImages(query);
       res.json({ results, source: "ai" });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Image search error:", error);
       res.status(500).json({ error: "Failed to search for images" });
     }
@@ -44,7 +44,7 @@ export async function registerRoutes(
       }
       const results = await searchAllMuseums(query);
       res.json({ results, source: "museums" });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Museum search error:", error);
       res.status(500).json({ error: "Failed to search museums" });
     }
@@ -92,10 +92,11 @@ export async function registerRoutes(
           if (!aborted) {
             res.write(`data: ${JSON.stringify({ type: "result", index: i, query, results, count: results.length })}\n\n`);
           }
-        } catch (err: any) {
-          allResults.push({ query, results: [], count: 0, error: err.message });
+        } catch (err: unknown) {
+          const errMsg = err instanceof Error ? err.message : "Unknown error";
+          allResults.push({ query, results: [], count: 0, error: errMsg });
           if (!aborted) {
-            res.write(`data: ${JSON.stringify({ type: "error", index: i, query, error: err.message })}\n\n`);
+            res.write(`data: ${JSON.stringify({ type: "error", index: i, query, error: errMsg })}\n\n`);
           }
         }
       }
@@ -104,7 +105,7 @@ export async function registerRoutes(
         res.write(`data: ${JSON.stringify({ type: "complete", totalQueries: queries.length, totalImages: allResults.reduce((sum, r) => sum + r.count, 0) })}\n\n`);
       }
       res.end();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Batch search error:", error);
       if (!res.headersSent) {
         res.status(500).json({ error: "Batch search failed" });
@@ -131,7 +132,7 @@ export async function registerRoutes(
         b64_json: imageData.b64_json,
         prompt,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Image generation error:", error);
       res.status(500).json({ error: "Failed to generate image" });
     }
@@ -152,7 +153,7 @@ export async function registerRoutes(
       const parsed = insertSavedImageSchema.parse(req.body);
       const saved = await storage.saveImage(parsed);
       res.status(201).json(saved);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error saving image:", error);
       res.status(400).json({ error: error.message || "Failed to save image" });
     }
@@ -177,7 +178,7 @@ export async function registerRoutes(
       }
 
       res.status(201).json({ saved, count: saved.length });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error batch saving:", error);
       res.status(500).json({ error: "Batch save failed" });
     }
@@ -209,7 +210,7 @@ export async function registerRoutes(
       const parsed = insertSessionSchema.parse(req.body);
       const session = await storage.createSession(parsed);
       res.status(201).json(session);
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(400).json({ error: error.message || "Failed to create session" });
     }
   });
@@ -281,7 +282,7 @@ export async function registerRoutes(
       }
 
       res.json({ concepts: extracted });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Concept extraction error:", error);
       res.status(500).json({ error: "Failed to extract concepts" });
     }
@@ -294,7 +295,7 @@ export async function registerRoutes(
       const updated = await storage.updateConceptCard(id, req.body);
       if (!updated) return res.status(404).json({ error: "Concept not found" });
       res.json(updated);
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(400).json({ error: error.message || "Failed to update concept" });
     }
   });
@@ -370,7 +371,7 @@ export async function registerRoutes(
       });
 
       res.json({ candidates: allCandidates, count: allCandidates.length });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Concept search error:", error);
       res.status(500).json({ error: "Failed to search for concept" });
     }
@@ -394,7 +395,7 @@ export async function registerRoutes(
       const updated = await storage.updateCandidate(id, req.body);
       if (!updated) return res.status(404).json({ error: "Candidate not found" });
       res.json(updated);
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(400).json({ error: error.message || "Failed to update candidate" });
     }
   });
@@ -416,7 +417,7 @@ export async function registerRoutes(
       });
 
       res.json(updated);
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ error: "Failed to generate queries" });
     }
   });
@@ -462,7 +463,7 @@ export async function registerRoutes(
       } else {
         res.json({ success: false, error: result.error, packet, fallbackExport: true });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Handoff error:", error);
       res.status(500).json({ error: "Handoff failed" });
     }
@@ -500,7 +501,7 @@ export async function registerRoutes(
       const parsed = insertEntitySchema.parse(req.body);
       const entity = await storage.createEntity(parsed);
       res.status(201).json(entity);
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(400).json({ error: error.message || "Failed to create entity" });
     }
   });
@@ -512,7 +513,7 @@ export async function registerRoutes(
       const updated = await storage.updateEntity(id, req.body);
       if (!updated) return res.status(404).json({ error: "Entity not found" });
       res.json(updated);
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(400).json({ error: error.message || "Failed to update entity" });
     }
   });
@@ -570,7 +571,7 @@ export async function registerRoutes(
       }
 
       res.json({ results, count: results.length });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Asset search error:", error);
       res.status(500).json({ error: "Failed to search assets" });
     }
@@ -606,7 +607,7 @@ export async function registerRoutes(
       }
 
       res.status(201).json(asset);
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(400).json({ error: error.message || "Failed to save asset" });
     }
   });
@@ -618,7 +619,7 @@ export async function registerRoutes(
       const updated = await storage.updateEntityAsset(id, req.body);
       if (!updated) return res.status(404).json({ error: "Link not found" });
       res.json(updated);
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(400).json({ error: error.message || "Failed to update link" });
     }
   });
@@ -706,7 +707,7 @@ export async function registerRoutes(
         entities: createdEntities,
         chunkCount: chunks.length,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Ingestion error:", error);
       res.status(500).json({ error: "Text ingestion failed" });
     }

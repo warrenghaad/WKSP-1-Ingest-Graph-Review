@@ -57,7 +57,7 @@ Return ONLY a JSON array, no other text.`
     const jsonMatch = content.match(/\[[\s\S]*\]/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
-      return parsed.filter((e: any) => e.label && e.entityType).map((e: any) => ({
+      return parsed.filter((e: Record<string, unknown>) => e.label && e.entityType).map((e: Record<string, unknown>) => ({
         label: e.label,
         entityType: e.entityType || "concept",
         description: e.description || "",
