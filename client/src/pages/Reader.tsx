@@ -2,12 +2,16 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Search, Bookmark, ArrowLeft, Image as ImageIcon, Check, Download, X,
   AlertCircle, Loader2, Bold, Italic, Heading2, Heading3,
   Undo, Redo, Strikethrough, Highlighter,
   FileText, ChevronDown, Grid3x3, Filter, Eye, Trash2,
-  CheckCircle2, RefreshCw, ExternalLink
+  CheckCircle2, RefreshCw, ExternalLink, Upload, Sparkles,
+  Tag, MapPin, Clock, User as UserIcon, Zap, ChevronRight,
+  ThumbsUp, ThumbsDown, MoreHorizontal
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
@@ -19,6 +23,7 @@ import Highlight from "@tiptap/extension-highlight";
 import Placeholder from "@tiptap/extension-placeholder";
 import { ImageAnnotation } from "@/components/InlineImageExtension";
 import { InlineImageNode } from "@/components/InlineImageNode";
+import { EntityMark } from "@/components/EntityMark";
 import { DOCUMENTS } from "@/lib/documentContent";
 import OfflineIndicator from "@/components/OfflineIndicator";
 
@@ -26,6 +31,7 @@ interface ImageResult {
   url: string;
   title: string;
   source: string;
+  objectUrl?: string;
 }
 
 interface SavedImage {
@@ -36,6 +42,56 @@ interface SavedImage {
   query: string | null;
   createdAt: string;
 }
+
+interface EntityData {
+  id: number;
+  label: string;
+  entityType: string;
+  description: string | null;
+  period: string | null;
+  region: string | null;
+  magicTags: string[] | null;
+  aliases: string[] | null;
+}
+
+interface LinkedAsset {
+  id: number;
+  linkId: number;
+  url: string;
+  title: string | null;
+  source: string | null;
+  objectUrl: string | null;
+  status: string;
+  sourceType: string;
+  linkType: string;
+  approved: boolean;
+}
+
+interface IngestResult {
+  document: any;
+  entities: (EntityData & { searchQueries: string[]; offsetStart?: number; offsetEnd?: number; snippet?: string })[];
+  chunkCount: number;
+}
+
+const ENTITY_TYPE_COLORS: Record<string, string> = {
+  artifact: "bg-amber-500/20 text-amber-300 border-amber-500/30",
+  place: "bg-blue-500/20 text-blue-300 border-blue-500/30",
+  person: "bg-purple-500/20 text-purple-300 border-purple-500/30",
+  deity: "bg-red-500/20 text-red-300 border-red-500/30",
+  concept: "bg-green-500/20 text-green-300 border-green-500/30",
+  material: "bg-orange-500/20 text-orange-300 border-orange-500/30",
+  technique: "bg-cyan-500/20 text-cyan-300 border-cyan-500/30",
+  period: "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
+  culture: "bg-pink-500/20 text-pink-300 border-pink-500/30",
+};
+
+const ENTITY_TYPE_ICONS: Record<string, typeof Tag> = {
+  artifact: Sparkles,
+  place: MapPin,
+  person: UserIcon,
+  deity: Zap,
+  period: Clock,
+};
 
 const INITIAL_CONTENT = DOCUMENTS[0]?.content || "";
 
@@ -54,17 +110,30 @@ export default function Reader() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [brokenImages, setBrokenImages] = useState<Set<string>>(new Set());
   const [damFilter, setDamFilter] = useState<string | null>(null);
-  const [hoveredAnnotation, setHoveredAnnotation] = useState<{
-    url: string; title: string; source: string; rect: DOMRect;
-  } | null>(null);
 
   const [floatingSearchPos, setFloatingSearchPos] = useState<{
     top: number; left: number;
   } | null>(null);
   const [selectionRange, setSelectionRange] = useState<{ from: number; to: number } | null>(null);
+
+  const [hoveredAnnotation, setHoveredAnnotation] = useState<{
+    url: string; title: string; source: string; rect: DOMRect;
+  } | null>(null);
+
+  const [drawerMode, setDrawerMode] = useState<"dam" | "entity" | "ingest">("dam");
+  const [activeEntityId, setActiveEntityId] = useState<number | null>(null);
+  const [entityDetail, setEntityDetail] = useState<{ entity: EntityData; assets: LinkedAsset[] } | null>(null);
+  const [entitySearching, setEntitySearching] = useState(false);
+  const [entitySearchQuery, setEntitySearchQuery] = useState("");
+
+  const [ingestTitle, setIngestTitle] = useState("");
+  const [ingestText, setIngestText] = useState("");
+  const [isIngesting, setIsIngesting] = useState(false);
+  const [ingestResult, setIngestResult] = useState<IngestResult | null>(null);
+  const [autoSearchingEntities, setAutoSearchingEntities] = useState(false);
+  const [autoSearchProgress, setAutoSearchProgress] = useState({ current: 0, total: 0 });
 
   const editorContainerRef = useRef<HTMLDivElement>(null);
 
@@ -75,6 +144,7 @@ export default function Reader() {
       Placeholder.configure({ placeholder: "Start writing or paste your research text here..." }),
       ImageAnnotation,
       InlineImageNode,
+      EntityMark,
     ],
     content: INITIAL_CONTENT,
     editorProps: {
@@ -126,6 +196,16 @@ export default function Reader() {
 
     const handleMouseOver = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
+
+      const entityEl = target.closest(".entity-mark") as HTMLElement;
+      if (entityEl) {
+        const entityId = entityEl.getAttribute("data-entity-id");
+        if (entityId) {
+          openEntityDrawer(parseInt(entityId));
+          return;
+        }
+      }
+
       const annotation = target.closest(".image-annotation") as HTMLElement;
       if (annotation) {
         const url = annotation.getAttribute("data-image-url");
@@ -157,6 +237,60 @@ export default function Reader() {
       window.removeEventListener("scroll", handleScroll, true);
     };
   }, []);
+
+  const openEntityDrawer = async (entityId: number) => {
+    setActiveEntityId(entityId);
+    setDrawerMode("entity");
+    try {
+      const res = await fetch(`/api/entities/${entityId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setEntityDetail(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch entity:", err);
+    }
+  };
+
+  const handleEntitySearch = async () => {
+    if (!entitySearchQuery.trim() || !activeEntityId) return;
+    setEntitySearching(true);
+    try {
+      const res = await fetch("/api/assets/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: entitySearchQuery, entityId: activeEntityId }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const entityRes = await fetch(`/api/entities/${activeEntityId}`);
+        if (entityRes.ok) {
+          setEntityDetail(await entityRes.json());
+        }
+        toast({ title: `Found ${data.count} images`, duration: 2000 });
+      }
+    } catch (err) {
+      toast({ title: "Search failed", variant: "destructive" });
+    } finally {
+      setEntitySearching(false);
+    }
+  };
+
+  const handleApproveAsset = async (linkId: number) => {
+    try {
+      await fetch(`/api/entity-assets/${linkId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ approved: true }),
+      });
+      if (activeEntityId) {
+        const res = await fetch(`/api/entities/${activeEntityId}`);
+        if (res.ok) setEntityDetail(await res.json());
+      }
+    } catch (err) {
+      console.error("Approve failed:", err);
+    }
+  };
 
   const { data: savedImages = [] } = useQuery<SavedImage[]>({
     queryKey: ["/api/saved-images"],
@@ -297,16 +431,99 @@ export default function Reader() {
     setSearchQuery("");
   };
 
-  const handleSearchMore = () => {
-    handleSearch();
-  };
-
   const dismissFloatingSearch = () => {
     setFloatingSearchPos(null);
     setSearchResults([]);
     setSearchQuery("");
     setIsSearching(false);
     setSearchError(null);
+  };
+
+  const handleIngest = async () => {
+    if (!ingestTitle.trim() || !ingestText.trim()) return;
+    setIsIngesting(true);
+    setIngestResult(null);
+
+    try {
+      const res = await fetch("/api/ingest/text", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: ingestTitle, text: ingestText }),
+      });
+
+      if (!res.ok) throw new Error("Ingestion failed");
+      const data: IngestResult = await res.json();
+      setIngestResult(data);
+
+      if (editor && data.entities.length > 0) {
+        const escaped = ingestText
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/\n\n/g, "</p><p>")
+          .replace(/\n/g, "<br/>");
+        editor.commands.setContent(`<p>${escaped}</p>`);
+
+        for (const entity of data.entities) {
+          if (entity.offsetStart != null && entity.offsetEnd != null) {
+            const docSize = editor.state.doc.content.size;
+            const from = Math.min(entity.offsetStart + 1, docSize - 1);
+            const to = Math.min(entity.offsetEnd + 1, docSize - 1);
+            if (from < to && from > 0) {
+              try {
+                editor.chain().focus()
+                  .setTextSelection({ from, to })
+                  .setEntityMark({
+                    entityId: entity.id,
+                    label: entity.label,
+                    entityType: entity.entityType,
+                  })
+                  .run();
+              } catch (e) {
+                // offset out of range, skip
+              }
+            }
+          }
+        }
+
+        editor.commands.setTextSelection({ from: 0, to: 0 });
+      }
+
+      toast({
+        title: `${data.entities.length} entities extracted`,
+        description: `${data.chunkCount} text chunks processed`,
+        duration: 3000,
+      });
+    } catch (err) {
+      toast({ title: "Ingestion failed", variant: "destructive" });
+    } finally {
+      setIsIngesting(false);
+    }
+  };
+
+  const handleAutoSearch = async () => {
+    if (!ingestResult) return;
+    setAutoSearchingEntities(true);
+    const ents = ingestResult.entities.slice(0, 5);
+    setAutoSearchProgress({ current: 0, total: ents.length });
+
+    for (let i = 0; i < ents.length; i++) {
+      const entity = ents[i];
+      setAutoSearchProgress({ current: i + 1, total: ents.length });
+      const query = entity.searchQueries?.[0] || entity.label;
+      try {
+        await fetch("/api/assets/search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query, entityId: entity.id }),
+        });
+      } catch (err) {
+        console.error(`Auto-search failed for ${entity.label}:`, err);
+      }
+    }
+
+    setAutoSearchingEntities(false);
+    toast({ title: "Auto-sourcing complete", description: `Searched images for ${ents.length} entities.` });
   };
 
   const isImageSaved = (url: string) => savedImages.some(img => img.url === url);
@@ -316,9 +533,25 @@ export default function Reader() {
     ? savedImages.filter(img => img.query === damFilter)
     : savedImages;
 
+  const drawerOpen = drawerMode === "dam" || drawerMode === "entity" || drawerMode === "ingest";
+
   return (
     <div className="relative w-screen h-screen bg-background text-foreground flex overflow-hidden">
-      <div className={`flex-1 transition-all duration-300 ${isSidebarOpen ? 'pr-[480px]' : ''}`}>
+      <style>{`
+        .entity-mark { cursor: pointer; border-bottom: 2px solid; padding-bottom: 1px; transition: all 0.2s; }
+        .entity-mark:hover { filter: brightness(1.3); }
+        .entity-artifact { border-color: #f59e0b; background: rgba(245,158,11,0.1); }
+        .entity-place { border-color: #3b82f6; background: rgba(59,130,246,0.1); }
+        .entity-person { border-color: #a855f7; background: rgba(168,85,247,0.1); }
+        .entity-deity { border-color: #ef4444; background: rgba(239,68,68,0.1); }
+        .entity-concept { border-color: #22c55e; background: rgba(34,197,94,0.1); }
+        .entity-material { border-color: #f97316; background: rgba(249,115,22,0.1); }
+        .entity-technique { border-color: #06b6d4; background: rgba(6,182,212,0.1); }
+        .entity-period { border-color: #eab308; background: rgba(234,179,8,0.1); }
+        .entity-culture { border-color: #ec4899; background: rgba(236,72,153,0.1); }
+      `}</style>
+
+      <div className={`flex-1 transition-all duration-300 ${drawerOpen ? 'pr-[480px]' : ''}`}>
         <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border p-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Button data-testid="button-back" variant="ghost" size="icon" onClick={() => setLocation("/")} className="rounded-full">
@@ -399,10 +632,20 @@ export default function Reader() {
             )}
 
             <Button
-              data-testid="button-dam-toggle"
-              variant={isSidebarOpen ? "default" : "outline"}
+              data-testid="button-ingest-toggle"
+              variant={drawerMode === "ingest" ? "default" : "outline"}
               className="rounded-full gap-2"
-              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              onClick={() => setDrawerMode(drawerMode === "ingest" ? "dam" : "ingest")}
+            >
+              <Upload className="w-4 h-4" />
+              Ingest
+            </Button>
+
+            <Button
+              data-testid="button-dam-toggle"
+              variant={drawerMode === "dam" ? "default" : "outline"}
+              className="rounded-full gap-2"
+              onClick={() => setDrawerMode(drawerMode === "dam" ? "entity" : "dam")}
             >
               <Grid3x3 className="w-4 h-4" />
               DAM ({savedImages.length})
@@ -462,7 +705,7 @@ export default function Reader() {
         </ScrollArea>
       </div>
 
-      {/* Floating Search Results Panel - appears above selected text */}
+      {/* Floating Search Results Panel */}
       <AnimatePresence>
         {floatingSearchPos && (isSearching || searchResults.length > 0 || searchError) && (
           <motion.div
@@ -485,7 +728,7 @@ export default function Reader() {
                 </div>
                 <div className="flex items-center gap-1">
                   <Button data-testid="floating-search-more" variant="ghost" size="icon" className="h-6 w-6 rounded"
-                    onClick={handleSearchMore} disabled={isSearching} title="Search again">
+                    onClick={handleSearch} disabled={isSearching} title="Search again">
                     <RefreshCw className={`w-3 h-3 ${isSearching ? 'animate-spin' : ''}`} />
                   </Button>
                   <Button data-testid="floating-search-close" variant="ghost" size="icon" className="h-6 w-6 rounded"
@@ -603,9 +846,9 @@ export default function Reader() {
         )}
       </AnimatePresence>
 
-      {/* DAM Sidebar */}
+      {/* Right Drawer */}
       <AnimatePresence>
-        {isSidebarOpen && (
+        {drawerOpen && (
           <motion.div
             initial={{ opacity: 0, x: 480 }}
             animate={{ opacity: 1, x: 0 }}
@@ -613,123 +856,439 @@ export default function Reader() {
             transition={{ type: "spring", damping: 25, stiffness: 200 }}
             className="fixed top-0 right-0 w-[480px] h-full bg-card border-l border-border shadow-2xl z-40 flex flex-col"
           >
-            <div className="p-4 border-b border-border bg-background/50 backdrop-blur-sm">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                    <Grid3x3 className="w-4 h-4 text-primary" />
-                  </div>
-                  <div>
-                    <h2 className="text-sm font-semibold text-foreground">Digital Asset Manager</h2>
-                    <p className="text-[10px] text-muted-foreground">{savedImages.length} assets curated</p>
-                  </div>
-                </div>
-                <Button data-testid="button-close-dam" variant="ghost" size="icon" className="rounded-full" onClick={() => setIsSidebarOpen(false)}>
-                  <X className="w-5 h-5 text-muted-foreground" />
-                </Button>
-              </div>
-
-              {damQueries.length > 0 && (
-                <div className="flex gap-1.5 flex-wrap">
-                  <Button
-                    data-testid="dam-filter-all"
-                    variant={damFilter === null ? "secondary" : "ghost"}
-                    size="sm"
-                    className="h-6 px-2.5 text-[10px] rounded-full"
-                    onClick={() => setDamFilter(null)}
-                  >
-                    All ({savedImages.length})
-                  </Button>
-                  {damQueries.map((q, qi) => {
-                    const count = savedImages.filter(img => img.query === q).length;
-                    const slug = q.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-                    return (
-                      <Button
-                        key={q}
-                        data-testid={`dam-filter-${slug || qi}`}
-                        variant={damFilter === q ? "secondary" : "ghost"}
-                        size="sm"
-                        className="h-6 px-2.5 text-[10px] rounded-full max-w-[120px] truncate"
-                        onClick={() => setDamFilter(damFilter === q ? null : q)}
-                      >
-                        {q} ({count})
-                      </Button>
-                    );
-                  })}
-                </div>
-              )}
+            {/* Drawer Tab Bar */}
+            <div className="flex border-b border-border bg-background/50">
+              <button
+                data-testid="drawer-tab-dam"
+                onClick={() => setDrawerMode("dam")}
+                className={`flex-1 px-4 py-3 text-xs font-medium flex items-center justify-center gap-2 border-b-2 transition-colors ${
+                  drawerMode === "dam" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Grid3x3 className="w-3.5 h-3.5" /> DAM
+              </button>
+              <button
+                data-testid="drawer-tab-entity"
+                onClick={() => setDrawerMode("entity")}
+                className={`flex-1 px-4 py-3 text-xs font-medium flex items-center justify-center gap-2 border-b-2 transition-colors ${
+                  drawerMode === "entity" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Tag className="w-3.5 h-3.5" /> Entity
+              </button>
+              <button
+                data-testid="drawer-tab-ingest"
+                onClick={() => setDrawerMode("ingest")}
+                className={`flex-1 px-4 py-3 text-xs font-medium flex items-center justify-center gap-2 border-b-2 transition-colors ${
+                  drawerMode === "ingest" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Upload className="w-3.5 h-3.5" /> Ingest
+              </button>
             </div>
 
-            <ScrollArea className="flex-1 bg-background/30">
-              {filteredImages.length === 0 ? (
-                <div className="text-center py-20 px-6">
-                  <div className="w-20 h-20 bg-muted rounded-2xl flex items-center justify-center mx-auto mb-4">
-                    <ImageIcon className="w-10 h-10 text-muted-foreground opacity-40" />
+            {/* DAM Tab */}
+            {drawerMode === "dam" && (
+              <>
+                <div className="p-4 border-b border-border bg-background/50 backdrop-blur-sm">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <Grid3x3 className="w-4 h-4 text-primary" />
+                      </div>
+                      <div>
+                        <h2 className="text-sm font-semibold text-foreground">Digital Asset Manager</h2>
+                        <p className="text-[10px] text-muted-foreground">{savedImages.length} assets curated</p>
+                      </div>
+                    </div>
                   </div>
-                  <h3 className="text-lg font-medium text-foreground mb-2">
-                    {damFilter ? "No assets for this query" : "Your DAM is empty"}
-                  </h3>
-                  <p className="text-muted-foreground text-sm max-w-xs mx-auto">
-                    {damFilter
-                      ? "Try a different filter or add more images."
-                      : "Highlight text in the editor and click \"Find Images\" to source and curate visual assets."}
-                  </p>
-                </div>
-              ) : (
-                <div className="p-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    {filteredImages.map((img) => (
-                      <motion.div
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        key={img.id}
-                        data-testid={`dam-asset-${img.id}`}
-                        className="group relative rounded-xl border border-border overflow-hidden bg-card shadow-sm hover:border-primary/40 transition-all hover:shadow-md"
+
+                  {damQueries.length > 0 && (
+                    <div className="flex gap-1.5 flex-wrap">
+                      <Button
+                        data-testid="dam-filter-all"
+                        variant={damFilter === null ? "secondary" : "ghost"}
+                        size="sm"
+                        className="h-6 px-2.5 text-[10px] rounded-full"
+                        onClick={() => setDamFilter(null)}
                       >
-                        <div className="aspect-square w-full relative overflow-hidden bg-muted">
-                          <img
-                            src={img.url}
-                            alt={img.title || "Saved image"}
-                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                          />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-                            <div className="absolute bottom-2 left-2 right-2 flex gap-1">
-                              <a
-                                href={img.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                data-testid={`dam-open-${img.id}`}
-                                className="flex-1 flex items-center justify-center gap-1 bg-white/20 backdrop-blur-sm text-white text-[10px] rounded-md py-1 hover:bg-white/30 transition-colors"
-                              >
-                                <ExternalLink className="w-3 h-3" />
-                                Open
-                              </a>
-                              <button
-                                data-testid={`dam-delete-${img.id}`}
-                                className="flex items-center justify-center bg-red-500/80 backdrop-blur-sm text-white rounded-md px-2 py-1 hover:bg-red-600 transition-colors"
-                                onClick={() => deleteMutation.mutate(img.id)}
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </button>
+                        All ({savedImages.length})
+                      </Button>
+                      {damQueries.map((q, qi) => {
+                        const count = savedImages.filter(img => img.query === q).length;
+                        const slug = q.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+                        return (
+                          <Button
+                            key={q}
+                            data-testid={`dam-filter-${slug || qi}`}
+                            variant={damFilter === q ? "secondary" : "ghost"}
+                            size="sm"
+                            className="h-6 px-2.5 text-[10px] rounded-full max-w-[120px] truncate"
+                            onClick={() => setDamFilter(damFilter === q ? null : q)}
+                          >
+                            {q} ({count})
+                          </Button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <ScrollArea className="flex-1 bg-background/30">
+                  {filteredImages.length === 0 ? (
+                    <div className="text-center py-20 px-6">
+                      <div className="w-20 h-20 bg-muted rounded-2xl flex items-center justify-center mx-auto mb-4">
+                        <ImageIcon className="w-10 h-10 text-muted-foreground opacity-40" />
+                      </div>
+                      <h3 className="text-lg font-medium text-foreground mb-2">
+                        {damFilter ? "No assets for this query" : "Your DAM is empty"}
+                      </h3>
+                      <p className="text-muted-foreground text-sm max-w-xs mx-auto">
+                        {damFilter
+                          ? "Try a different filter or add more images."
+                          : "Highlight text in the editor and click \"Find Images\" to source and curate visual assets."}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="p-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        {filteredImages.map((img) => (
+                          <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            key={img.id}
+                            data-testid={`dam-asset-${img.id}`}
+                            className="group relative rounded-xl border border-border overflow-hidden bg-card shadow-sm hover:border-primary/40 transition-all hover:shadow-md"
+                          >
+                            <div className="aspect-square w-full relative overflow-hidden bg-muted">
+                              <img
+                                src={img.url}
+                                alt={img.title || "Saved image"}
+                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                              />
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="absolute bottom-2 left-2 right-2 flex gap-1">
+                                  <a
+                                    href={img.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    data-testid={`dam-open-${img.id}`}
+                                    className="flex-1 flex items-center justify-center gap-1 bg-white/20 backdrop-blur-sm text-white text-[10px] rounded-md py-1 hover:bg-white/30 transition-colors"
+                                  >
+                                    <ExternalLink className="w-3 h-3" />
+                                    Open
+                                  </a>
+                                  <button
+                                    data-testid={`dam-delete-${img.id}`}
+                                    className="flex items-center justify-center bg-red-500/80 backdrop-blur-sm text-white rounded-md px-2 py-1 hover:bg-red-600 transition-colors"
+                                    onClick={() => deleteMutation.mutate(img.id)}
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              </div>
                             </div>
+                            <div className="p-2">
+                              <p className="text-[11px] font-medium text-foreground line-clamp-2 leading-tight">{img.title || "Untitled"}</p>
+                              <p className="text-[10px] text-muted-foreground mt-0.5">{img.source || "Unknown"}</p>
+                              {img.query && (
+                                <span className="inline-block mt-1 text-[9px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">
+                                  {img.query}
+                                </span>
+                              )}
+                            </div>
+                          </motion.div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </ScrollArea>
+              </>
+            )}
+
+            {/* Entity Tab */}
+            {drawerMode === "entity" && (
+              <ScrollArea className="flex-1">
+                {entityDetail ? (
+                  <div className="flex flex-col">
+                    <div className="p-4 border-b border-border">
+                      <div className="flex items-start gap-3 mb-3">
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center border ${ENTITY_TYPE_COLORS[entityDetail.entity.entityType] || ENTITY_TYPE_COLORS.concept}`}>
+                          {(() => {
+                            const Icon = ENTITY_TYPE_ICONS[entityDetail.entity.entityType] || Tag;
+                            return <Icon className="w-5 h-5" />;
+                          })()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h2 data-testid="entity-label" className="text-lg font-serif font-bold text-foreground">{entityDetail.entity.label}</h2>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className={`text-[10px] font-medium uppercase px-2 py-0.5 rounded-full border ${ENTITY_TYPE_COLORS[entityDetail.entity.entityType] || ENTITY_TYPE_COLORS.concept}`}>
+                              {entityDetail.entity.entityType}
+                            </span>
+                            {entityDetail.entity.period && (
+                              <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                <Clock className="w-3 h-3" /> {entityDetail.entity.period}
+                              </span>
+                            )}
+                            {entityDetail.entity.region && (
+                              <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                <MapPin className="w-3 h-3" /> {entityDetail.entity.region}
+                              </span>
+                            )}
                           </div>
                         </div>
-                        <div className="p-2">
-                          <p className="text-[11px] font-medium text-foreground line-clamp-2 leading-tight">{img.title || "Untitled"}</p>
-                          <p className="text-[10px] text-muted-foreground mt-0.5">{img.source || "Unknown"}</p>
-                          {img.query && (
-                            <span className="inline-block mt-1 text-[9px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">
-                              {img.query}
+                      </div>
+
+                      {entityDetail.entity.description && (
+                        <p data-testid="entity-description" className="text-sm text-muted-foreground leading-relaxed">{entityDetail.entity.description}</p>
+                      )}
+
+                      {entityDetail.entity.magicTags && entityDetail.entity.magicTags.length > 0 && (
+                        <div className="flex gap-1.5 mt-3 flex-wrap">
+                          {entityDetail.entity.magicTags.map(tag => (
+                            <span key={tag} className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
+                              {tag}
                             </span>
-                          )}
+                          ))}
                         </div>
-                      </motion.div>
-                    ))}
+                      )}
+                    </div>
+
+                    <div className="p-4 border-b border-border">
+                      <div className="flex items-center gap-2">
+                        <Input
+                          data-testid="entity-search-input"
+                          placeholder={`Search images for "${entityDetail.entity.label}"...`}
+                          value={entitySearchQuery}
+                          onChange={e => setEntitySearchQuery(e.target.value)}
+                          onKeyDown={e => e.key === "Enter" && handleEntitySearch()}
+                          className="flex-1 h-9 text-sm"
+                        />
+                        <Button
+                          data-testid="entity-search-btn"
+                          size="sm"
+                          onClick={handleEntitySearch}
+                          disabled={entitySearching || !entitySearchQuery.trim()}
+                          className="gap-1.5 h-9"
+                        >
+                          {entitySearching ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+                          Search
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="p-3">
+                      <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
+                        Linked Assets ({entityDetail.assets.length})
+                      </h3>
+                      {entityDetail.assets.length === 0 ? (
+                        <div className="text-center py-8">
+                          <ImageIcon className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
+                          <p className="text-sm text-muted-foreground">No images linked yet</p>
+                          <p className="text-[10px] text-muted-foreground/60 mt-1">Use the search above to find images</p>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-3">
+                          {entityDetail.assets.map((asset) => (
+                            <div
+                              key={asset.id}
+                              data-testid={`entity-asset-${asset.id}`}
+                              className={`group relative rounded-xl border overflow-hidden bg-card shadow-sm transition-all hover:shadow-md ${
+                                asset.approved ? "border-green-500/30" : "border-border hover:border-primary/40"
+                              }`}
+                            >
+                              <div className="aspect-square w-full relative overflow-hidden bg-muted">
+                                <img
+                                  src={asset.url}
+                                  alt={asset.title || "Asset"}
+                                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                  loading="lazy"
+                                />
+                                <div className="absolute top-2 left-2">
+                                  <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full backdrop-blur-md ${
+                                    asset.sourceType === "museum" ? "bg-blue-500/80 text-white" : "bg-purple-500/80 text-white"
+                                  }`}>
+                                    {asset.sourceType === "museum" ? "Museum" : "Web"}
+                                  </span>
+                                </div>
+                                {asset.approved && (
+                                  <div className="absolute top-2 right-2 bg-green-500 rounded-full p-1">
+                                    <Check className="w-3 h-3 text-white" />
+                                  </div>
+                                )}
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <div className="absolute bottom-2 left-2 right-2 flex gap-1">
+                                    {!asset.approved && (
+                                      <button
+                                        data-testid={`approve-asset-${asset.linkId}`}
+                                        onClick={() => handleApproveAsset(asset.linkId)}
+                                        className="flex-1 flex items-center justify-center gap-1 bg-green-500/80 backdrop-blur-sm text-white text-[10px] rounded-md py-1 hover:bg-green-600 transition-colors"
+                                      >
+                                        <ThumbsUp className="w-3 h-3" /> Approve
+                                      </button>
+                                    )}
+                                    {asset.objectUrl && (
+                                      <a
+                                        href={asset.objectUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center justify-center bg-white/20 backdrop-blur-sm text-white rounded-md px-2 py-1 hover:bg-white/30 transition-colors"
+                                      >
+                                        <ExternalLink className="w-3 h-3" />
+                                      </a>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="p-2">
+                                <p className="text-[11px] font-medium text-foreground line-clamp-2 leading-tight">{asset.title || "Untitled"}</p>
+                                <p className="text-[10px] text-muted-foreground mt-0.5">{asset.source || "Unknown"}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
+                ) : (
+                  <div className="text-center py-20 px-6">
+                    <div className="w-20 h-20 bg-muted rounded-2xl flex items-center justify-center mx-auto mb-4">
+                      <Tag className="w-10 h-10 text-muted-foreground opacity-40" />
+                    </div>
+                    <h3 className="text-lg font-medium text-foreground mb-2">No entity selected</h3>
+                    <p className="text-muted-foreground text-sm max-w-xs mx-auto">
+                      Hover over an entity mark in the text, or ingest a document to extract entities automatically.
+                    </p>
+                  </div>
+                )}
+              </ScrollArea>
+            )}
+
+            {/* Ingest Tab */}
+            {drawerMode === "ingest" && (
+              <ScrollArea className="flex-1">
+                <div className="p-4 flex flex-col gap-4">
+                  <div>
+                    <h2 className="text-sm font-semibold text-foreground mb-1">Text Ingestion</h2>
+                    <p className="text-[11px] text-muted-foreground">Paste text to auto-extract entities, create marks, and source images.</p>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Title</label>
+                    <Input
+                      data-testid="ingest-title"
+                      placeholder="e.g. Cylinder Seals of the Akkadian Period"
+                      value={ingestTitle}
+                      onChange={e => setIngestTitle(e.target.value)}
+                      className="h-9 text-sm"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Text</label>
+                    <Textarea
+                      data-testid="ingest-text"
+                      placeholder="Paste your research text here..."
+                      value={ingestText}
+                      onChange={e => setIngestText(e.target.value)}
+                      className="min-h-[200px] text-sm resize-none"
+                    />
+                  </div>
+
+                  <Button
+                    data-testid="ingest-submit"
+                    onClick={handleIngest}
+                    disabled={isIngesting || !ingestTitle.trim() || !ingestText.trim()}
+                    className="gap-2"
+                  >
+                    {isIngesting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Extracting entities...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4" />
+                        Extract Entities & Load
+                      </>
+                    )}
+                  </Button>
+
+                  {ingestResult && (
+                    <div className="space-y-3">
+                      <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-3">
+                        <p className="text-sm font-medium text-green-400">
+                          {ingestResult.entities.length} entities extracted from {ingestResult.chunkCount} chunks
+                        </p>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Detected Entities</h3>
+                        <Button
+                          data-testid="auto-search-btn"
+                          size="sm"
+                          variant="outline"
+                          onClick={handleAutoSearch}
+                          disabled={autoSearchingEntities}
+                          className="gap-1.5 h-7 text-xs"
+                        >
+                          {autoSearchingEntities ? (
+                            <>
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                              {autoSearchProgress.current}/{autoSearchProgress.total}
+                            </>
+                          ) : (
+                            <>
+                              <Search className="w-3 h-3" />
+                              Auto-Source Images
+                            </>
+                          )}
+                        </Button>
+                      </div>
+
+                      <div className="space-y-2">
+                        {ingestResult.entities.map(entity => {
+                          const Icon = ENTITY_TYPE_ICONS[entity.entityType] || Tag;
+                          return (
+                            <button
+                              key={entity.id}
+                              data-testid={`ingest-entity-${entity.id}`}
+                              onClick={() => openEntityDrawer(entity.id)}
+                              className="w-full text-left p-3 rounded-lg border border-border hover:border-primary/40 bg-card transition-all hover:shadow-sm"
+                            >
+                              <div className="flex items-start gap-2.5">
+                                <div className={`w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0 border ${ENTITY_TYPE_COLORS[entity.entityType] || ENTITY_TYPE_COLORS.concept}`}>
+                                  <Icon className="w-3.5 h-3.5" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-sm font-medium text-foreground">{entity.label}</span>
+                                    <ChevronRight className="w-3 h-3 text-muted-foreground" />
+                                  </div>
+                                  {entity.description && (
+                                    <p className="text-[11px] text-muted-foreground line-clamp-2 mt-0.5">{entity.description}</p>
+                                  )}
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <span className={`text-[9px] font-medium uppercase px-1.5 py-0.5 rounded-full border ${ENTITY_TYPE_COLORS[entity.entityType] || ENTITY_TYPE_COLORS.concept}`}>
+                                      {entity.entityType}
+                                    </span>
+                                    {entity.period && (
+                                      <span className="text-[9px] text-muted-foreground">{entity.period}</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
-            </ScrollArea>
+              </ScrollArea>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

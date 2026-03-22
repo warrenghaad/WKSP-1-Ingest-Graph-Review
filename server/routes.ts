@@ -3,9 +3,13 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { searchImages } from "./imageSearch";
 import { searchAllMuseums, searchMetMuseum, searchWikimediaCommons, searchSmithsonian } from "./museumSearch";
-import { insertSavedImageSchema, insertSessionSchema, insertConceptCardSchema, insertCandidateSchema } from "@shared/schema";
+import {
+  insertSavedImageSchema, insertSessionSchema, insertConceptCardSchema, insertCandidateSchema,
+  insertEntitySchema, insertAssetSchema, insertDocumentSchema,
+} from "@shared/schema";
 import { extractConcepts, generateQueryPack } from "./conceptExtractor";
 import { checkBackendStatus, sendResearchIngest, buildHandoffPacket } from "./backendAdapter";
+import { extractEntitiesFromText } from "./entityExtractor";
 import OpenAI from "openai";
 
 const openai = new OpenAI({
@@ -461,6 +465,272 @@ export async function registerRoutes(
     } catch (error: any) {
       console.error("Handoff error:", error);
       res.status(500).json({ error: "Handoff failed" });
+    }
+  });
+
+  // ====== ENTITY DAM ENDPOINTS ======
+
+  app.get("/api/entities/by-label", async (req, res) => {
+    try {
+      const q = req.query.q as string;
+      if (!q || q.length < 2) return res.json([]);
+      const results = await storage.findEntitiesByLabel(q);
+      res.json(results);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to search entities" });
+    }
+  });
+
+  app.get("/api/entities/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+      const entity = await storage.getEntity(id);
+      if (!entity) return res.status(404).json({ error: "Entity not found" });
+      const linkedAssets = await storage.getAssetsByEntity(id);
+      const mentionsList = await storage.getMentionsByEntity(id);
+      res.json({ entity, assets: linkedAssets, mentions: mentionsList });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch entity" });
+    }
+  });
+
+  app.post("/api/entities", async (req, res) => {
+    try {
+      const parsed = insertEntitySchema.parse(req.body);
+      const entity = await storage.createEntity(parsed);
+      res.status(201).json(entity);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message || "Failed to create entity" });
+    }
+  });
+
+  app.patch("/api/entities/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+      const updated = await storage.updateEntity(id, req.body);
+      if (!updated) return res.status(404).json({ error: "Entity not found" });
+      res.json(updated);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message || "Failed to update entity" });
+    }
+  });
+
+  app.post("/api/assets/search", async (req, res) => {
+    try {
+      const { query, entityId, sourceMode = "open_web_fast" } = req.body;
+      if (!query) return res.status(400).json({ error: "Query is required" });
+
+      let results: any[] = [];
+
+      if (sourceMode === "open_web_fast" || sourceMode === "hybrid") {
+        const [museumResults, aiResults] = await Promise.all([
+          searchAllMuseums(query),
+          searchImages(query),
+        ]);
+        results.push(
+          ...museumResults.map(r => ({ ...r, sourceType: "museum" as const })),
+          ...aiResults.map(r => ({ ...r, sourceType: "open_web" as const })),
+        );
+      } else if (sourceMode === "museum_context") {
+        const museumResults = await searchAllMuseums(query);
+        results.push(...museumResults.map(r => ({ ...r, sourceType: "museum" as const })));
+      } else if (sourceMode === "ai_search") {
+        const aiResults = await searchImages(query);
+        results.push(...aiResults.map(r => ({ ...r, sourceType: "open_web" as const })));
+      }
+
+      if (entityId) {
+        const savedAssets = [];
+        for (const r of results) {
+          const asset = await storage.createAsset({
+            url: r.url,
+            title: r.title || null,
+            source: r.source || null,
+            objectUrl: r.objectUrl || null,
+            sourceType: r.sourceType || "open_web",
+            status: "candidate",
+            provider: r.source || null,
+            thumbnailUrl: null,
+            width: null,
+            height: null,
+            metadata: null,
+          });
+          await storage.linkEntityAsset({
+            entityId,
+            assetId: asset.id,
+            linkType: "depicts",
+            approved: false,
+            confidence: "medium",
+          });
+          savedAssets.push(asset);
+        }
+        return res.json({ assets: savedAssets, count: savedAssets.length });
+      }
+
+      res.json({ results, count: results.length });
+    } catch (error: any) {
+      console.error("Asset search error:", error);
+      res.status(500).json({ error: "Failed to search assets" });
+    }
+  });
+
+  app.post("/api/assets/save", async (req, res) => {
+    try {
+      const { entityId, url, title, source, objectUrl, sourceType } = req.body;
+      if (!url) return res.status(400).json({ error: "URL is required" });
+
+      const asset = await storage.createAsset({
+        url,
+        title: title || null,
+        source: source || null,
+        objectUrl: objectUrl || null,
+        sourceType: sourceType || "open_web",
+        status: "saved",
+        provider: source || null,
+        thumbnailUrl: null,
+        width: null,
+        height: null,
+        metadata: null,
+      });
+
+      if (entityId) {
+        await storage.linkEntityAsset({
+          entityId,
+          assetId: asset.id,
+          linkType: "depicts",
+          approved: true,
+          confidence: "high",
+        });
+      }
+
+      res.status(201).json(asset);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message || "Failed to save asset" });
+    }
+  });
+
+  app.patch("/api/entity-assets/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+      const updated = await storage.updateEntityAsset(id, req.body);
+      if (!updated) return res.status(404).json({ error: "Link not found" });
+      res.json(updated);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message || "Failed to update link" });
+    }
+  });
+
+  app.post("/api/ingest/text", async (req, res) => {
+    try {
+      const { title, text, sourceUrl, citation, grade, week, sectionId } = req.body;
+      if (!text || !title) return res.status(400).json({ error: "Title and text are required" });
+
+      const doc = await storage.createDocument({
+        title,
+        rawText: text,
+        sourceUrl: sourceUrl || null,
+        citation: citation || null,
+        grade: grade || null,
+        week: week || null,
+        sectionId: sectionId || null,
+        processed: false,
+      });
+
+      const chunks: string[] = [];
+      const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
+      let chunk = "";
+      for (const sentence of sentences) {
+        if ((chunk + sentence).length > 500) {
+          if (chunk) chunks.push(chunk.trim());
+          chunk = sentence;
+        } else {
+          chunk += sentence;
+        }
+      }
+      if (chunk.trim()) chunks.push(chunk.trim());
+
+      for (let i = 0; i < chunks.length; i++) {
+        await storage.createDocChunk({
+          documentId: doc.id,
+          chunkIndex: i,
+          text: chunks[i],
+          entities: null,
+        });
+      }
+
+      const extracted = await extractEntitiesFromText(text);
+
+      const createdEntities = [];
+      for (const ext of extracted) {
+        const existing = await storage.findEntitiesByLabel(ext.label);
+        let entity;
+        if (existing.length > 0 && existing[0].label.toLowerCase() === ext.label.toLowerCase()) {
+          entity = existing[0];
+        } else {
+          entity = await storage.createEntity({
+            label: ext.label,
+            entityType: ext.entityType,
+            description: ext.description,
+            period: ext.period || null,
+            region: ext.region || null,
+            aliases: ext.aliases || null,
+            magicTags: ext.magicTags || null,
+            metadata: null,
+          });
+        }
+
+        await storage.createMention({
+          entityId: entity.id,
+          documentId: doc.id,
+          offsetStart: ext.offsetStart ?? null,
+          offsetEnd: ext.offsetEnd ?? null,
+          snippet: ext.snippet || null,
+        });
+
+        createdEntities.push({
+          ...entity,
+          searchQueries: ext.searchQueries,
+          offsetStart: ext.offsetStart,
+          offsetEnd: ext.offsetEnd,
+          snippet: ext.snippet,
+        });
+      }
+
+      await storage.updateDocument(doc.id, { processed: true });
+
+      res.json({
+        document: doc,
+        entities: createdEntities,
+        chunkCount: chunks.length,
+      });
+    } catch (error: any) {
+      console.error("Ingestion error:", error);
+      res.status(500).json({ error: "Text ingestion failed" });
+    }
+  });
+
+  app.get("/api/documents", async (_req, res) => {
+    try {
+      const docs = await storage.getDocuments();
+      res.json(docs);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch documents" });
+    }
+  });
+
+  app.get("/api/documents/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+      const doc = await storage.getDocument(id);
+      if (!doc) return res.status(404).json({ error: "Document not found" });
+      const mentionsList = await storage.getMentionsByDocument(id);
+      res.json({ document: doc, mentions: mentionsList });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch document" });
     }
   });
 

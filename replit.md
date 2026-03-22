@@ -90,13 +90,16 @@ Data files:
    - Detail panel with MAGIC profile (radar chart, weight bars, GEA/GEM/E×C×D), research papers, museum links
    - Smooth camera animation on selection, OrbitControls for zoom/pan/rotate
    - Artifact IDs follow WIII-A-SA3-### convention (Project EUCLID)
-2. **Reader / DAM** (`/reader`): Visual-first Digital Asset Manager with Tiptap editor. Features:
+2. **Reader / Entity-Aware DAM** (`/reader`): Visual-first Digital Asset Manager with entity extraction, Tiptap editor, and 3-tab drawer. Features:
    - Highlight text → BubbleMenu → "Find Images" searches museum + AI sources
-   - Search results appear in a floating panel above the highlighted text (not just sidebar)
+   - Search results appear in a floating panel above the highlighted text
    - Click an image to: anchor it inline above the text (ImageAnnotation mark) AND auto-save to DAM
    - Annotated text gets gold underline + dot indicator; hover shows image tooltip
-   - DAM sidebar: grid gallery of all curated assets, filterable by search query
-   - Custom Tiptap ImageAnnotation mark extension stores url/title/source/query per annotation
+   - **Entity Marks**: Custom TipTap EntityMark extension with color-coded underlines per entity type (artifact=amber, place=blue, person=purple, deity=red, concept=green, material=orange, technique=cyan, period=yellow, culture=pink)
+   - **3-Tab Drawer**: DAM (grid gallery, query filters), Entity (detail view, linked images, search+approve), Ingest (text ingestion pipeline)
+   - **Text Ingestion**: Paste text → AI extracts entities with types, descriptions, periods, regions, MAGIC tags, search queries, and character offsets → entities appear as marks in editor
+   - **Auto-Sourcing**: One-click auto-search for top entities, candidates stored as linked assets with approve/reject workflow
+   - **Entity-Asset Graph**: Entities linked to assets via join table with linkType (depicts), approval status, and confidence
 3. **Automation Lab** (`/lab`): Image search and generation testing ground
 4. **Euclid First-Run Textreader** (`/textreader`): Narrow first-run worker for text-to-image preparation. Features:
    - 4-zone layout: top bar, left intake pane, center concept board, right detail drawer
@@ -135,6 +138,18 @@ Data files:
 - `POST /api/textreader/concepts/:id/generate-queries` - Regenerate search queries and AI prompts
 - `POST /api/textreader/handoff` - Send ready concepts to external backend (or export JSON)
 
+### Entity DAM
+- `GET /api/entities/by-label?q=...` - Search entities by label (autocomplete)
+- `GET /api/entities/:id` - Get entity detail with linked assets and mentions
+- `POST /api/entities` - Create an entity
+- `PATCH /api/entities/:id` - Update entity
+- `POST /api/assets/search` - Multi-provider image search, optionally linked to entity
+- `POST /api/assets/save` - Save asset and optionally link to entity
+- `PATCH /api/entity-assets/:id` - Update entity-asset link (approve/reject)
+- `POST /api/ingest/text` - Ingest text → chunk → entity extraction → mention creation
+- `GET /api/documents` - List all documents
+- `GET /api/documents/:id` - Get document with mentions
+
 ## Environment Variables
 - `AI_INTEGRATIONS_OPENAI_API_KEY` - Set automatically by Replit AI Integrations
 - `AI_INTEGRATIONS_OPENAI_BASE_URL` - Set automatically by Replit AI Integrations
@@ -168,4 +183,6 @@ Data files:
 - `server/backendAdapter.ts` - External backend adapter (proxy to mesopotamia-backend)
 - `server/storage.ts` - DatabaseStorage backed by PostgreSQL
 - `server/db.ts` - Drizzle ORM database connection
-- `shared/schema.ts` - Drizzle schema (users, savedImages, textreaderSessions, conceptCards, conceptCandidates)
+- `client/src/components/EntityMark.ts` - Custom TipTap EntityMark extension (entity-aware mark with type colors)
+- `server/entityExtractor.ts` - AI entity extraction from text (OpenAI)
+- `shared/schema.ts` - Drizzle schema (users, savedImages, textreaderSessions, conceptCards, conceptCandidates, entities, assets, entityAssets, mentions, documents, docChunks, imagePrompts)
