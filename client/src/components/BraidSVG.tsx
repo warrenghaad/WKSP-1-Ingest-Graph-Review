@@ -1,153 +1,25 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useCallback, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { CIVILIZATIONS, type Civilization } from "@/lib/braidData";
 import { MAGIC_LABELS, type MAGICVector } from "@/lib/magicFramework";
 import { DII_MILESTONES, type DIIMilestone } from "@/lib/diiMilestones";
 
 const MAGIC_KEYS: (keyof MAGICVector)[] = ["M", "A", "G", "I", "C"];
-const CYCLES = 3;
-const STRAND_HEIGHT = 800;
-const BRAID_WIDTH = 120;
 
-const INNOVATION_ACTIVE: number[][] = [
-  [0, 1, 3],
-  [1, 2, 4],
-  [0, 2, 3, 4],
-];
+const TIME_START = -5000;
+const TIME_END = 400;
+const TIME_SPAN = TIME_END - TIME_START;
 
-interface StrandPoint {
-  x: number;
-  y: number;
-}
+const ROW_HEIGHT = 110;
+const ROW_GAP = 18;
+const LEFT_LABEL_W = 120;
+const RIGHT_PAD = 60;
+const TOP_PAD = 60;
+const BOTTOM_PAD = 40;
+const CHART_MIN_W = 1200;
 
-function generateStrandPath(
-  strandIndex: number,
-  weight: number,
-  width: number,
-  height: number,
-  xOffset: number
-): StrandPoint[] {
-  const points: StrandPoint[] = [];
-  const segments = 200;
-  const baseAngle = (strandIndex / 5) * Math.PI * 2;
-  const cycleLen = height / CYCLES;
-
-  for (let i = 0; i <= segments; i++) {
-    const t = i / segments;
-    const y = t * height;
-    const cycleIndex = Math.min(Math.floor(y / cycleLen), CYCLES - 1);
-    const cycleT = (y - cycleIndex * cycleLen) / cycleLen;
-
-    let spreadRadius: number;
-    let twistSpeed: number;
-
-    const activeInInnovation = INNOVATION_ACTIVE[cycleIndex % INNOVATION_ACTIVE.length].includes(strandIndex);
-
-    if (cycleT < 0.4) {
-      const blend = cycleT / 0.4;
-      spreadRadius = width * 0.42;
-      twistSpeed = 0.6 + blend * 0.4;
-      const drift = Math.sin(t * 8 + strandIndex * 1.3) * width * 0.05;
-      const x = xOffset + Math.sin(baseAngle + t * Math.PI * 2 * twistSpeed * CYCLES) * spreadRadius * (0.3 + weight * 0.7) + drift;
-      points.push({ x, y });
-      continue;
-    } else if (cycleT < 0.75) {
-      const blend = (cycleT - 0.4) / 0.35;
-      const converge = blend * blend;
-      if (activeInInnovation) {
-        spreadRadius = width * 0.42 * (1 - converge * 0.65);
-        twistSpeed = 2.5 + converge * 5;
-      } else {
-        spreadRadius = width * 0.42 * (1 - converge * 0.15);
-        twistSpeed = 0.8;
-      }
-    } else {
-      const blend = (cycleT - 0.75) / 0.25;
-      const tighten = blend * blend;
-      spreadRadius = width * 0.42 * 0.35 * (1 - tighten * 0.8);
-      twistSpeed = 6 + tighten * 8;
-    }
-
-    const angle = t * Math.PI * 2 * twistSpeed * CYCLES + baseAngle;
-    const x = xOffset + Math.sin(angle) * spreadRadius * (0.3 + weight * 0.7);
-    points.push({ x, y });
-  }
-
-  return points;
-}
-
-function pointsToPath(points: StrandPoint[]): string {
-  if (points.length === 0) return "";
-  let d = `M ${points[0].x} ${points[0].y}`;
-  for (let i = 1; i < points.length; i++) {
-    const prev = points[i - 1];
-    const curr = points[i];
-    const cpY = (prev.y + curr.y) / 2;
-    d += ` C ${prev.x} ${cpY} ${curr.x} ${cpY} ${curr.x} ${curr.y}`;
-  }
-  return d;
-}
-
-function generateGreenWrapPath(
-  cycleIndex: number,
-  width: number,
-  height: number,
-  xOffset: number
-): string {
-  const cycleLen = height / CYCLES;
-  const wrapStart = cycleIndex * cycleLen + cycleLen * 0.8;
-  const wrapEnd = cycleIndex * cycleLen + cycleLen * 0.97;
-  const segments = 40;
-  const points: StrandPoint[] = [];
-
-  for (let i = 0; i <= segments; i++) {
-    const t = i / segments;
-    const y = wrapStart + t * (wrapEnd - wrapStart);
-    const angle = t * Math.PI * 2 * 4;
-    const r = width * 0.18 * (1 - t * 0.4);
-    const x = xOffset + Math.sin(angle) * r;
-    points.push({ x, y });
-  }
-
-  return pointsToPath(points);
-}
-
-interface MilestonePosition {
-  milestone: DIIMilestone;
-  y: number;
-  side: "left" | "right";
-}
-
-function computeMilestonePositions(civId: string, height: number): MilestonePosition[] {
-  const cycles = DII_MILESTONES[civId];
-  if (!cycles) return [];
-
-  const positions: MilestonePosition[] = [];
-  const cycleLen = height / CYCLES;
-
-  for (let c = 0; c < CYCLES && c < cycles.length; c++) {
-    const base = c * cycleLen;
-    const milestones = cycles[c].milestones;
-
-    for (const m of milestones) {
-      let y: number;
-      if (m.phase === "discovery") {
-        y = base + cycleLen * 0.2;
-      } else if (m.phase === "innovation") {
-        y = base + cycleLen * 0.575;
-      } else {
-        y = base + cycleLen * 0.875;
-      }
-
-      positions.push({
-        milestone: m,
-        y,
-        side: m.phase === "innovation" ? "left" : "right",
-      });
-    }
-  }
-
-  return positions;
-}
+const BRAID_AMPLITUDE = 14;
+const BRAID_FREQ = 0.012;
 
 const PHASE_COLORS: Record<string, string> = {
   discovery: "#eab308",
@@ -155,427 +27,375 @@ const PHASE_COLORS: Record<string, string> = {
   invention: "#22c55e",
 };
 
-const IMG_SIZE = 28;
+function yearToX(year: number, chartW: number): number {
+  return LEFT_LABEL_W + ((year - TIME_START) / TIME_SPAN) * chartW;
+}
 
-function MilestoneNode({
-  pos,
-  xCenter,
-  onHover,
-  onLeave,
-  isHovered,
-  clipId,
-}: {
-  pos: MilestonePosition;
-  xCenter: number;
-  onHover: () => void;
-  onLeave: () => void;
-  isHovered: boolean;
-  clipId: string;
-}) {
-  const phaseColor = PHASE_COLORS[pos.milestone.phase];
-  const offset = pos.side === "right" ? BRAID_WIDTH / 2 + 22 : -(BRAID_WIDTH / 2 + 22);
-  const imgX = xCenter + offset - IMG_SIZE / 2;
-  const imgY = pos.y - IMG_SIZE / 2;
-  const connX = pos.side === "right" ? xCenter + BRAID_WIDTH / 2 + 4 : xCenter - BRAID_WIDTH / 2 - 4;
+interface BraidStrandProps {
+  startX: number;
+  endX: number;
+  centerY: number;
+  strandIndex: number;
+  weight: number;
+  color: string;
+}
+
+function generateBraidPath(
+  startX: number,
+  endX: number,
+  centerY: number,
+  strandIndex: number,
+  weight: number,
+): string {
+  const len = endX - startX;
+  const segments = Math.max(60, Math.floor(len / 3));
+  const basePhase = (strandIndex / 5) * Math.PI * 2;
+  const amp = BRAID_AMPLITUDE * (0.3 + weight * 0.7);
+
+  let d = "";
+  for (let i = 0; i <= segments; i++) {
+    const t = i / segments;
+    const x = startX + t * len;
+    const angle = basePhase + x * BRAID_FREQ * (3 + weight * 4);
+    const y = centerY + Math.sin(angle) * amp;
+    if (i === 0) d = `M ${x} ${y}`;
+    else {
+      const prevT = (i - 1) / segments;
+      const prevX = startX + prevT * len;
+      const prevAngle = basePhase + prevX * BRAID_FREQ * (3 + weight * 4);
+      const prevY = centerY + Math.sin(prevAngle) * amp;
+      const cpX = (prevX + x) / 2;
+      d += ` C ${cpX} ${prevY} ${cpX} ${y} ${x} ${y}`;
+    }
+  }
+  return d;
+}
+
+interface InventionData {
+  milestone: DIIMilestone;
+  x: number;
+  y: number;
+  civColor: string;
+  civName: string;
+}
+
+interface HoverCardProps {
+  inv: InventionData;
+  onClose: () => void;
+  onEnter: () => void;
+}
+
+function InventionHoverCard({ inv, onClose, onEnter }: HoverCardProps) {
+  const cardTop = inv.y - 260;
+  const flipBelow = cardTop < 10;
+  const top = flipBelow ? inv.y + ROW_HEIGHT + 10 : cardTop;
+  const left = Math.max(10, Math.min(inv.x - 160, 1400));
 
   return (
-    <g
-      onMouseEnter={onHover}
-      onMouseLeave={onLeave}
-      style={{ cursor: "pointer" }}
+    <motion.div
+      initial={{ opacity: 0, y: flipBelow ? -10 : 10, scale: 0.95 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: flipBelow ? -10 : 10, scale: 0.95 }}
+      transition={{ duration: 0.2 }}
+      className="absolute z-50 pointer-events-auto"
+      style={{ left, top, width: 320 }}
+      onMouseEnter={onEnter}
+      onMouseLeave={onClose}
     >
-      <line
-        x1={connX}
-        y1={pos.y}
-        x2={xCenter + offset}
-        y2={pos.y}
-        stroke={phaseColor}
-        strokeWidth={0.8}
-        opacity={0.3}
-        strokeDasharray="2 2"
-      />
-
-      <defs>
-        <clipPath id={clipId}>
-          <circle cx={xCenter + offset} cy={pos.y} r={IMG_SIZE / 2} />
-        </clipPath>
-      </defs>
-
-      <circle
-        cx={xCenter + offset}
-        cy={pos.y}
-        r={IMG_SIZE / 2 + 2}
-        fill="none"
-        stroke={phaseColor}
-        strokeWidth={isHovered ? 2 : 1}
-        opacity={isHovered ? 0.9 : 0.4}
-        style={{ transition: "all 0.2s" }}
-      />
-
-      <image
-        href={pos.milestone.imageUrl}
-        x={imgX}
-        y={imgY}
-        width={IMG_SIZE}
-        height={IMG_SIZE}
-        clipPath={`url(#${clipId})`}
-        preserveAspectRatio="xMidYMid slice"
-        opacity={isHovered ? 1 : 0.7}
-        style={{ transition: "opacity 0.2s" }}
-      />
-
-      {isHovered && (
-        <g>
-          <rect
-            x={pos.side === "right" ? xCenter + offset + IMG_SIZE / 2 + 6 : xCenter + offset - IMG_SIZE / 2 - 160}
-            y={pos.y - 32}
-            width={154}
-            height={64}
-            rx={6}
-            fill="black"
-            fillOpacity={0.92}
-            stroke={phaseColor}
-            strokeWidth={0.5}
-            strokeOpacity={0.4}
+      <div className="rounded-xl overflow-hidden border border-white/15 bg-black/95 backdrop-blur-2xl shadow-2xl shadow-black/50">
+        <div className="relative w-full h-40 overflow-hidden">
+          <img
+            src={inv.milestone.imageUrl}
+            alt={inv.milestone.title}
+            className="w-full h-full object-cover"
+            data-testid={`img-invention-${inv.milestone.title.slice(0,20).replace(/\s+/g,'-').toLowerCase()}`}
           />
-          <text
-            x={pos.side === "right" ? xCenter + offset + IMG_SIZE / 2 + 12 : xCenter + offset - IMG_SIZE / 2 - 154}
-            y={pos.y - 17}
-            fill={phaseColor}
-            fontSize={8}
-            fontWeight={700}
-            fontFamily="Inter, sans-serif"
-            textTransform="uppercase"
-          >
-            {pos.milestone.phase} · {Math.abs(pos.milestone.year)} BCE
-          </text>
-          <text
-            x={pos.side === "right" ? xCenter + offset + IMG_SIZE / 2 + 12 : xCenter + offset - IMG_SIZE / 2 - 154}
-            y={pos.y - 4}
-            fill="white"
-            fontSize={9}
-            fontWeight={600}
-            fontFamily="Inter, sans-serif"
-          >
-            {pos.milestone.title.length > 22 ? pos.milestone.title.slice(0, 22) + "…" : pos.milestone.title}
-          </text>
-          <text
-            x={pos.side === "right" ? xCenter + offset + IMG_SIZE / 2 + 12 : xCenter + offset - IMG_SIZE / 2 - 154}
-            y={pos.y + 10}
-            fill="white"
-            fillOpacity={0.5}
-            fontSize={7}
-            fontFamily="Inter, sans-serif"
-          >
-            {pos.milestone.description.length > 40 ? pos.milestone.description.slice(0, 40) + "…" : pos.milestone.description}
-          </text>
-          <g>
-            {pos.milestone.magicDrivers.map((d, di) => (
-              <g key={di}>
-                <rect
-                  x={(pos.side === "right" ? xCenter + offset + IMG_SIZE / 2 + 12 : xCenter + offset - IMG_SIZE / 2 - 154) + di * 18}
-                  y={pos.y + 16}
-                  width={15}
-                  height={10}
-                  rx={2}
-                  fill={MAGIC_LABELS[d as keyof MAGICVector]?.color || "#888"}
-                  fillOpacity={0.2}
-                />
-                <text
-                  x={(pos.side === "right" ? xCenter + offset + IMG_SIZE / 2 + 12 : xCenter + offset - IMG_SIZE / 2 - 154) + di * 18 + 7.5}
-                  y={pos.y + 24}
-                  fill={MAGIC_LABELS[d as keyof MAGICVector]?.color || "#888"}
-                  fontSize={7}
-                  fontWeight={700}
-                  fontFamily="Inter, sans-serif"
-                  textAnchor="middle"
-                >
-                  {d}
-                </text>
-              </g>
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+          <div className="absolute bottom-2 left-3 right-3">
+            <div className="flex items-center gap-1.5 mb-1">
+              <span
+                className="text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider"
+                style={{ color: "#22c55e", backgroundColor: "#22c55e15", border: "1px solid #22c55e30" }}
+              >
+                Invention
+              </span>
+              <span className="text-[10px] text-white/60 font-mono">
+                {inv.milestone.year < 0 ? `${Math.abs(inv.milestone.year)} BCE` : `${inv.milestone.year} CE`}
+              </span>
+            </div>
+            <h3 className="text-sm font-semibold text-white leading-tight">{inv.milestone.title}</h3>
+          </div>
+        </div>
+
+        <div className="p-3 space-y-2">
+          <p className="text-[11px] text-white/60 leading-relaxed">{inv.milestone.description}</p>
+
+          <div className="flex items-center gap-1 pt-1">
+            {inv.milestone.magicDrivers.map((d) => (
+              <span
+                key={d}
+                className="text-[9px] px-1.5 py-0.5 rounded font-bold"
+                style={{
+                  color: MAGIC_LABELS[d as keyof MAGICVector]?.color || "#888",
+                  backgroundColor: (MAGIC_LABELS[d as keyof MAGICVector]?.color || "#888") + "20",
+                }}
+              >
+                {d}
+              </span>
             ))}
-          </g>
-        </g>
-      )}
-    </g>
+            <span className="ml-auto text-[9px] px-2 py-0.5 rounded-full font-medium" style={{ color: inv.civColor, backgroundColor: inv.civColor + "15" }}>
+              {inv.civName}
+            </span>
+          </div>
+        </div>
+      </div>
+    </motion.div>
   );
 }
 
-function CivBraidSVG({
+function SmallMilestoneTooltip({ milestone, x, y }: { milestone: DIIMilestone; x: number; y: number }) {
+  const phaseColor = PHASE_COLORS[milestone.phase];
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 5 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 5 }}
+      className="absolute z-40 pointer-events-none"
+      style={{ left: x - 100, top: y - 70, width: 200 }}
+    >
+      <div className="rounded-lg p-2 border border-white/10 bg-black/90 backdrop-blur-xl shadow-lg">
+        <div className="flex items-center gap-1.5 mb-0.5">
+          <span className="text-[8px] px-1 py-0.5 rounded uppercase font-bold" style={{ color: phaseColor, backgroundColor: phaseColor + "15" }}>
+            {milestone.phase}
+          </span>
+          <span className="text-[9px] text-white/40 font-mono">
+            {milestone.year < 0 ? `${Math.abs(milestone.year)} BCE` : `${milestone.year} CE`}
+          </span>
+        </div>
+        <p className="text-[10px] text-white/80 font-medium leading-tight">{milestone.title}</p>
+      </div>
+    </motion.div>
+  );
+}
+
+function CivRow({
   civ,
-  xCenter,
-  height,
+  rowIndex,
+  chartW,
   isSelected,
   onSelect,
+  onHoverInvention,
+  onLeaveInvention,
+  hoveredInventionKey,
+  onHoverSmall,
+  onLeaveSmall,
+  hoveredSmallKey,
 }: {
   civ: Civilization;
-  xCenter: number;
-  height: number;
+  rowIndex: number;
+  chartW: number;
   isSelected: boolean;
   onSelect: () => void;
+  onHoverInvention: (key: string, inv: InventionData) => void;
+  onLeaveInvention: () => void;
+  hoveredInventionKey: string | null;
+  onHoverSmall: (key: string, m: DIIMilestone, x: number, y: number) => void;
+  onLeaveSmall: () => void;
+  hoveredSmallKey: string | null;
 }) {
-  const [hoveredStrand, setHoveredStrand] = useState<number | null>(null);
-  const [hoveredMilestone, setHoveredMilestone] = useState<number | null>(null);
+  const topY = TOP_PAD + rowIndex * (ROW_HEIGHT + ROW_GAP);
+  const centerY = topY + ROW_HEIGHT / 2;
+  const startX = yearToX(civ.startYear, chartW);
+  const endX = yearToX(civ.endYear, chartW);
 
-  const strands = useMemo(
-    () =>
-      MAGIC_KEYS.map((key, i) =>
-        generateStrandPath(i, civ.magicProfile[key], BRAID_WIDTH, height, xCenter)
-      ),
-    [civ, xCenter, height]
-  );
+  const cycles = DII_MILESTONES[civ.id] || [];
+  const allMilestones = cycles.flatMap((c) => c.milestones);
 
-  const greenWraps = useMemo(
-    () =>
-      Array.from({ length: CYCLES }, (_, c) =>
-        generateGreenWrapPath(c, BRAID_WIDTH, height, xCenter)
-      ),
-    [xCenter, height]
-  );
-
-  const inventionMarkers = useMemo(() => {
-    const markers: number[] = [];
-    const cycleLen = height / CYCLES;
-    for (let c = 0; c < CYCLES; c++) {
-      markers.push(c * cycleLen + cycleLen * 0.875);
-    }
-    return markers;
-  }, [height]);
-
-  const milestonePositions = useMemo(
-    () => computeMilestonePositions(civ.id, height),
-    [civ.id, height]
-  );
-
-  const phaseBands = useMemo(() => {
-    const bands: { y: number; h: number; color: string }[] = [];
-    const cycleLen = height / CYCLES;
-    for (let c = 0; c < CYCLES; c++) {
-      const base = c * cycleLen;
-      bands.push({ y: base, h: cycleLen * 0.4, color: "#eab30804" });
-      bands.push({ y: base + cycleLen * 0.4, h: cycleLen * 0.35, color: "#a855f704" });
-      bands.push({ y: base + cycleLen * 0.75, h: cycleLen * 0.25, color: "#22c55e06" });
-    }
-    return bands;
-  }, [height]);
+  const inventions = allMilestones.filter((m) => m.phase === "invention");
+  const others = allMilestones.filter((m) => m.phase !== "invention");
 
   return (
-    <g className="cursor-pointer" onClick={onSelect}>
-      {phaseBands.map((band, i) => (
-        <rect
-          key={`band-${i}`}
-          x={xCenter - BRAID_WIDTH / 2 - 5}
-          y={band.y}
-          width={BRAID_WIDTH + 10}
-          height={band.h}
-          fill={band.color}
-          rx={4}
-        />
-      ))}
+    <g data-testid={`gantt-row-${civ.id}`}>
+      <rect
+        x={startX}
+        y={topY}
+        width={Math.max(0, endX - startX)}
+        height={ROW_HEIGHT}
+        rx={6}
+        fill={civ.color + "08"}
+        stroke={isSelected ? civ.color + "50" : civ.color + "18"}
+        strokeWidth={isSelected ? 1.5 : 0.5}
+        className="cursor-pointer"
+        onClick={onSelect}
+        style={{ transition: "stroke 0.2s" }}
+      />
 
-      {isSelected && (
-        <rect
-          x={xCenter - BRAID_WIDTH / 2 - 10}
-          y={-10}
-          width={BRAID_WIDTH + 20}
-          height={height + 50}
-          rx={8}
-          fill="none"
-          stroke={civ.color}
-          strokeWidth={1}
-          strokeDasharray="4 4"
-          opacity={0.3}
-        />
-      )}
-
-      {strands.map((points, i) => {
-        const key = MAGIC_KEYS[i];
-        const color = MAGIC_LABELS[key].color;
+      {MAGIC_KEYS.map((key, i) => {
         const weight = civ.magicProfile[key];
-        const isHovered = hoveredStrand === i;
-        const strokeW = 1.2 + weight * 3.5;
-
+        const color = MAGIC_LABELS[key].color;
+        const sw = 0.6 + weight * 2;
         return (
           <path
             key={key}
-            d={pointsToPath(points)}
+            d={generateBraidPath(startX + 4, endX - 4, centerY, i, weight)}
             fill="none"
             stroke={color}
-            strokeWidth={isHovered ? strokeW + 2 : strokeW}
+            strokeWidth={sw}
             strokeLinecap="round"
-            opacity={isHovered ? 1 : isSelected ? 0.85 : 0.55}
-            style={{ transition: "opacity 0.2s, stroke-width 0.2s" }}
-            onMouseEnter={() => setHoveredStrand(i)}
-            onMouseLeave={() => setHoveredStrand(null)}
-          >
-            <title>{MAGIC_LABELS[key].name}: {weight.toFixed(2)}</title>
-          </path>
+            opacity={isSelected ? 0.7 : 0.4}
+            style={{ transition: "opacity 0.3s" }}
+          />
         );
       })}
 
-      {greenWraps.map((d, i) => (
-        <path
-          key={`gw-${i}`}
-          d={d}
-          fill="none"
-          stroke="#22c55e"
-          strokeWidth={3.5}
-          strokeLinecap="round"
-          opacity={0.85}
-          filter="url(#glow-green)"
-        />
-      ))}
+      {others.map((m, mi) => {
+        const mx = yearToX(m.year, chartW);
+        const phaseColor = PHASE_COLORS[m.phase];
+        const key = `${civ.id}-${m.phase}-${mi}`;
+        const isHov = hoveredSmallKey === key;
+        return (
+          <g key={key}>
+            <circle
+              cx={mx}
+              cy={centerY}
+              r={isHov ? 5 : 3.5}
+              fill={phaseColor}
+              fillOpacity={isHov ? 0.9 : 0.5}
+              stroke={phaseColor}
+              strokeWidth={isHov ? 1.5 : 0.5}
+              strokeOpacity={0.3}
+              className="cursor-pointer"
+              style={{ transition: "all 0.15s" }}
+              onMouseEnter={() => onHoverSmall(key, m, mx, topY)}
+              onMouseLeave={onLeaveSmall}
+            />
+          </g>
+        );
+      })}
 
-      {inventionMarkers.map((y, i) => (
-        <g key={`inv-${i}`}>
-          <circle
-            cx={xCenter}
-            cy={y}
-            r={10}
-            fill="none"
-            stroke="#22c55e"
-            strokeWidth={1.5}
-            opacity={0.4}
-          />
-          <circle
-            cx={xCenter}
-            cy={y}
-            r={4}
-            fill="#22c55e"
-            opacity={0.7}
-          />
-        </g>
-      ))}
-
-      {milestonePositions.map((pos, i) => (
-        <MilestoneNode
-          key={`ms-${i}`}
-          pos={pos}
-          xCenter={xCenter}
-          onHover={() => setHoveredMilestone(i)}
-          onLeave={() => setHoveredMilestone(null)}
-          isHovered={hoveredMilestone === i}
-          clipId={`clip-${civ.id}-${i}`}
-        />
-      ))}
-
-      <line
-        x1={xCenter}
-        y1={-8}
-        x2={xCenter}
-        y2={0}
-        stroke={civ.color}
-        strokeWidth={1}
-        opacity={0.3}
-      />
-      <circle cx={xCenter} cy={-12} r={4} fill={civ.color} opacity={0.6} />
-
-      <text
-        x={xCenter}
-        y={height + 20}
-        fill={civ.color}
-        fontSize={11}
-        fontWeight={700}
-        textAnchor="middle"
-        fontFamily="Inter, sans-serif"
-      >
-        {civ.shortName}
-      </text>
-      <text
-        x={xCenter}
-        y={height + 34}
-        fill={civ.color}
-        fontSize={8}
-        textAnchor="middle"
-        fontFamily="Inter, sans-serif"
-        opacity={0.5}
-      >
-        {Math.abs(civ.startYear)}–{Math.abs(civ.endYear)} BCE
-      </text>
-
-      {hoveredStrand !== null && (
-        <g>
-          <rect
-            x={xCenter + BRAID_WIDTH / 2 + 8}
-            y={height / 2 - 18}
-            width={90}
-            height={36}
-            rx={6}
-            fill="black"
-            fillOpacity={0.9}
-            stroke="white"
-            strokeOpacity={0.15}
-            strokeWidth={0.5}
-          />
-          <text
-            x={xCenter + BRAID_WIDTH / 2 + 14}
-            y={height / 2 - 2}
-            fill={MAGIC_LABELS[MAGIC_KEYS[hoveredStrand]].color}
-            fontSize={10}
-            fontWeight={600}
-            fontFamily="Inter, sans-serif"
+      {inventions.map((m, mi) => {
+        const mx = yearToX(m.year, chartW);
+        const imgR = 22;
+        const key = `${civ.id}-inv-${mi}`;
+        const isHov = hoveredInventionKey === key;
+        const clipId = `clip-inv-${civ.id}-${mi}`;
+        return (
+          <g
+            key={key}
+            className="cursor-pointer"
+            onMouseEnter={() =>
+              onHoverInvention(key, { milestone: m, x: mx, y: topY, civColor: civ.color, civName: civ.shortName })
+            }
+            onMouseLeave={onLeaveInvention}
           >
-            {MAGIC_LABELS[MAGIC_KEYS[hoveredStrand]].name}
-          </text>
-          <text
-            x={xCenter + BRAID_WIDTH / 2 + 14}
-            y={height / 2 + 12}
-            fill="white"
-            fillOpacity={0.5}
-            fontSize={9}
-            fontFamily="Inter, sans-serif"
-          >
-            Weight: {civ.magicProfile[MAGIC_KEYS[hoveredStrand]].toFixed(2)}
-          </text>
-        </g>
-      )}
+            <defs>
+              <clipPath id={clipId}>
+                <circle cx={mx} cy={centerY} r={imgR} />
+              </clipPath>
+            </defs>
+
+            <circle
+              cx={mx}
+              cy={centerY}
+              r={imgR + 3}
+              fill="none"
+              stroke="#22c55e"
+              strokeWidth={isHov ? 2.5 : 1.5}
+              opacity={isHov ? 1 : 0.5}
+              style={{ transition: "all 0.2s" }}
+              filter="url(#glow-green)"
+            />
+            <circle
+              cx={mx}
+              cy={centerY}
+              r={imgR + 1}
+              fill="black"
+              opacity={0.4}
+            />
+            <image
+              href={m.imageUrl}
+              x={mx - imgR}
+              y={centerY - imgR}
+              width={imgR * 2}
+              height={imgR * 2}
+              clipPath={`url(#${clipId})`}
+              preserveAspectRatio="xMidYMid slice"
+              opacity={isHov ? 1 : 0.85}
+              style={{ transition: "opacity 0.2s" }}
+            />
+
+            {isHov && (
+              <circle
+                cx={mx}
+                cy={centerY}
+                r={imgR + 6}
+                fill="none"
+                stroke="#22c55e"
+                strokeWidth={1}
+                opacity={0.3}
+                strokeDasharray="3 3"
+              />
+            )}
+          </g>
+        );
+      })}
     </g>
   );
 }
 
-function Legend() {
+function TimeAxis({ chartW, totalH }: { chartW: number; totalH: number }) {
+  const ticks: number[] = [];
+  for (let y = Math.ceil(TIME_START / 500) * 500; y <= TIME_END; y += 500) {
+    ticks.push(y);
+  }
+
   return (
-    <div className="flex flex-wrap gap-3 justify-center">
-      {MAGIC_KEYS.map((key) => (
-        <div key={key} className="flex items-center gap-1.5">
-          <div
-            className="w-3 h-1 rounded-full"
-            style={{ backgroundColor: MAGIC_LABELS[key].color }}
-          />
-          <span className="text-[10px] text-white/50">
-            <span className="font-bold" style={{ color: MAGIC_LABELS[key].color }}>
-              {key}
-            </span>{" "}
-            {MAGIC_LABELS[key].name}
-          </span>
-        </div>
-      ))}
-      <div className="flex items-center gap-1.5">
-        <div className="w-3 h-1 rounded-full bg-green-500" />
-        <span className="text-[10px] text-white/50">
-          <span className="font-bold text-green-500">G-Wrap</span> Invention
-        </span>
-      </div>
-    </div>
+    <g>
+      {ticks.map((year) => {
+        const x = yearToX(year, chartW);
+        return (
+          <g key={year}>
+            <line x1={x} y1={TOP_PAD - 8} x2={x} y2={totalH - BOTTOM_PAD} stroke="white" strokeWidth={0.5} opacity={0.06} strokeDasharray="4 8" />
+            <text x={x} y={TOP_PAD - 14} fill="white" fontSize={9} textAnchor="middle" opacity={0.35} fontFamily="Inter, sans-serif">
+              {year < 0 ? `${Math.abs(year)}` : year}
+            </text>
+            <text x={x} y={TOP_PAD - 4} fill="white" fontSize={7} textAnchor="middle" opacity={0.2} fontFamily="Inter, sans-serif">
+              {year < 0 ? "BCE" : "CE"}
+            </text>
+          </g>
+        );
+      })}
+    </g>
   );
 }
 
-function DiiCycleLegend() {
+function GanttLegend() {
   return (
-    <div className="flex items-center gap-4 justify-center">
-      <div className="flex items-center gap-1.5">
-        <div className="w-2 h-2 rounded-full bg-amber-500/40" />
-        <span className="text-[9px] text-white/40">Discovery (strands separate)</span>
+    <div className="flex flex-wrap items-center gap-4 justify-center">
+      <div className="flex items-center gap-3">
+        {MAGIC_KEYS.map((key) => (
+          <div key={key} className="flex items-center gap-1">
+            <div className="w-4 h-0.5 rounded-full" style={{ backgroundColor: MAGIC_LABELS[key].color }} />
+            <span className="text-[9px] text-white/40">
+              <span className="font-bold" style={{ color: MAGIC_LABELS[key].color }}>{key}</span>
+            </span>
+          </div>
+        ))}
       </div>
-      <div className="text-white/20 text-[9px]">&rarr;</div>
-      <div className="flex items-center gap-1.5">
-        <div className="w-2 h-2 rounded-full bg-purple-500/40" />
-        <span className="text-[9px] text-white/40">Innovation (2-4 cross)</span>
-      </div>
-      <div className="text-white/20 text-[9px]">&rarr;</div>
-      <div className="flex items-center gap-1.5">
-        <div className="w-2 h-2 rounded-full bg-green-500/60" />
-        <span className="text-[9px] text-white/40">Invention (all 5 converge)</span>
+      <div className="w-px h-3 bg-white/10" />
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1">
+          <div className="w-2 h-2 rounded-full bg-amber-500/60" />
+          <span className="text-[9px] text-white/40">Discovery</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="w-2 h-2 rounded-full bg-purple-500/60" />
+          <span className="text-[9px] text-white/40">Innovation</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded-full bg-green-500/80 ring-1 ring-green-400/40" />
+          <span className="text-[9px] text-green-400/80 font-semibold">Invention</span>
+        </div>
       </div>
     </div>
   );
@@ -588,29 +408,67 @@ export default function BraidSVGView({
   selectedCiv: string | null;
   onSelectCiv: (id: string | null) => void;
 }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [hoveredInvention, setHoveredInvention] = useState<{ key: string; data: InventionData } | null>(null);
+  const [hoveredSmall, setHoveredSmall] = useState<{ key: string; m: DIIMilestone; x: number; y: number } | null>(null);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const civCount = CIVILIZATIONS.length;
-  const spacing = BRAID_WIDTH + 100;
-  const totalWidth = civCount * spacing;
-  const svgHeight = STRAND_HEIGHT + 60;
+  const chartW = Math.max(CHART_MIN_W - LEFT_LABEL_W - RIGHT_PAD, 900);
+  const totalW = LEFT_LABEL_W + chartW + RIGHT_PAD;
+  const totalH = TOP_PAD + civCount * (ROW_HEIGHT + ROW_GAP) - ROW_GAP + BOTTOM_PAD;
+
+  const cancelClose = useCallback(() => {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+  }, []);
+
+  const handleHoverInvention = useCallback((key: string, inv: InventionData) => {
+    cancelClose();
+    setHoveredInvention({ key, data: inv });
+  }, [cancelClose]);
+
+  const handleLeaveInvention = useCallback(() => {
+    closeTimerRef.current = setTimeout(() => {
+      setHoveredInvention(null);
+    }, 150);
+  }, []);
+
+  const handleCardEnter = useCallback(() => {
+    cancelClose();
+  }, [cancelClose]);
+
+  useEffect(() => {
+    return () => { if (closeTimerRef.current) clearTimeout(closeTimerRef.current); };
+  }, []);
+
+  const handleHoverSmall = useCallback((key: string, m: DIIMilestone, x: number, y: number) => {
+    setHoveredSmall({ key, m, x, y });
+  }, []);
+
+  const handleLeaveSmall = useCallback(() => {
+    setHoveredSmall(null);
+  }, []);
 
   return (
-    <div className="w-full h-full flex flex-col">
-      <div className="flex-shrink-0 py-3 px-4 space-y-2 border-b border-white/5">
-        <Legend />
-        <DiiCycleLegend />
+    <div className="w-full h-full flex flex-col" data-testid="braid-gantt-view">
+      <div className="flex-shrink-0 py-2.5 px-4 border-b border-white/5">
+        <GanttLegend />
       </div>
 
-      <div className="flex-1 overflow-auto relative">
-        <div className="min-w-fit p-6">
+      <div className="flex-1 overflow-auto relative" ref={containerRef}>
+        <div className="min-w-fit p-4 relative">
           <svg
-            width={totalWidth + 40}
-            height={svgHeight}
-            viewBox={`0 0 ${totalWidth + 40} ${svgHeight}`}
+            width={totalW}
+            height={totalH}
+            viewBox={`0 0 ${totalW} ${totalH}`}
             className="mx-auto"
           >
             <defs>
               <filter id="glow-green">
-                <feGaussianBlur stdDeviation="2.5" result="blur" />
+                <feGaussianBlur stdDeviation="3" result="blur" />
                 <feMerge>
                   <feMergeNode in="blur" />
                   <feMergeNode in="SourceGraphic" />
@@ -618,51 +476,80 @@ export default function BraidSVGView({
               </filter>
             </defs>
 
-            {CIVILIZATIONS.map((civ, i) => {
-              const xCenter = 20 + spacing / 2 + i * spacing;
-              return (
-                <CivBraidSVG
-                  key={civ.id}
-                  civ={civ}
-                  xCenter={xCenter}
-                  height={STRAND_HEIGHT}
-                  isSelected={selectedCiv === civ.id}
-                  onSelect={() =>
-                    onSelectCiv(selectedCiv === civ.id ? null : civ.id)
-                  }
-                />
-              );
-            })}
+            <TimeAxis chartW={chartW} totalH={totalH} />
 
-            {Array.from({ length: CYCLES }, (_, c) => {
-              const cycleLen = STRAND_HEIGHT / CYCLES;
-              const y = c * cycleLen;
+            {CIVILIZATIONS.map((civ, i) => {
+              const topY = TOP_PAD + i * (ROW_HEIGHT + ROW_GAP);
+              const centerY = topY + ROW_HEIGHT / 2;
               return (
-                <g key={`cycle-${c}`}>
-                  <line
-                    x1={10}
-                    y1={y}
-                    x2={totalWidth + 30}
-                    y2={y}
-                    stroke="white"
-                    strokeWidth={0.5}
-                    opacity={0.06}
-                    strokeDasharray="4 8"
-                  />
+                <g key={`label-${civ.id}`}>
+                  <circle cx={16} cy={centerY} r={5} fill={civ.color} opacity={0.7} />
                   <text
-                    x={8}
-                    y={y + 12}
-                    fill="white"
-                    fontSize={8}
-                    opacity={0.15}
+                    x={28}
+                    y={centerY - 6}
+                    fill={civ.color}
+                    fontSize={12}
+                    fontWeight={700}
                     fontFamily="Inter, sans-serif"
+                    opacity={selectedCiv === civ.id ? 1 : 0.7}
+                    className="cursor-pointer"
+                    onClick={() => onSelectCiv(selectedCiv === civ.id ? null : civ.id)}
                   >
-                    Cycle {c + 1}
+                    {civ.shortName}
+                  </text>
+                  <text
+                    x={28}
+                    y={centerY + 8}
+                    fill={civ.color}
+                    fontSize={8}
+                    fontFamily="Inter, sans-serif"
+                    opacity={0.4}
+                  >
+                    {Math.abs(civ.startYear)}–{Math.abs(civ.endYear)} BCE
                   </text>
                 </g>
               );
             })}
+
+            {CIVILIZATIONS.map((civ, i) => (
+              <CivRow
+                key={civ.id}
+                civ={civ}
+                rowIndex={i}
+                chartW={chartW}
+                isSelected={selectedCiv === civ.id}
+                onSelect={() => onSelectCiv(selectedCiv === civ.id ? null : civ.id)}
+                onHoverInvention={handleHoverInvention}
+                onLeaveInvention={handleLeaveInvention}
+                hoveredInventionKey={hoveredInvention?.key ?? null}
+                onHoverSmall={handleHoverSmall}
+                onLeaveSmall={handleLeaveSmall}
+                hoveredSmallKey={hoveredSmall?.key ?? null}
+              />
+            ))}
           </svg>
+
+          <AnimatePresence>
+            {hoveredInvention && (
+              <InventionHoverCard
+                key={hoveredInvention.key}
+                inv={hoveredInvention.data}
+                onClose={handleLeaveInvention}
+                onEnter={handleCardEnter}
+              />
+            )}
+          </AnimatePresence>
+
+          <AnimatePresence>
+            {hoveredSmall && (
+              <SmallMilestoneTooltip
+                key={hoveredSmall.key}
+                milestone={hoveredSmall.m}
+                x={hoveredSmall.x}
+                y={hoveredSmall.y}
+              />
+            )}
+          </AnimatePresence>
         </div>
       </div>
     </div>

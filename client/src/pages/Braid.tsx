@@ -141,45 +141,17 @@ export default function Braid() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
-            className="absolute bottom-20 left-1/2 -translate-x-1/2 z-20 pointer-events-none"
-          >
-            <div className="flex gap-2 flex-wrap justify-center">
-              {CIVILIZATIONS.map((c) => (
-                <div
-                  key={c.id}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/50 backdrop-blur-md border border-white/10"
-                >
-                  <div
-                    className="w-2 h-2 rounded-full"
-                    style={{ backgroundColor: c.color }}
-                  />
-                  <span className="text-[11px] text-white/60 font-medium">
-                    {c.shortName}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {!selectedCiv && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
             transition={{ delay: 0.3 }}
             className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 pointer-events-none w-full max-w-lg px-6"
           >
             <div className="px-6 py-3 rounded-xl flex flex-col items-center gap-2 bg-black/50 backdrop-blur-xl border border-white/10">
               <div className="flex items-center gap-5 w-full justify-center">
                 <span className="text-xs text-white/60 font-medium">
-                  Click braid to inspect
+                  Click row to inspect
                 </span>
                 <div className="w-1 h-1 bg-primary rounded-full" />
                 <span className="text-xs text-white/60 font-medium">
-                  Hover strand for MAGIC
+                  Hover inventions for detail
                 </span>
                 <div className="w-1 h-1 bg-primary rounded-full" />
                 <span className="text-xs text-white/60 font-medium">
@@ -187,8 +159,7 @@ export default function Braid() {
                 </span>
               </div>
               <p className="text-[10px] text-white/30 text-center leading-relaxed max-w-sm">
-                Each braid repeats the DII cycle: Discovery (strands separate) → Innovation
-                (2–4 cross) → Invention (all 5 converge + green G-wrap)
+                Each row shows a civilization's timeline with MAGIC braids. Large green circles mark Inventions — hover to see the artifact image and MAGIC drivers.
               </p>
             </div>
           </motion.div>
