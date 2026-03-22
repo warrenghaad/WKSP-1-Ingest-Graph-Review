@@ -536,7 +536,7 @@ export async function registerRoutes(
       } else if (sourceMode === "museum_context") {
         const museumResults = await searchAllMuseums(query);
         results.push(...museumResults.map(r => ({ ...r, sourceType: "museum" as const })));
-      } else if (sourceMode === "ai_search") {
+      } else if (sourceMode === "ai_reconstruction") {
         const aiResults = await searchImages(query);
         results.push(...aiResults.map(r => ({ ...r, sourceType: "open_web" as const })));
       }

@@ -241,6 +241,7 @@ export default function Reader() {
   const openEntityDrawer = async (entityId: number) => {
     setActiveEntityId(entityId);
     setDrawerMode("entity");
+    setDrawerOpen(true);
     try {
       const res = await fetch(`/api/entities/${entityId}`);
       if (res.ok) {
@@ -533,7 +534,7 @@ export default function Reader() {
     ? savedImages.filter(img => img.query === damFilter)
     : savedImages;
 
-  const drawerOpen = drawerMode === "dam" || drawerMode === "entity" || drawerMode === "ingest";
+  const [drawerOpen, setDrawerOpen] = useState(true);
 
   return (
     <div className="relative w-screen h-screen bg-background text-foreground flex overflow-hidden">
@@ -633,9 +634,16 @@ export default function Reader() {
 
             <Button
               data-testid="button-ingest-toggle"
-              variant={drawerMode === "ingest" ? "default" : "outline"}
+              variant={drawerMode === "ingest" && drawerOpen ? "default" : "outline"}
               className="rounded-full gap-2"
-              onClick={() => setDrawerMode(drawerMode === "ingest" ? "dam" : "ingest")}
+              onClick={() => {
+                if (drawerMode === "ingest" && drawerOpen) {
+                  setDrawerOpen(false);
+                } else {
+                  setDrawerMode("ingest");
+                  setDrawerOpen(true);
+                }
+              }}
             >
               <Upload className="w-4 h-4" />
               Ingest
@@ -643,9 +651,16 @@ export default function Reader() {
 
             <Button
               data-testid="button-dam-toggle"
-              variant={drawerMode === "dam" ? "default" : "outline"}
+              variant={drawerMode === "dam" && drawerOpen ? "default" : "outline"}
               className="rounded-full gap-2"
-              onClick={() => setDrawerMode(drawerMode === "dam" ? "entity" : "dam")}
+              onClick={() => {
+                if (drawerMode === "dam" && drawerOpen) {
+                  setDrawerOpen(false);
+                } else {
+                  setDrawerMode("dam");
+                  setDrawerOpen(true);
+                }
+              }}
             >
               <Grid3x3 className="w-4 h-4" />
               DAM ({savedImages.length})
