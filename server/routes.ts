@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { searchImages } from "./imageSearch";
 import { searchAllMuseums, searchMetMuseum, searchWikimediaCommons, searchSmithsonian } from "./museumSearch";
+import { searchAllProviders, searchGoogleCSE, searchWikimediaProvider, searchMetMuseumProvider, searchOpenverse } from "./providers/index";
 import {
   insertSavedImageSchema, insertSessionSchema, insertConceptCardSchema, insertCandidateSchema,
   insertEntitySchema, insertAssetSchema, insertDocumentSchema,
@@ -16,6 +17,13 @@ const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
 });
+
+const OVERLAY_TYPES = new Set(["geometry", "math", "motif", "ritual", "GEOMETRY", "MATH", "MOTIF", "RITUAL"]);
+
+function inferRequirementKind(entityType: string): "SOURCE_ONLY" | "SOURCE_PLUS_OVERLAY" {
+  if (OVERLAY_TYPES.has(entityType)) return "SOURCE_PLUS_OVERLAY";
+  return "SOURCE_ONLY";
+}
 
 export async function registerRoutes(
   httpServer: Server,
@@ -127,9 +135,9 @@ export async function registerRoutes(
         size: size as "1024x1024",
       });
 
-      const imageData = response.data[0];
+      const imageData = response.data?.[0];
       res.json({
-        b64_json: imageData.b64_json,
+        b64_json: imageData?.b64_json,
         prompt,
       });
     } catch (error: unknown) {
@@ -155,7 +163,7 @@ export async function registerRoutes(
       res.status(201).json(saved);
     } catch (error: unknown) {
       console.error("Error saving image:", error);
-      res.status(400).json({ error: error.message || "Failed to save image" });
+      res.status(400).json({ error: (error as Error).message || "Failed to save image" });
     }
   });
 
@@ -211,7 +219,7 @@ export async function registerRoutes(
       const session = await storage.createSession(parsed);
       res.status(201).json(session);
     } catch (error: unknown) {
-      res.status(400).json({ error: error.message || "Failed to create session" });
+      res.status(400).json({ error: (error as Error).message || "Failed to create session" });
     }
   });
 
@@ -296,7 +304,7 @@ export async function registerRoutes(
       if (!updated) return res.status(404).json({ error: "Concept not found" });
       res.json(updated);
     } catch (error: unknown) {
-      res.status(400).json({ error: error.message || "Failed to update concept" });
+      res.status(400).json({ error: (error as Error).message || "Failed to update concept" });
     }
   });
 
@@ -396,7 +404,7 @@ export async function registerRoutes(
       if (!updated) return res.status(404).json({ error: "Candidate not found" });
       res.json(updated);
     } catch (error: unknown) {
-      res.status(400).json({ error: error.message || "Failed to update candidate" });
+      res.status(400).json({ error: (error as Error).message || "Failed to update candidate" });
     }
   });
 
@@ -473,12 +481,31 @@ export async function registerRoutes(
 
   app.get("/api/entities/by-label", async (req, res) => {
     try {
-      const q = req.query.q as string;
+      const q = (req.query.q as string | undefined) ?? "";
+      const entityType = (req.query.type as string | undefined) ?? "concept";
       if (!q || q.length < 2) return res.json([]);
+      const normalizedLabel = q.trim().toLowerCase();
       const results = await storage.findEntitiesByLabel(q);
-      res.json(results);
+      const exactMatch = results.find(e => e.label.toLowerCase() === normalizedLabel);
+      if (exactMatch) {
+        return res.json([exactMatch, ...results.filter(e => e.id !== exactMatch.id)]);
+      }
+      if (results.length > 0) {
+        return res.json(results);
+      }
+      const created = await storage.createEntity({
+        label: q.trim(),
+        entityType,
+        aliases: [],
+        description: null,
+        period: null,
+        region: null,
+        magicTags: [],
+        metadata: null,
+      });
+      res.json([created]);
     } catch (error) {
-      res.status(500).json({ error: "Failed to search entities" });
+      res.status(500).json({ error: "Failed to search or create entity" });
     }
   });
 
@@ -490,7 +517,15 @@ export async function registerRoutes(
       if (!entity) return res.status(404).json({ error: "Entity not found" });
       const linkedAssets = await storage.getAssetsByEntity(id);
       const mentionsList = await storage.getMentionsByEntity(id);
-      res.json({ entity, assets: linkedAssets, mentions: mentionsList });
+      const requirements = await storage.getVisualRequirementsByEntity(id);
+      const candidateSets = await Promise.all(
+        requirements.map(r => storage.getImageCandidatesByRequirement(r.id))
+      );
+      const topCandidates = candidateSets
+        .flat()
+        .sort((a, b) => (b.qcScore ?? -1) - (a.qcScore ?? -1))
+        .slice(0, 6);
+      res.json({ entity, assets: linkedAssets, mentions: mentionsList, requirements, topCandidates });
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch entity" });
     }
@@ -502,7 +537,7 @@ export async function registerRoutes(
       const entity = await storage.createEntity(parsed);
       res.status(201).json(entity);
     } catch (error: unknown) {
-      res.status(400).json({ error: error.message || "Failed to create entity" });
+      res.status(400).json({ error: (error as Error).message || "Failed to create entity" });
     }
   });
 
@@ -514,7 +549,7 @@ export async function registerRoutes(
       if (!updated) return res.status(404).json({ error: "Entity not found" });
       res.json(updated);
     } catch (error: unknown) {
-      res.status(400).json({ error: error.message || "Failed to update entity" });
+      res.status(400).json({ error: (error as Error).message || "Failed to update entity" });
     }
   });
 
@@ -608,7 +643,7 @@ export async function registerRoutes(
 
       res.status(201).json(asset);
     } catch (error: unknown) {
-      res.status(400).json({ error: error.message || "Failed to save asset" });
+      res.status(400).json({ error: (error as Error).message || "Failed to save asset" });
     }
   });
 
@@ -620,9 +655,11 @@ export async function registerRoutes(
       if (!updated) return res.status(404).json({ error: "Link not found" });
       res.json(updated);
     } catch (error: unknown) {
-      res.status(400).json({ error: error.message || "Failed to update link" });
+      res.status(400).json({ error: (error as Error).message || "Failed to update link" });
     }
   });
+
+  // ====== INGEST ENDPOINTS ======
 
   app.post("/api/ingest/text", async (req, res) => {
     try {
@@ -691,6 +728,21 @@ export async function registerRoutes(
           snippet: ext.snippet || null,
         });
 
+        const existingReqs = await storage.getVisualRequirementsByEntity(entity.id);
+        const hasReqForDoc = existingReqs.some(r => r.documentId === doc.id);
+        if (!hasReqForDoc) {
+          await storage.createVisualRequirement({
+            entityId: entity.id,
+            documentId: doc.id,
+            kind: inferRequirementKind(ext.entityType),
+            status: "MISSING",
+            imageSpec: null,
+            overlaySpec: null,
+            primaryAssetId: null,
+            qcFailCount: 0,
+          });
+        }
+
         createdEntities.push({
           ...entity,
           searchQueries: ext.searchQueries,
@@ -712,6 +764,595 @@ export async function registerRoutes(
       res.status(500).json({ error: "Text ingestion failed" });
     }
   });
+
+  app.post("/api/ingest/url", async (req, res) => {
+    try {
+      const { url, title } = req.body;
+      if (!url || typeof url !== "string") return res.status(400).json({ error: "URL is required" });
+
+      let parsedUrl: URL;
+      try {
+        parsedUrl = new URL(url);
+      } catch {
+        return res.status(400).json({ error: "Invalid URL format" });
+      }
+
+      if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+        return res.status(400).json({ error: "Only http and https URLs are allowed" });
+      }
+
+      const hostname = parsedUrl.hostname.toLowerCase();
+      const blockedHostPatterns = /^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|0\.0\.0\.0|::1|metadata\.google\.internal|169\.254\.|fc00:|fd[0-9a-f]{2}:)/;
+      if (blockedHostPatterns.test(hostname)) {
+        return res.status(400).json({ error: "Internal or private network URLs are not allowed" });
+      }
+
+      const dns = await import("dns/promises");
+      try {
+        const addresses = await dns.resolve(hostname);
+        const privateRanges = /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|0\.0\.0\.0|169\.254\.)/;
+        for (const addr of addresses) {
+          if (privateRanges.test(addr) || addr === "::1") {
+            return res.status(400).json({ error: "Resolved IP is in a private network range" });
+          }
+        }
+      } catch {
+        return res.status(400).json({ error: "Could not resolve hostname" });
+      }
+
+      let fetchedText = "";
+      let fetchedTitle = title || url;
+
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10000);
+        const fetchRes = await fetch(url, {
+          headers: { "User-Agent": "EUCLID-DAM/1.0" },
+          signal: controller.signal,
+          redirect: "manual",
+        });
+        clearTimeout(timeout);
+        if (fetchRes.status >= 300 && fetchRes.status < 400) {
+          return res.status(400).json({ error: "URL redirects are not followed for security reasons" });
+        }
+        if (fetchRes.ok) {
+          const contentType = fetchRes.headers.get("content-type") ?? "";
+          if (!contentType.includes("text/")) {
+            return res.status(400).json({ error: "URL did not return text content" });
+          }
+          const html = await fetchRes.text();
+          if (html.length > 500_000) {
+            return res.status(400).json({ error: "Response too large (max 500KB)" });
+          }
+          fetchedText = html
+            .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+            .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+            .replace(/<[^>]+>/g, " ")
+            .replace(/\s+/g, " ")
+            .trim()
+            .slice(0, 8000);
+          const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+          if (titleMatch) fetchedTitle = titleMatch[1].trim() || fetchedTitle;
+        }
+      } catch (fetchErr) {
+        console.warn("Could not fetch URL:", fetchErr);
+      }
+
+      if (!fetchedText) {
+        return res.status(400).json({ error: "Could not fetch content from URL" });
+      }
+
+      const doc = await storage.createDocument({
+        title: fetchedTitle,
+        rawText: fetchedText,
+        sourceUrl: url,
+        citation: null,
+        grade: null,
+        week: null,
+        sectionId: null,
+        processed: false,
+      });
+
+      const chunks: string[] = [];
+      const sentences = fetchedText.match(/[^.!?]+[.!?]+/g) || [fetchedText];
+      let chunk = "";
+      for (const sentence of sentences) {
+        if ((chunk + sentence).length > 500) {
+          if (chunk) chunks.push(chunk.trim());
+          chunk = sentence;
+        } else {
+          chunk += sentence;
+        }
+      }
+      if (chunk.trim()) chunks.push(chunk.trim());
+      for (let i = 0; i < chunks.length; i++) {
+        await storage.createDocChunk({ documentId: doc.id, chunkIndex: i, text: chunks[i], entities: null });
+      }
+
+      const extracted = await extractEntitiesFromText(fetchedText);
+      const createdEntities = [];
+      for (const ext of extracted) {
+        const existing = await storage.findEntitiesByLabel(ext.label);
+        let entity;
+        if (existing.length > 0 && existing[0].label.toLowerCase() === ext.label.toLowerCase()) {
+          entity = existing[0];
+        } else {
+          entity = await storage.createEntity({
+            label: ext.label, entityType: ext.entityType, description: ext.description,
+            period: ext.period || null, region: ext.region || null,
+            aliases: ext.aliases || null, magicTags: ext.magicTags || null, metadata: null,
+          });
+        }
+        await storage.createMention({
+          entityId: entity.id, documentId: doc.id,
+          offsetStart: ext.offsetStart ?? null, offsetEnd: ext.offsetEnd ?? null, snippet: ext.snippet || null,
+        });
+        const existingReqs = await storage.getVisualRequirementsByEntity(entity.id);
+        const hasReqForDoc = existingReqs.some(r => r.documentId === doc.id);
+        if (!hasReqForDoc) {
+          await storage.createVisualRequirement({
+            entityId: entity.id, documentId: doc.id,
+            kind: inferRequirementKind(ext.entityType),
+            status: "MISSING", imageSpec: null, overlaySpec: null, primaryAssetId: null, qcFailCount: 0,
+          });
+        }
+        createdEntities.push({ ...entity, searchQueries: ext.searchQueries, offsetStart: ext.offsetStart, offsetEnd: ext.offsetEnd, snippet: ext.snippet });
+      }
+
+      await storage.updateDocument(doc.id, { processed: true });
+      res.json({ document: doc, entities: createdEntities, chunkCount: chunks.length });
+    } catch (error: unknown) {
+      console.error("URL ingestion error:", error);
+      res.status(500).json({ error: "URL ingestion failed" });
+    }
+  });
+
+  // ====== VISUAL REQUIREMENTS ENDPOINTS ======
+
+  app.get("/api/requirements/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+      const req_ = await storage.getVisualRequirement(id);
+      if (!req_) return res.status(404).json({ error: "Requirement not found" });
+      const candidates = await storage.getImageCandidatesByRequirement(id);
+      const assessments = await storage.getQcAssessmentsByRequirement(id);
+      res.json({ requirement: req_, candidates, assessments });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch requirement" });
+    }
+  });
+
+  app.post("/api/requirements/:id/search", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+      const requirement = await storage.getVisualRequirement(id);
+      if (!requirement) return res.status(404).json({ error: "Requirement not found" });
+      const entity = await storage.getEntity(requirement.entityId);
+      if (!entity) return res.status(404).json({ error: "Entity not found" });
+
+      const queries: string[] = [entity.label, ...(entity.aliases ?? [])].slice(0, 2);
+      const allCandidates = [];
+
+      type ProviderName = "google_cse" | "wikimedia" | "met_museum" | "openverse" | "pinterest" | "adobe_stock" | "ai_generated";
+      type ProviderEntry = { name: ProviderName; fn: () => ReturnType<typeof searchGoogleCSE> };
+
+      for (const query of queries) {
+        const providerDefs: ProviderEntry[] = [
+          { name: "google_cse", fn: () => searchGoogleCSE(query, 6) },
+          { name: "wikimedia", fn: () => searchWikimediaProvider(query, 6) },
+          { name: "met_museum", fn: () => searchMetMuseumProvider(query, 6) },
+          { name: "openverse", fn: () => searchOpenverse(query, 4) },
+        ];
+
+        const jobs = await Promise.all(
+          providerDefs.map(p =>
+            storage.createImageSearchJob({
+              requirementId: id,
+              provider: p.name,
+              query,
+              status: "running",
+              resultCount: 0,
+              error: null,
+              completedAt: null,
+            })
+          )
+        );
+
+        const settledResults = await Promise.allSettled(
+          providerDefs.map((p) => p.fn())
+        );
+
+        for (let i = 0; i < providerDefs.length; i++) {
+          const provider = providerDefs[i];
+          const job = jobs[i];
+          const settled = settledResults[i];
+
+          if (settled.status === "fulfilled") {
+            const results = settled.value;
+            const jobCandidates = await Promise.all(
+              results.map(r =>
+                storage.createImageCandidate({
+                  requirementId: id,
+                  jobId: job.id,
+                  url: r.url,
+                  thumbnailUrl: r.thumbnailUrl ?? null,
+                  title: r.title ?? null,
+                  source: r.source ?? null,
+                  provider: provider.name,
+                  objectUrl: r.objectUrl ?? null,
+                  qcStatus: "pending",
+                  qcScore: null,
+                  metadata: r.metadata ?? null,
+                })
+              )
+            );
+            allCandidates.push(...jobCandidates);
+            await storage.updateImageSearchJob(job.id, {
+              status: "done",
+              resultCount: results.length,
+              completedAt: new Date(),
+            });
+          } else {
+            await storage.updateImageSearchJob(job.id, {
+              status: "error",
+              error: settled.reason instanceof Error ? settled.reason.message : "Unknown error",
+              completedAt: new Date(),
+            });
+          }
+        }
+      }
+
+      if (allCandidates.length > 0) {
+        const passedCount = allCandidates.filter(c => c.qcStatus === "passed").length;
+        const newStatus = passedCount > 0 ? "CANDIDATES_READY" : "SEARCHING";
+        await storage.updateVisualRequirement(id, { status: newStatus });
+      }
+
+      res.json({ candidates: allCandidates, count: allCandidates.length });
+    } catch (error: unknown) {
+      console.error("Requirement search error:", error);
+      res.status(500).json({ error: "Failed to search for requirement" });
+    }
+  });
+
+  app.post("/api/requirements/:id/spec/generate", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+      const requirement = await storage.getVisualRequirement(id);
+      if (!requirement) return res.status(404).json({ error: "Requirement not found" });
+      const entity = await storage.getEntity(requirement.entityId);
+      if (!entity) return res.status(404).json({ error: "Entity not found" });
+
+      const systemPrompt = `You are an art director for an educational museum. Given an entity, produce structured image and overlay specifications.
+Return JSON with:
+- imageSpec: { subject, era, medium, composition, allowedVariance, disallowedContent, requiredElements }
+- overlaySpec: { axes, labels, grid, geometrySkeleton } (null if not applicable)`;
+
+      const userMsg = `Entity: "${entity.label}" (type: ${entity.entityType})
+Description: ${entity.description || "No description"}
+Period: ${entity.period || "Unknown"}
+Region: ${entity.region || "Unknown"}
+Requirement kind: ${requirement.kind}`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userMsg },
+        ],
+        response_format: { type: "json_object" },
+        max_completion_tokens: 1500,
+      });
+
+      const content = response.choices[0]?.message?.content || "{}";
+      type SpecResult = { imageSpec?: Record<string, unknown>; overlaySpec?: Record<string, unknown> };
+      let parsed: SpecResult = {};
+      try { parsed = JSON.parse(content) as SpecResult; } catch { }
+
+      const updated = await storage.updateVisualRequirement(id, {
+        imageSpec: parsed.imageSpec ?? null,
+        overlaySpec: parsed.overlaySpec ?? null,
+      });
+
+      res.json({ requirement: updated, imageSpec: parsed.imageSpec, overlaySpec: parsed.overlaySpec });
+    } catch (error: unknown) {
+      console.error("Spec generation error:", error);
+      res.status(500).json({ error: "Failed to generate spec" });
+    }
+  });
+
+  app.post("/api/requirements/:id/prompts/generate", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+      const requirement = await storage.getVisualRequirement(id);
+      if (!requirement) return res.status(404).json({ error: "Requirement not found" });
+      const entity = await storage.getEntity(requirement.entityId);
+      if (!entity) return res.status(404).json({ error: "Entity not found" });
+
+      type SpecShape = { subject?: string; era?: string; medium?: string; composition?: string; requiredElements?: string[]; disallowedContent?: string };
+      const imageSpec = requirement.imageSpec as SpecShape | null;
+      const overlaySpec = requirement.overlaySpec as SpecShape | null;
+
+      let promptText = `Museum-quality photograph of ${entity.label}`;
+      if (imageSpec) {
+        if (imageSpec.subject) promptText = imageSpec.subject;
+        if (imageSpec.era) promptText += `, ${imageSpec.era}`;
+        if (imageSpec.medium) promptText += `, ${imageSpec.medium}`;
+        if (imageSpec.composition) promptText += `. ${imageSpec.composition}`;
+        if (imageSpec.requiredElements?.length) promptText += `. Must include: ${imageSpec.requiredElements.join(", ")}`;
+      }
+      promptText += ". Museum lighting, high detail, educational reference quality.";
+
+      let negativePrompt = "blurry, low quality, watermark, text overlay, modern objects";
+      if (imageSpec?.disallowedContent) negativePrompt += `, ${imageSpec.disallowedContent}`;
+
+      const imagePrompt = await storage.createImagePrompt({
+        entityId: entity.id,
+        requirementId: id,
+        prompt: promptText,
+        negativePrompt,
+        style: "museum_photograph",
+        generatedUrl: null,
+        status: "pending",
+        metadata: { imageSpec, overlaySpec },
+      });
+
+      res.json({ prompt: imagePrompt });
+    } catch (error: unknown) {
+      console.error("Prompt generation error:", error);
+      res.status(500).json({ error: "Failed to generate prompt" });
+    }
+  });
+
+  app.post("/api/requirements/:id/image/generate", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+      const requirement = await storage.getVisualRequirement(id);
+      if (!requirement) return res.status(404).json({ error: "Requirement not found" });
+
+      const prompts = await storage.getImagePromptsByRequirement(id);
+      const latestPrompt = prompts[0];
+
+      console.log("[GenerateImage] STUB called for requirement", id, "prompt:", latestPrompt?.prompt);
+      return res.status(501).json({
+        stub: true,
+        message: "Image generation is stubbed. Wire a live model to enable.",
+        prompt: latestPrompt?.prompt || null,
+        requirementId: id,
+      });
+    } catch (error: unknown) {
+      res.status(500).json({ error: "Failed to generate image" });
+    }
+  });
+
+  app.post("/api/requirements/:id/save-candidate", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+      const { candidateId, force } = req.body;
+      if (!candidateId) return res.status(400).json({ error: "candidateId is required" });
+
+      const requirement = await storage.getVisualRequirement(id);
+      if (!requirement) return res.status(404).json({ error: "Requirement not found" });
+
+      const candidate = await storage.getImageCandidate(candidateId);
+      if (!candidate) return res.status(404).json({ error: "Candidate not found" });
+
+      if (candidate.requirementId !== id) {
+        return res.status(400).json({ error: "Candidate does not belong to this requirement" });
+      }
+
+      if (candidate.qcStatus !== "passed" && !force) {
+        return res.status(400).json({
+          error: "Candidate has not passed QC. Use force=true to override.",
+          qcStatus: candidate.qcStatus,
+        });
+      }
+
+      const candidateMeta = candidate.metadata as Record<string, unknown> | null;
+      const asset = await storage.createAsset({
+        url: candidate.url,
+        thumbnailUrl: candidate.thumbnailUrl ?? null,
+        title: candidate.title ?? null,
+        source: candidate.source ?? null,
+        provider: candidate.provider ?? null,
+        objectUrl: candidate.objectUrl ?? null,
+        status: "saved",
+        sourceType: "museum",
+        width: null,
+        height: null,
+        metadata: candidateMeta,
+      });
+
+      await storage.linkEntityAsset({
+        entityId: requirement.entityId,
+        assetId: asset.id,
+        linkType: "depicts",
+        approved: true,
+        confidence: "high",
+      });
+
+      const updated = await storage.updateVisualRequirement(id, {
+        primaryAssetId: asset.id,
+        status: "COMPLETE",
+      });
+
+      await storage.updateImageCandidate(candidateId, { qcStatus: "saved" });
+
+      if (requirement.documentId) {
+        await storage.createDocAssetLink({
+          documentId: requirement.documentId,
+          assetId: asset.id,
+          entityId: requirement.entityId,
+        });
+      }
+
+      res.json({ asset, requirement: updated });
+    } catch (error: unknown) {
+      console.error("Save candidate error:", error);
+      res.status(500).json({ error: "Failed to save candidate" });
+    }
+  });
+
+  // ====== QC ENDPOINTS ======
+
+  app.post("/api/qc/:candidateId/evaluate", async (req, res) => {
+    try {
+      const candidateId = parseInt(req.params.candidateId);
+      if (isNaN(candidateId)) return res.status(400).json({ error: "Invalid ID" });
+
+      const candidate = await storage.getImageCandidate(candidateId);
+      if (!candidate) return res.status(404).json({ error: "Candidate not found" });
+
+      const requirement = await storage.getVisualRequirement(candidate.requirementId);
+      if (!requirement) return res.status(404).json({ error: "Requirement not found" });
+
+      const entity = await storage.getEntity(requirement.entityId);
+      type QcSpecShape = { subject?: string; era?: string; medium?: string; requiredElements?: string[]; disallowedContent?: string };
+      const imageSpec = requirement.imageSpec as QcSpecShape | null;
+
+      const specDescription = imageSpec
+        ? `Subject: ${imageSpec.subject ?? ""}. Era: ${imageSpec.era ?? ""}. Medium: ${imageSpec.medium ?? ""}. Required elements: ${(imageSpec.requiredElements ?? []).join(", ")}. Disallowed: ${imageSpec.disallowedContent ?? "none"}.`
+        : `This should be a museum-quality image of ${entity?.label ?? "the entity"}.`;
+
+      const systemPrompt = `You are a visual quality control expert for educational museum images. 
+Evaluate the provided image against the specification. 
+Return JSON with:
+- passed: boolean
+- score: number 0-1 (1=perfect match)
+- reasons: string array (specific reasons for pass or fail)
+- observations: object with keys like "subject_match", "era_accuracy", "medium_match", "overall_quality"`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: systemPrompt },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: `Spec: ${specDescription}\nEntity: ${entity?.label || "Unknown"}` },
+              { type: "image_url", image_url: { url: candidate.url, detail: "low" } },
+            ],
+          },
+        ],
+        response_format: { type: "json_object" },
+        max_completion_tokens: 800,
+      });
+
+      const content = response.choices[0]?.message?.content || "{}";
+      type QcResult = { passed?: boolean; score?: number; reasons?: string[]; observations?: Record<string, unknown> };
+      let parsed: QcResult = { passed: false, score: 0, reasons: ["Parse error"], observations: {} };
+      try { parsed = JSON.parse(content) as QcResult; } catch { }
+
+      const assessment = await storage.createQcAssessment({
+        candidateId,
+        requirementId: candidate.requirementId,
+        passed: !!parsed.passed,
+        score: typeof parsed.score === "number" ? parsed.score : 0,
+        reasons: Array.isArray(parsed.reasons) ? parsed.reasons : [],
+        observations: parsed.observations ?? {},
+      });
+
+      await storage.updateImageCandidate(candidateId, {
+        qcStatus: parsed.passed ? "passed" : "failed",
+        qcScore: parsed.score ?? 0,
+      });
+
+      if (!parsed.passed) {
+        const newFailCount = (requirement.qcFailCount || 0) + 1;
+        await storage.updateVisualRequirement(candidate.requirementId, {
+          qcFailCount: newFailCount,
+          status: "QC_IN_PROGRESS",
+        });
+
+        if (newFailCount >= 3) {
+          const existingPassedCandidates = await storage.getImageCandidatesByRequirement(candidate.requirementId);
+          const hasPassed = existingPassedCandidates.some(c => c.qcStatus === "passed");
+          if (!hasPassed) {
+            const entity2 = await storage.getEntity(requirement.entityId);
+            const imageSpec2 = requirement.imageSpec as { subject?: string } | null;
+            let promptText = `Museum-quality photograph of ${entity2?.label ?? "entity"}`;
+            if (imageSpec2?.subject) promptText = imageSpec2.subject;
+            promptText += ". Museum lighting, high detail, educational reference quality.";
+            await storage.createImagePrompt({
+              entityId: requirement.entityId,
+              requirementId: candidate.requirementId,
+              prompt: promptText,
+              negativePrompt: "blurry, low quality, watermark",
+              style: "museum_photograph",
+              generatedUrl: null,
+              status: "pending",
+              metadata: { autoGenerated: true, qcFailCount: newFailCount },
+            });
+            await storage.updateVisualRequirement(candidate.requirementId, {
+              status: "PROMPT_FALLBACK",
+            });
+          }
+        }
+      } else {
+        await storage.updateVisualRequirement(candidate.requirementId, { status: "CANDIDATES_READY" });
+      }
+
+      res.json({ assessment, passed: parsed.passed, score: parsed.score });
+    } catch (error: unknown) {
+      console.error("QC evaluation error:", error);
+      res.status(500).json({ error: "QC evaluation failed" });
+    }
+  });
+
+  // ====== WORK QUEUE ENDPOINTS ======
+
+  app.get("/api/work/queue", async (_req, res) => {
+    try {
+      const queue = await storage.getWorkQueue();
+      res.json(queue);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch work queue" });
+    }
+  });
+
+  app.post("/api/work/recompute", async (req, res) => {
+    try {
+      const docs = await storage.getDocuments();
+      let updated = 0;
+      for (const doc of docs) {
+        const reqs = await storage.getVisualRequirementsByDocument(doc.id);
+        for (const req_ of reqs) {
+          const candidates = await storage.getImageCandidatesByRequirement(req_.id);
+          const passedCandidates = candidates.filter(c => c.qcStatus === "passed");
+          const savedCandidates = candidates.filter(c => c.qcStatus === "saved");
+
+          let newStatus: "MISSING" | "SEARCHING" | "CANDIDATES_READY" | "QC_IN_PROGRESS" | "COMPLETE" | "PROMPT_FALLBACK" = req_.status;
+          if (savedCandidates.length > 0 || req_.primaryAssetId) {
+            newStatus = "COMPLETE";
+          } else if (passedCandidates.length > 0) {
+            newStatus = "CANDIDATES_READY";
+          } else if (candidates.length > 0) {
+            const failedCount = candidates.filter(c => c.qcStatus === "failed").length;
+            if (failedCount > 0) newStatus = "QC_IN_PROGRESS";
+            else newStatus = "SEARCHING";
+          } else {
+            newStatus = "MISSING";
+          }
+
+          if (newStatus !== req_.status) {
+            await storage.updateVisualRequirement(req_.id, { status: newStatus });
+            updated++;
+          }
+        }
+      }
+      res.json({ updated, message: `Recomputed ${updated} requirement statuses` });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to recompute statuses" });
+    }
+  });
+
+  // ====== DOCUMENT ENDPOINTS ======
 
   app.get("/api/documents", async (_req, res) => {
     try {

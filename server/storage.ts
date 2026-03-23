@@ -1,8 +1,9 @@
-import { eq, desc, ilike, or, sql } from "drizzle-orm";
+import { eq, desc, ilike, and, sql } from "drizzle-orm";
 import { db } from "./db";
 import {
   users, savedImages, textreaderSessions, conceptCards, conceptCandidates,
   entities, assets, entityAssets, mentions, documents, docChunks, imagePrompts,
+  visualRequirements, imageSearchJobs, imageCandidates, qcAssessments, docAssetLinks,
   type User, type InsertUser,
   type SavedImage, type InsertSavedImage,
   type TextreaderSession, type InsertTextreaderSession,
@@ -15,6 +16,11 @@ import {
   type Document, type InsertDocument,
   type DocChunk, type InsertDocChunk,
   type ImagePrompt, type InsertImagePrompt,
+  type VisualRequirement, type InsertVisualRequirement,
+  type ImageSearchJob, type InsertImageSearchJob,
+  type ImageCandidate, type InsertImageCandidate,
+  type QcAssessment, type InsertQcAssessment,
+  type DocAssetLink, type InsertDocAssetLink,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -70,6 +76,36 @@ export interface IStorage {
 
   createImagePrompt(prompt: InsertImagePrompt): Promise<ImagePrompt>;
   getImagePromptsByEntity(entityId: number): Promise<ImagePrompt[]>;
+  getImagePromptsByRequirement(requirementId: number): Promise<ImagePrompt[]>;
+
+  createVisualRequirement(req: InsertVisualRequirement): Promise<VisualRequirement>;
+  getVisualRequirement(id: number): Promise<VisualRequirement | undefined>;
+  getVisualRequirementsByEntity(entityId: number): Promise<VisualRequirement[]>;
+  getVisualRequirementsByDocument(documentId: number): Promise<VisualRequirement[]>;
+  updateVisualRequirement(id: number, updates: Partial<InsertVisualRequirement>): Promise<VisualRequirement | undefined>;
+
+  createImageSearchJob(job: InsertImageSearchJob): Promise<ImageSearchJob>;
+  updateImageSearchJob(id: number, updates: Partial<InsertImageSearchJob>): Promise<ImageSearchJob | undefined>;
+  getImageSearchJobsByRequirement(requirementId: number): Promise<ImageSearchJob[]>;
+
+  createImageCandidate(candidate: InsertImageCandidate): Promise<ImageCandidate>;
+  getImageCandidate(id: number): Promise<ImageCandidate | undefined>;
+  getImageCandidatesByRequirement(requirementId: number): Promise<ImageCandidate[]>;
+  updateImageCandidate(id: number, updates: Partial<InsertImageCandidate>): Promise<ImageCandidate | undefined>;
+
+  createQcAssessment(assessment: InsertQcAssessment): Promise<QcAssessment>;
+  getQcAssessmentsByCandidate(candidateId: number): Promise<QcAssessment[]>;
+  getQcAssessmentsByRequirement(requirementId: number): Promise<QcAssessment[]>;
+
+  createDocAssetLink(link: InsertDocAssetLink): Promise<DocAssetLink>;
+  getDocAssetLinksByDocument(documentId: number): Promise<DocAssetLink[]>;
+
+  getWorkQueue(): Promise<Array<{
+    document: Document;
+    missing: number;
+    qcFailed: number;
+    readyToSave: number;
+  }>>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -316,6 +352,125 @@ export class DatabaseStorage implements IStorage {
 
   async getImagePromptsByEntity(entityId: number): Promise<ImagePrompt[]> {
     return db.select().from(imagePrompts).where(eq(imagePrompts.entityId, entityId));
+  }
+
+  async getImagePromptsByRequirement(requirementId: number): Promise<ImagePrompt[]> {
+    return db.select().from(imagePrompts).where(eq(imagePrompts.requirementId, requirementId));
+  }
+
+  async createVisualRequirement(req: InsertVisualRequirement): Promise<VisualRequirement> {
+    const [created] = await db.insert(visualRequirements).values(req).returning();
+    return created;
+  }
+
+  async getVisualRequirement(id: number): Promise<VisualRequirement | undefined> {
+    const [req] = await db.select().from(visualRequirements).where(eq(visualRequirements.id, id));
+    return req;
+  }
+
+  async getVisualRequirementsByEntity(entityId: number): Promise<VisualRequirement[]> {
+    return db.select().from(visualRequirements)
+      .where(eq(visualRequirements.entityId, entityId))
+      .orderBy(desc(visualRequirements.createdAt));
+  }
+
+  async getVisualRequirementsByDocument(documentId: number): Promise<VisualRequirement[]> {
+    return db.select().from(visualRequirements)
+      .where(eq(visualRequirements.documentId, documentId))
+      .orderBy(desc(visualRequirements.createdAt));
+  }
+
+  async updateVisualRequirement(id: number, updates: Partial<InsertVisualRequirement>): Promise<VisualRequirement | undefined> {
+    const [updated] = await db.update(visualRequirements)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(visualRequirements.id, id))
+      .returning();
+    return updated;
+  }
+
+  async createImageSearchJob(job: InsertImageSearchJob): Promise<ImageSearchJob> {
+    const [created] = await db.insert(imageSearchJobs).values(job).returning();
+    return created;
+  }
+
+  async updateImageSearchJob(id: number, updates: Partial<InsertImageSearchJob>): Promise<ImageSearchJob | undefined> {
+    const [updated] = await db.update(imageSearchJobs).set(updates).where(eq(imageSearchJobs.id, id)).returning();
+    return updated;
+  }
+
+  async getImageSearchJobsByRequirement(requirementId: number): Promise<ImageSearchJob[]> {
+    return db.select().from(imageSearchJobs)
+      .where(eq(imageSearchJobs.requirementId, requirementId))
+      .orderBy(desc(imageSearchJobs.createdAt));
+  }
+
+  async createImageCandidate(candidate: InsertImageCandidate): Promise<ImageCandidate> {
+    const [created] = await db.insert(imageCandidates).values(candidate).returning();
+    return created;
+  }
+
+  async getImageCandidate(id: number): Promise<ImageCandidate | undefined> {
+    const [candidate] = await db.select().from(imageCandidates).where(eq(imageCandidates.id, id));
+    return candidate;
+  }
+
+  async getImageCandidatesByRequirement(requirementId: number): Promise<ImageCandidate[]> {
+    return db.select().from(imageCandidates)
+      .where(eq(imageCandidates.requirementId, requirementId))
+      .orderBy(desc(imageCandidates.createdAt));
+  }
+
+  async updateImageCandidate(id: number, updates: Partial<InsertImageCandidate>): Promise<ImageCandidate | undefined> {
+    const [updated] = await db.update(imageCandidates).set(updates).where(eq(imageCandidates.id, id)).returning();
+    return updated;
+  }
+
+  async createQcAssessment(assessment: InsertQcAssessment): Promise<QcAssessment> {
+    const [created] = await db.insert(qcAssessments).values(assessment).returning();
+    return created;
+  }
+
+  async getQcAssessmentsByCandidate(candidateId: number): Promise<QcAssessment[]> {
+    return db.select().from(qcAssessments)
+      .where(eq(qcAssessments.candidateId, candidateId))
+      .orderBy(desc(qcAssessments.createdAt));
+  }
+
+  async getQcAssessmentsByRequirement(requirementId: number): Promise<QcAssessment[]> {
+    return db.select().from(qcAssessments)
+      .where(eq(qcAssessments.requirementId, requirementId))
+      .orderBy(desc(qcAssessments.createdAt));
+  }
+
+  async createDocAssetLink(link: InsertDocAssetLink): Promise<DocAssetLink> {
+    const [created] = await db.insert(docAssetLinks).values(link).returning();
+    return created;
+  }
+
+  async getDocAssetLinksByDocument(documentId: number): Promise<DocAssetLink[]> {
+    return db.select().from(docAssetLinks).where(eq(docAssetLinks.documentId, documentId));
+  }
+
+  async getWorkQueue(): Promise<Array<{
+    document: Document;
+    missing: number;
+    qcFailed: number;
+    readyToSave: number;
+  }>> {
+    const docs = await db.select().from(documents).orderBy(desc(documents.updatedAt)).limit(50);
+    const result = [];
+    for (const doc of docs) {
+      const reqs = await db.select().from(visualRequirements)
+        .where(eq(visualRequirements.documentId, doc.id));
+      if (reqs.length === 0) continue;
+      const missing = reqs.filter(r => r.status === "MISSING").length;
+      const qcFailed = reqs.filter(r => r.status === "QC_IN_PROGRESS").length;
+      const readyToSave = reqs.filter(r => r.status === "CANDIDATES_READY").length;
+      if (missing > 0 || qcFailed > 0 || readyToSave > 0) {
+        result.push({ document: doc, missing, qcFailed, readyToSave });
+      }
+    }
+    return result;
   }
 }
 

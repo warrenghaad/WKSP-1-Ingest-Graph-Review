@@ -1,7 +1,13 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, serial, timestamp, jsonb, integer, boolean } from "drizzle-orm/pg-core";
+import { pgTable, pgEnum, text, varchar, serial, timestamp, jsonb, integer, boolean, real } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+
+export const requirementKindEnum = pgEnum("requirement_kind", ["SOURCE_ONLY", "SOURCE_PLUS_OVERLAY"]);
+export const requirementStatusEnum = pgEnum("requirement_status", ["MISSING", "SEARCHING", "CANDIDATES_READY", "QC_IN_PROGRESS", "COMPLETE", "PROMPT_FALLBACK"]);
+export const imageSearchJobStatusEnum = pgEnum("image_search_job_status", ["pending", "running", "done", "error"]);
+export const imageCandidateQcStatusEnum = pgEnum("image_candidate_qc_status", ["pending", "passed", "failed", "saved"]);
+export const imageSearchProviderEnum = pgEnum("image_search_provider", ["google_cse", "wikimedia", "met_museum", "openverse", "pinterest", "adobe_stock", "ai_generated"]);
 
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -142,10 +148,75 @@ export const docChunks = pgTable("doc_chunks", {
 export const imagePrompts = pgTable("image_prompts", {
   id: serial("id").primaryKey(),
   entityId: integer("entity_id"),
+  requirementId: integer("requirement_id"),
   prompt: text("prompt").notNull(),
+  negativePrompt: text("negative_prompt"),
   style: text("style").default("museum_photograph").notNull(),
   generatedUrl: text("generated_url"),
   status: text("status").default("pending").notNull(),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export const visualRequirements = pgTable("visual_requirements", {
+  id: serial("id").primaryKey(),
+  entityId: integer("entity_id").notNull(),
+  documentId: integer("document_id"),
+  kind: requirementKindEnum("kind").default("SOURCE_ONLY").notNull(),
+  status: requirementStatusEnum("status").default("MISSING").notNull(),
+  imageSpec: jsonb("image_spec"),
+  overlaySpec: jsonb("overlay_spec"),
+  primaryAssetId: integer("primary_asset_id"),
+  qcFailCount: integer("qc_fail_count").default(0).notNull(),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export const imageSearchJobs = pgTable("image_search_jobs", {
+  id: serial("id").primaryKey(),
+  requirementId: integer("requirement_id").notNull(),
+  provider: imageSearchProviderEnum("provider").notNull(),
+  query: text("query").notNull(),
+  status: imageSearchJobStatusEnum("status").default("pending").notNull(),
+  resultCount: integer("result_count").default(0).notNull(),
+  error: text("error"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  completedAt: timestamp("completed_at"),
+});
+
+export const imageCandidates = pgTable("image_candidates", {
+  id: serial("id").primaryKey(),
+  requirementId: integer("requirement_id").notNull(),
+  jobId: integer("job_id"),
+  url: text("url").notNull(),
+  thumbnailUrl: text("thumbnail_url"),
+  title: text("title"),
+  source: text("source"),
+  provider: imageSearchProviderEnum("provider"),
+  objectUrl: text("object_url"),
+  qcStatus: imageCandidateQcStatusEnum("qc_status").default("pending").notNull(),
+  qcScore: real("qc_score"),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export const qcAssessments = pgTable("qc_assessments", {
+  id: serial("id").primaryKey(),
+  candidateId: integer("candidate_id").notNull(),
+  requirementId: integer("requirement_id").notNull(),
+  passed: boolean("passed").notNull(),
+  score: real("score").notNull(),
+  reasons: text("reasons").array(),
+  observations: jsonb("observations"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export const docAssetLinks = pgTable("doc_asset_links", {
+  id: serial("id").primaryKey(),
+  documentId: integer("document_id").notNull(),
+  assetId: integer("asset_id"),
+  candidateId: integer("candidate_id"),
+  entityId: integer("entity_id"),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
@@ -212,6 +283,32 @@ export const insertImagePromptSchema = createInsertSchema(imagePrompts).omit({
   createdAt: true,
 });
 
+export const insertVisualRequirementSchema = createInsertSchema(visualRequirements).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertImageSearchJobSchema = createInsertSchema(imageSearchJobs).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertImageCandidateSchema = createInsertSchema(imageCandidates).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertQcAssessmentSchema = createInsertSchema(qcAssessments).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertDocAssetLinkSchema = createInsertSchema(docAssetLinks).omit({
+  id: true,
+  createdAt: true,
+});
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type SavedImage = typeof savedImages.$inferSelect;
@@ -236,3 +333,13 @@ export type DocChunk = typeof docChunks.$inferSelect;
 export type InsertDocChunk = z.infer<typeof insertDocChunkSchema>;
 export type ImagePrompt = typeof imagePrompts.$inferSelect;
 export type InsertImagePrompt = z.infer<typeof insertImagePromptSchema>;
+export type VisualRequirement = typeof visualRequirements.$inferSelect;
+export type InsertVisualRequirement = z.infer<typeof insertVisualRequirementSchema>;
+export type ImageSearchJob = typeof imageSearchJobs.$inferSelect;
+export type InsertImageSearchJob = z.infer<typeof insertImageSearchJobSchema>;
+export type ImageCandidate = typeof imageCandidates.$inferSelect;
+export type InsertImageCandidate = z.infer<typeof insertImageCandidateSchema>;
+export type QcAssessment = typeof qcAssessments.$inferSelect;
+export type InsertQcAssessment = z.infer<typeof insertQcAssessmentSchema>;
+export type DocAssetLink = typeof docAssetLinks.$inferSelect;
+export type InsertDocAssetLink = z.infer<typeof insertDocAssetLinkSchema>;

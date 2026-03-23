@@ -90,16 +90,19 @@ Data files:
    - Detail panel with MAGIC profile (radar chart, weight bars, GEA/GEM/E×C×D), research papers, museum links
    - Smooth camera animation on selection, OrbitControls for zoom/pan/rotate
    - Artifact IDs follow WIII-A-SA3-### convention (Project EUCLID)
-2. **Reader / Entity-Aware DAM** (`/reader`): Visual-first Digital Asset Manager with entity extraction, Tiptap editor, and 3-tab drawer. Features:
-   - Highlight text → BubbleMenu → "Find Images" searches museum + AI sources
-   - Search results appear in a floating panel above the highlighted text
-   - Click an image to: anchor it inline above the text (ImageAnnotation mark) AND auto-save to DAM
-   - Annotated text gets gold underline + dot indicator; hover shows image tooltip
-   - **Entity Marks**: Custom TipTap EntityMark extension with color-coded underlines per entity type (artifact=amber, place=blue, person=purple, deity=red, concept=green, material=orange, technique=cyan, period=yellow, culture=pink)
-   - **3-Tab Drawer**: DAM (grid gallery, query filters), Entity (detail view, linked images, search+approve), Ingest (text ingestion pipeline)
-   - **Text Ingestion**: Paste text → AI extracts entities with types, descriptions, periods, regions, MAGIC tags, search queries, and character offsets → entities appear as marks in editor
-   - **Auto-Sourcing**: One-click auto-search for top entities, candidates stored as linked assets with approve/reject workflow
-   - **Entity-Asset Graph**: Entities linked to assets via join table with linkType (depicts), approval status, and confidence
+2. **PRISM Editor / Entity-Aware DAM** (`/reader`): Full canvas-first PRISM workspace. Features:
+   - TipTap editor dominates ≥70% width; right drawer hidden by default
+   - Hover over entity mark → preview drawer slides in; click → pins it
+   - **Entity Marks**: Color-coded TipTap marks per entity type (artifact=amber, place=blue, etc.)
+   - **4-Tab Right Drawer**: Entity (detail + PRISM requirements + candidates + saved assets), Ingest, DAM, Work Queue
+   - **Text Ingestion**: Paste text → AI extracts entities → creates VisualRequirements (one per entity per doc)
+   - **PRISM Pipeline**: Each requirement can: Search (parallel providers) → Generate Spec (GPT-4o imageSpec+overlaySpec) → Run QC on candidates (VisionAI) → Save candidate as Asset
+   - **Providers**: Google CSE (if keys set), Wikimedia Commons, Met Museum, Openverse; Pinterest/Adobe are stubs
+   - **VisionAI QC**: GPT-4o vision evaluates candidates against imageSpec, stores pass/fail + score + reasons
+   - **Prompt Fallback**: Auto-generates ImagePrompt when 3+ QC failures with no passing candidate
+   - **Work Queue Drawer**: Lists documents with pending/missing imaging + counts (missing, qc_failed, ready-to-save)
+   - **Save Candidate**: Passes a candidate → creates Asset + EntityAsset link → marks requirement COMPLETE
+   - **Entity-Asset Graph**: Entities linked to assets via join table with linkType, approval status, confidence
 3. **Automation Lab** (`/lab`): Image search and generation testing ground
 4. **Euclid First-Run Textreader** (`/textreader`): Narrow first-run worker for text-to-image preparation. Features:
    - 4-zone layout: top bar, left intake pane, center concept board, right detail drawer
@@ -146,9 +149,21 @@ Data files:
 - `POST /api/assets/search` - Multi-provider image search, optionally linked to entity
 - `POST /api/assets/save` - Save asset and optionally link to entity
 - `PATCH /api/entity-assets/:id` - Update entity-asset link (approve/reject)
-- `POST /api/ingest/text` - Ingest text → chunk → entity extraction → mention creation
+- `POST /api/ingest/text` - Ingest text → chunk → entity extraction → mention creation → VisualRequirements
+- `POST /api/ingest/url` - Ingest URL → fetch → extract → same pipeline as text
 - `GET /api/documents` - List all documents
 - `GET /api/documents/:id` - Get document with mentions
+
+### PRISM Pipeline
+- `GET /api/requirements/:id` - Get a VisualRequirement with its candidates and QC assessments
+- `POST /api/requirements/:id/search` - Trigger parallel image search across all providers for a requirement
+- `POST /api/requirements/:id/spec/generate` - Generate imageSpec + overlaySpec via GPT-4o
+- `POST /api/qc/:candidateId/evaluate` - Run VisionAI QC on a candidate (GPT-4o vision)
+- `POST /api/requirements/:id/save-candidate` - Save best candidate as Asset and mark requirement COMPLETE
+- `GET /api/requirements/:id/prompts` - Get image prompts for a requirement
+- `POST /api/requirements/:id/prompts` - Create/update an image prompt for a requirement
+- `GET /api/work/queue` - Get work queue summary (per-document counts of missing/qcFailed/readyToSave)
+- `POST /api/work/recompute` - Recompute all requirement statuses based on current candidate state
 
 ## Environment Variables
 - `AI_INTEGRATIONS_OPENAI_API_KEY` - Set automatically by Replit AI Integrations
@@ -185,4 +200,5 @@ Data files:
 - `server/db.ts` - Drizzle ORM database connection
 - `client/src/components/EntityMark.ts` - Custom TipTap EntityMark extension (entity-aware mark with type colors)
 - `server/entityExtractor.ts` - AI entity extraction from text (OpenAI)
-- `shared/schema.ts` - Drizzle schema (users, savedImages, textreaderSessions, conceptCards, conceptCandidates, entities, assets, entityAssets, mentions, documents, docChunks, imagePrompts)
+- `shared/schema.ts` - Drizzle schema (users, savedImages, textreaderSessions, conceptCards, conceptCandidates, entities, assets, entityAssets, mentions, documents, docChunks, imagePrompts, visualRequirements, imageSearchJobs, imageCandidates, qcAssessments, docAssetLinks)
+- `server/providers/index.ts` - Image provider adapters (Google CSE, Wikimedia, Met Museum, Openverse; Pinterest/Adobe stubs)
