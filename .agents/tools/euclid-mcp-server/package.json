@@ -1,0 +1,91 @@
+{
+  "name": "euclid-mcp-server",
+  "version": "1.0.0",
+  "description": "Model Context Protocol (MCP) server for EUCLID ecosystem management",
+  "main": "src/server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "install-claude": "node scripts/claude-desktop-integration.js",
+    "test": "node --test src/**/*.test.js",
+    "build": "npm run build:tools && npm run build:docs",
+    "build:tools": "node scripts/build-tools.js",
+    "build:docs": "node scripts/generate-docs.js"
+  },
+  "bin": {
+    "euclid-mcp": "./src/server.js"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "euclid",
+    "curriculum",
+    "education",
+    "salem-drunk-tank"
+  ],
+  "author": "EUCLID Project",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.6.0",
+    "crypto": "^1.0.1",
+    "fs": "^0.0.1-security",
+    "path": "^0.12.7",
+    "util": "^0.12.5",
+    "glob": "^10.3.10",
+    "mime-types": "^2.1.35",
+    "marked": "^12.0.0",
+    "cheerio": "^1.0.0-rc.12",
+    "fast-xml-parser": "^4.3.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/euclid-project/mcp-server.git"
+  },
+  "mcp": {
+    "server": {
+      "name": "euclid-ecosystem",
+      "version": "1.0.0"
+    },
+    "tools": [
+      {
+        "name": "curriculum-analyzer",
+        "description": "Analyze grade-level lesson structures and curriculum dependencies"
+      },
+      {
+        "name": "component-mapper", 
+        "description": "Map relationships between UI components and interfaces"
+      },
+      {
+        "name": "pipeline-reconciler",
+        "description": "Connect pipeline diagrams to code and validate system architecture"
+      },
+      {
+        "name": "salem-interface",
+        "description": "Unified dashboard management for Salem Drunk Tank interface"
+      },
+      {
+        "name": "archive-linker",
+        "description": "Connect current systems with archived UI_BUILD_CONTENT"
+      },
+      {
+        "name": "euclid-file-manager",
+        "description": "Context-aware file management with smart chunking"
+      },
+      {
+        "name": "dependency-tracker",
+        "description": "Track component dependencies and integration points"
+      },
+      {
+        "name": "evidence-validator",
+        "description": "Validate evidence-based operations using GuardedAgentRunner methodology"
+      }
+    ]
+  }
+}

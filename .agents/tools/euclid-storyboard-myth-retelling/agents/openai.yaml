@@ -1,0 +1,12 @@
+interface:
+  display_name: "EUCLID Storyboard Myth Retelling"
+  short_description: "Three-Act storyboard engine — decomposes myths into ABSENCE→TRANSFORMATION→LEGACY panels with reuse-tagged extractable assets for the image pipeline"
+  default_prompt: "Use $euclid-storyboard-myth-retelling to decompose myth narratives into three-act storyboard panels, generate image requirements with reuse tags, and produce animation pre-production specs. Storyboards feed directly into the image pipeline via /storyboard-to-manifest."
+
+commands:
+  - name: storyboard-myth
+    description: "Generate a 3-Act storyboard from a single myth script or lesson file"
+  - name: storyboard-process
+    description: "Generate all myth storyboards from the process document"
+  - name: storyboard-to-manifest
+    description: "Convert storyboard panels to image pipeline manifest format"
