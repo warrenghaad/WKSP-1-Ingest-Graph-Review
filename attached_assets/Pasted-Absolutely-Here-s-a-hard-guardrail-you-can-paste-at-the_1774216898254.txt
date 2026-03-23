@@ -1,0 +1,174 @@
+Absolutely. Here’s a **hard guardrail** you can paste at the top of the Replit agent prompt so it *cannot* “helpfully” drift into crowded UI / scope creep / sketchy scraping. 🧱🔒
+
+---
+
+## Hard Guardrails (Non-Negotiable) 🧱🔒
+
+### 0) Scope Lock
+
+* **Build ONLY the Prism MVP**: **single screen** = TipTap Editor (center) + Entity Drawer (right) + image search + save-to-DB.
+* **DO NOT** add: dashboards, analytics, multi-page navigation, lesson sequencing UI, authentication, user accounts, settings panels, extra tabs, “admin” pages, or any “nice to have” UX.
+* If a feature isn’t explicitly listed in “MVP Must Work,” it is **out of scope**.
+
+---
+
+### 1) UI Anti-Crowding Invariants (Fail if violated)
+
+**The UI must remain an “open canvas.”**
+
+✅ Required:
+
+* **No permanent top header.**
+* **No permanent left sidebar.**
+* **Center editor must occupy 70–90% of the width** by default.
+* **Right Entity Drawer hidden by default** and opened only by hover/click events.
+
+🚫 Forbidden:
+
+* Any persistent dashboard chrome.
+* Stacked panels around the editor.
+* Toolbars that consume > 10% vertical space.
+* Persistent “cards everywhere” layout.
+
+**Acceptance check (visual):** When the page loads, the only dominant object you see is the editor.
+
+---
+
+### 2) Interaction Contract (Hover vs Click)
+
+✅ Required behaviors:
+
+* **Hover = preview**
+  Hovering an `entity-mark` opens the drawer and loads entity data.
+* **Click = pin**
+  Clicking an entity pins it in the drawer so hover doesn’t override it until unpinned.
+
+🚫 Forbidden:
+
+* Drawer opening from random scroll/keypress.
+* Multi-modal popups/dialog storms.
+* Hover triggering full-page navigation.
+
+---
+
+### 3) Provider Safety Guardrails (No Scraping)
+
+✅ Allowed providers (MVP):
+
+* **Google Custom Search JSON API (Images)** ONLY (official API, key-based)
+* Wikimedia Commons API
+* Met Museum API
+
+🚫 Forbidden:
+
+* **No scraping Google Images HTML**
+* **No scraping Pinterest** (Pinterest and scraping are a trap)
+* **No Adobe Stock scraping** (API stub only)
+* If Pinterest/Adobe are included, they must be **stubs** behind env vars and return “not configured” if keys aren’t present.
+
+**Rule:** If there’s no official API + key configured, that provider returns empty results with a message.
+
+---
+
+### 4) Data Integrity Guardrails (DAM correctness)
+
+✅ Required:
+
+* Every saved image record must store provenance fields:
+
+  * `provider`, `pageUrl`, `imageUrl` (or `storedUrl`), `license` (or `"unknown"`), `attribution` (or null)
+* Saved assets must be **linked** to an entity (`EntityAsset`) at save-time.
+* No entity is “global magic”—all entity spans must carry `entityId`.
+
+🚫 Forbidden:
+
+* Saving an image without source URL.
+* Storing image bytes inside Postgres.
+* “Magic strings” with no IDs.
+
+---
+
+### 5) API Contract Guardrails (Endpoints must match)
+
+Implement **only** these routes now:
+
+**Entities**
+
+* `GET /api/entities/:id`
+* `GET /api/entities/by-label?q=...`
+
+**Assets**
+
+* `POST /api/assets/search`
+* `POST /api/assets/save`
+
+**Prompts**
+
+* `POST /api/prompts/generate` (can return template prompts; persistence optional)
+
+🚫 Forbidden:
+
+* Adding additional endpoints “just in case.”
+* Adding GraphQL.
+* Adding WebSockets.
+
+---
+
+### 6) Tech Stack Lock (Don’t swap tools)
+
+✅ Must use:
+
+* Vite + React (client)
+* Express (server)
+* Prisma + Postgres (DB)
+
+🚫 Forbidden:
+
+* Switching to Next.js midstream
+* Adding Redux unless absolutely necessary (it’s not for MVP)
+* Adding heavy UI frameworks that force layout clutter
+
+---
+
+### 7) Performance / UX Guardrails (Prevent “laggy crowded tool”)
+
+✅ Required:
+
+* Hover calls must be **debounced** (e.g., 150–250ms).
+* Image search must show a loading state and not freeze the editor.
+* Drawer content must be scrollable and never expand to push the editor.
+
+🚫 Forbidden:
+
+* Synchronous blocking fetches inside editor render loops
+* Rendering > 30 thumbnails at once without pagination/limit
+
+---
+
+### 8) “Stop Condition” (When to halt instead of inventing)
+
+If any of these occur, **STOP and do not add new features**:
+
+* UI becomes crowded / persistent chrome appears
+* A provider requires scraping to function
+* Any uncertainty about whether a feature is in MVP scope
+
+**Action:** Keep the build minimal and pass “Definition of Done” first.
+
+---
+
+## Definition of Done ✅
+
+The build is only considered complete when ALL of these work:
+
+1. I can type in TipTap in the center canvas.
+2. I can create/get an entity by label (`/entities/by-label`).
+3. I can apply an entity mark to a span and hover it.
+4. Hover opens drawer and shows entity info + images.
+5. Search returns image candidates.
+6. Save persists an Asset + EntityAsset link in Postgres.
+7. Drawer shows saved assets first.
+
+---
+
+If you want, I can also produce a **“Guardrail Linter” checklist** (a short QA script you can run mentally in 30 seconds each time Replit generates UI changes) so you catch crowding instantly. 🧠✅

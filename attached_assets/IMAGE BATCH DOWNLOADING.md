@@ -1,5 +1,7 @@
 
-###### # Complete Guide to Bulk Downloading Mythology, Geometry, and Cultural Art Images This comprehensive guide provides production-ready Python scripts and detailed instructions for legally downloading thousands of images from major museum collections, cultural archives, and open-access repositories. All scripts include proper rate limiting, metadata preservation, and focus on public domain content. ## MetroWpolitan Museum of Art API Scraper 
+###### # Complete Guide to Bulk Downloading Mythology, Geometry, and Cultural Art Images 
+
+This comprehensive guide provides production-ready Python scripts and detailed instructions for legally downloading thousands of images from major museum collections, cultural archives, and open-access repositories. All scripts include proper rate limiting, metadata preservation, and focus on public domain content. ## MetroWpolitan Museum of Art API Scraper 
 
 ## The Met Museum offers **492,000+ high-resolution CC0 images** 
 covering Islamic geometric patterns, Egyptian art, Greek pottery, and diverse cultural artifacts. Their API requires no authentication and allows 80 requests per second. 
