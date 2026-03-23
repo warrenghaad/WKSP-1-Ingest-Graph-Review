@@ -1,7 +1,29 @@
-import { useState, Component, type ReactNode, type ErrorInfo } from "react";
+import { useState, useEffect, Component, type ReactNode, type ErrorInfo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
 import Timeline3D from "@/components/Timeline3D";
+
+function checkWebGLSupport(): boolean {
+  try {
+    const canvas = document.createElement("canvas");
+    const gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
+    return gl != null;
+  } catch {
+    return false;
+  }
+}
+
+function WebGLFallback() {
+  return (
+    <div className="w-full h-full flex items-center justify-center bg-[#030308]">
+      <div className="text-center space-y-3 p-8">
+        <div className="text-4xl">🏛️</div>
+        <h3 className="text-lg font-serif text-white/70">3D Timeline Unavailable</h3>
+        <p className="text-sm text-white/40 max-w-xs">WebGL context could not be created. The timeline requires GPU acceleration.</p>
+      </div>
+    </div>
+  );
+}
 
 class WebGLErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
   state = { hasError: false };
@@ -9,15 +31,7 @@ class WebGLErrorBoundary extends Component<{ children: ReactNode }, { hasError: 
   componentDidCatch(error: Error, info: ErrorInfo) { console.warn("WebGL unavailable:", error.message); }
   render() {
     if (this.state.hasError) {
-      return (
-        <div className="w-full h-full flex items-center justify-center bg-[#030308]">
-          <div className="text-center space-y-3 p-8">
-            <div className="text-4xl">🏛️</div>
-            <h3 className="text-lg font-serif text-white/70">3D Timeline Unavailable</h3>
-            <p className="text-sm text-white/40 max-w-xs">WebGL context could not be created. The timeline requires GPU acceleration.</p>
-          </div>
-        </div>
-      );
+      return <WebGLFallback />;
     }
     return this.props.children;
   }
@@ -56,6 +70,7 @@ export default function Home() {
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("timeline");
   const [, navigate] = useLocation();
+  const [webglSupported] = useState(() => checkWebGLSupport());
 
   const setFilterSection = (id: string | null) => {
     setFilterSectionRaw(id);
@@ -93,16 +108,20 @@ export default function Home() {
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-background text-foreground selection:bg-primary/30">
       <div className="absolute inset-0 z-10 cursor-grab active:cursor-grabbing">
-        <WebGLErrorBoundary>
-          <Timeline3D
-            onSelectArtifact={setSelectedArtifact}
-            selectedId={selectedArtifact?.id || null}
-            filterCategory={filterCategory}
-            filterEra={filterEra}
-            searchQuery={searchQuery}
-            filterSection={filterSection}
-          />
-        </WebGLErrorBoundary>
+        {webglSupported ? (
+          <WebGLErrorBoundary>
+            <Timeline3D
+              onSelectArtifact={setSelectedArtifact}
+              selectedId={selectedArtifact?.id || null}
+              filterCategory={filterCategory}
+              filterEra={filterEra}
+              searchQuery={searchQuery}
+              filterSection={filterSection}
+            />
+          </WebGLErrorBoundary>
+        ) : (
+          <WebGLFallback />
+        )}
       </div>
 
       <header className="absolute top-0 left-0 right-0 z-20 p-4 md:p-6 flex justify-between items-start pointer-events-none">

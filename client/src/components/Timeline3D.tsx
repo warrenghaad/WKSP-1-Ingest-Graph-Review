@@ -493,12 +493,32 @@ const Scene = ({
 };
 
 export default function Timeline3D(props: Timeline3DProps) {
+  const [initFailed, setInitFailed] = useState(false);
+
+  if (initFailed) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-[#030308]">
+        <div className="text-center space-y-3 p-8">
+          <div className="text-4xl">🏛️</div>
+          <h3 className="text-lg font-serif text-white/70">3D Timeline Unavailable</h3>
+          <p className="text-sm text-white/40 max-w-xs">WebGL context could not be created. The timeline requires GPU acceleration.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full h-full absolute inset-0 z-0">
       <Canvas
         shadows
         camera={{ position: [yearToX(-3500), 5, 10], fov: 45 }}
         onPointerMissed={() => props.onSelectArtifact(null)}
+        onCreated={(state) => {
+          if (!state.gl) {
+            setInitFailed(true);
+          }
+        }}
+        gl={{ failIfMajorPerformanceCaveat: false }}
       >
         <Scene {...props} />
       </Canvas>
