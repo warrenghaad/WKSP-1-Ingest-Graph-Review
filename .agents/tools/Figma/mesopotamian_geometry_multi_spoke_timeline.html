@@ -1,0 +1,223 @@
+<div style="padding: 1rem 0;">
+<div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;">
+<button id="btn-all" onclick="setFilter('all')" style="font-size: 12px; padding: 4px 12px; border-radius: var(--border-radius-md); background: var(--color-text-primary); color: var(--color-background-primary); border: none; cursor: pointer;">All elements</button>
+<button id="btn-circle" onclick="setFilter('circle')" style="font-size: 12px; padding: 4px 12px; border-radius: var(--border-radius-md); background: #FAEEDA; color: #633806; border: 0.5px solid #BA7517; cursor: pointer;">Circle</button>
+<button id="btn-crescent" onclick="setFilter('crescent')" style="font-size: 12px; padding: 4px 12px; border-radius: var(--border-radius-md); background: #F1EFE8; color: #444441; border: 0.5px solid #888780; cursor: pointer;">Crescent</button>
+<button id="btn-star" onclick="setFilter('star')" style="font-size: 12px; padding: 4px 12px; border-radius: var(--border-radius-md); background: #EEEDFE; color: #3C3489; border: 0.5px solid #534AB7; cursor: pointer;">8-Star</button>
+<button id="btn-triangle" onclick="setFilter('triangle')" style="font-size: 12px; padding: 4px 12px; border-radius: var(--border-radius-md); background: #EAF3DE; color: #27500A; border: 0.5px solid #639922; cursor: pointer;">Triangle</button>
+<button id="btn-square" onclick="setFilter('square')" style="font-size: 12px; padding: 4px 12px; border-radius: var(--border-radius-md); background: #E6F1FB; color: #0C447C; border: 0.5px solid #378ADD; cursor: pointer;">Square</button>
+<button id="btn-converge" onclick="setFilter('converge')" style="font-size: 12px; padding: 4px 12px; border-radius: var(--border-radius-md); background: #FCEBEB; color: #791F1F; border: 0.5px solid #E24B4A; cursor: pointer;">Convergence points</button>
+</div>
+<div id="timeline-container" style="overflow-x: auto; overflow-y: visible; position: relative;">
+<canvas id="tl" width="2800" height="920"></canvas>
+</div>
+<div id="tooltip" style="display:none; position:fixed; background: var(--color-background-primary); border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-lg); padding: 12px 16px; max-width: 360px; font-size: 13px; line-height: 1.5; color: var(--color-text-primary); z-index: 999; pointer-events: none; box-shadow: 0 2px 8px rgba(0,0,0,0.12);"></div>
+</div>
+<script>
+const W=2800, H=920, PAD_L=140, PAD_R=40, PAD_T=80, PAD_B=60;
+const minYear=-6200, maxYear=-300;
+const tracks={circle:{y:180,color:'#BA7517',bg:'#FAEEDA',label:'Circle'},crescent:{y:340,color:'#888780',bg:'#F1EFE8',label:'Crescent'},star:{y:500,color:'#534AB7',bg:'#EEEDFE',label:'8-Star'},triangle:{y:660,color:'#639922',bg:'#EAF3DE',label:'Triangle'},square:{y:820,color:'#378ADD',bg:'#E6F1FB',label:'Square'}};
+function xFor(yr){return PAD_L+(yr-minYear)/(maxYear-minYear)*(W-PAD_L-PAD_R)}
+const nodes=[
+{id:'c1',track:'circle',year:-6200,r:7,title:'Halaf painted circles',desc:'Concentric circles, petal-doubling (4→8→16→32→64) on pottery bowls. BM 1934,0210.11, Arpachiyah. Earliest systematic circle division.',type:'gea',dayB:'B5: earliest circle recognition'},
+{id:'c2',track:'circle',year:-5800,r:7,title:'Samarra Plate',desc:'VA 13400, Berlin. 8 fish in rotational composition, ~120 rim lines. Dynamic circular design with possible base-6 awareness.',type:'gea',dayB:'B5: rotational composition'},
+{id:'c3',track:'circle',year:-4500,r:6,title:'Slow potter\'s wheel (tournette)',desc:'Rotating platform for shaping clay. Prerequisites: circular disc, axis of rotation, intuitive centrifugal understanding.',type:'invention',dayB:'B6 candidate: first rotational machine'},
+{id:'c4',track:'circle',year:-3500,r:8,title:'Fast potter\'s wheel',desc:'True wheel at Ur and Uruk. Oldest surviving wheel ~3129 BCE. Enables mass production of uniform round vessels.',type:'invention',dayB:'B6: current invention moment'},
+{id:'c5',track:'circle',year:-3500,r:6,title:'Wheeled cart pictograph',desc:'Eanna district, Uruk. Earliest depiction of wheel used for transport. Circle property: circumference = predictable rolling distance.',type:'invention',dayB:'B4/B5: circle in transport'},
+{id:'c6',track:'circle',year:-2600,r:7,title:'Standard of Ur — wheeled wagons',desc:'BM 121201. Four-wheeled battle wagons with solid disc wheels made of joined wooden pieces. Circle in military/trade technology.',type:'artifact',dayB:'B5: circle at war and trade'},
+{id:'c7',track:'circle',year:-1800,r:8,title:'π ≈ 3.125 (Susa tablet)',desc:'Louvre, TMS series. Best pre-Archimedean approximation. Circumscribed circle calculations. Your B2 proof confirmed by tablet.',type:'gek',dayB:'B2: mathematical formalization'},
+{id:'c8',track:'circle',year:-700,r:6,title:'360° circle division formalized',desc:'Ecliptic divided into 12 × 30° = 360°. Direct link: 360 days ≈ 1 year, base-60 system. Still used today.',type:'gek',dayB:'B5: circle becomes measurement standard'},
+{id:'c9',track:'circle',year:-350,r:7,title:'Jupiter trapezoid tablets',desc:'BM 40054. Displacement as area under velocity-time curve. Circle\'s angular measurement applied to planetary motion. Proto-calculus.',type:'gek',dayB:'B5: circle in abstract reasoning'},
+
+{id:'cr1',track:'crescent',year:-2900,r:7,title:'Crescent on Early Dynastic seals',desc:'First distinct crescent symbol (not partial circle). Recumbent orientation matching new moon at Mesopotamian latitude. Nanna/Sin emblem.',type:'gephr',dayB:'A1/A4: iconographic emergence'},
+{id:'cr2',track:'crescent',year:-2100,r:7,title:'Seal of Ḫašḫamer',desc:'British Museum, Ur III period. Famous Sin/crescent seal. Crescent as institutional emblem of moon god cult.',type:'artifact',dayB:'A3/A4: material culture'},
+{id:'cr3',track:'crescent',year:-3000,r:6,title:'Lunar calendar standardized',desc:'12 months × ~30 days. Month begins at first crescent sighting. 360-day ideal year = 360° circle. Geometric observation, not crescent geometry.',type:'invention',dayB:'B6: current invention (but uses CIRCLE property)'},
+{id:'cr4',track:'crescent',year:-3300,r:5,title:'Bronze sickle tools',desc:'Curved cutting edge. Genuine crescent geometry: arc distributes force along sweeping path. Sequential contact = less force needed.',type:'invention',dayB:'B1/B4: actual geometric function of crescent'},
+{id:'cr5',track:'crescent',year:-1186,r:7,title:'Kudurru of Meli-Shipak II',desc:'Louvre Sb 22. Canonical triad: 8-star + crescent + solar disc. All three lesson elements together on one artifact.',type:'artifact',dayB:'Cross-element convergence'},
+{id:'cr6',track:'crescent',year:-1000,r:6,title:'MUL.APIN compendium',desc:'66 stars catalogued, zigzag daylight functions, proto-zodiac. Lunar observation systematized. Uses 360-day year framework.',type:'gek',dayB:'B5: astronomical formalization'},
+{id:'cr7',track:'crescent',year:-600,r:5,title:'Saros eclipse cycle',desc:'223 synodic months. Predicting lunar eclipses from accumulated observation. Crescent observation → mathematical astronomy.',type:'gek',dayB:'B5: prediction from observation'},
+
+{id:'s1',track:'star',year:-6100,r:5,title:'4-petal rosettes on Halaf seals',desc:'Arpachiyah, Domuztepe stamp seals. Circle + 4-fold radial symmetry. GEM precursor to 8-star.',type:'gem',dayB:'B5: earliest radial division'},
+{id:'s2',track:'star',year:-3100,r:6,title:'Rosettes on Jemdet Nasr pottery',desc:'8-petaled rosettes on pottery and temple objects. Sacred decoration encoding 8-fold division. Shape enters culture.',type:'gem',dayB:'B5: 8-fold division appears'},
+{id:'s3',track:'star',year:-2900,r:7,title:'8-pointed star on ED seals',desc:'Ishtar/Inanna association begins. Initially general celestial symbol, becomes Venus-specific. Recognizable from any rotation angle.',type:'gephr',dayB:'B4: rotation → recognition (seal function)'},
+{id:'s4',track:'star',year:-2500,r:6,title:'Cylinder seal recognition',desc:'8-pointed star on thousands of seals. 8-fold rotational symmetry = readable while rolling at any angle. Functional geometry.',type:'artifact',dayB:'B4: mechanical result of rotation symmetry'},
+{id:'s5',track:'star',year:-1200,r:6,title:'Assyrian palace rosettes',desc:'Nimrud/Nineveh. Carved stone 8-fold rosettes. Octagon+square tessellation for floor coverage. 45° enabling space-filling.',type:'artifact',dayB:'B4: tessellation → coverage'},
+{id:'s6',track:'star',year:-1200,r:5,title:'Star catalogs (8-sector sky)',desc:'Babylonian astronomers divide sky into 8 sections (45° each). 8→16→32 subdivision for precision. Same property, new domain.',type:'gek',dayB:'B4: subdivision → precision'},
+{id:'s7',track:'star',year:-300,r:7,title:'Uruk compass card',desc:'Cuneiform tablet determining "place of rising of winds." 8 directional divisions. Precursor to compass rose. 45° = navigation.',type:'invention',dayB:'B6: compass rose precursor'},
+
+{id:'t1',track:'triangle',year:-6000,r:6,title:'Triangles on Hassuna pottery',desc:'Tell Hassuna. Lines, triangles, cross-hatching in red paint. Among earliest decorative motifs in Mesopotamia.',type:'gea',dayB:'B5: earliest triangle recognition'},
+{id:'t2',track:'triangle',year:-10000,r:4,title:'Flint/obsidian arrowheads',desc:'Triangular tool shapes predate ceramics. Functional triangle: cutting edge, penetration geometry. Pre-Mesopotamian.',type:'artifact',dayB:'B4: functional triangle before decoration'},
+{id:'t3',track:'triangle',year:-5500,r:6,title:'Buttressed walls at Sawwan',desc:'Tell es-Sawwan. Earliest buttress-and-recess construction. Triangular bracing principle in architecture.',type:'invention',dayB:'B4: triangular bracing 3400 yrs before Ur-Nammu'},
+{id:'t4',track:'triangle',year:-5400,r:5,title:'Eridu temple buttresses',desc:'Level XVI. Buttress-and-recess decoration becomes standard on temple façades. Triangle as architectural principle.',type:'artifact',dayB:'B5: triangle in monumental architecture'},
+{id:'t5',track:'triangle',year:-4000,r:5,title:'Three-legged stools/tripods',desc:'Bronze tripod stands at virtually every Mesopotamian site. 3 points define a plane. Guaranteed surface contact on any floor.',type:'artifact',dayB:'B4: 3-point stability (your bridge artifact)'},
+{id:'t6',track:'triangle',year:-2600,r:6,title:'Royal Tombs — true arches',desc:'Ur, PG 800. Woolley documented true arches. Triangulation of forces in vault construction. BM + Penn Museum.',type:'gek',dayB:'B5: triangle in force distribution'},
+{id:'t7',track:'triangle',year:-2100,r:8,title:'Ziggurat of Ur — buttress system',desc:'Ur-Nammu. Systematic triangular buttresses every 3-5m. Baked brick + bitumen. Enabled 30m height. ~720,000 bricks.',type:'invention',dayB:'B6: current invention moment'},
+{id:'t8',track:'triangle',year:-1800,r:7,title:'Plimpton 322',desc:'Columbia University. 15 Pythagorean triples in sexagesimal. Systematic knowledge of triangle side relationships.',type:'gek',dayB:'B2/B5: triangle math formalized'},
+{id:'t9',track:'triangle',year:-1800,r:6,title:'YBC 7289 — √2 to 6 decimals',desc:'Yale. Square with diagonals. √2 = 1.414213... Greatest ancient computational accuracy. Triangle diagonal relationship.',type:'gek',dayB:'B2: mathematical proof on tablet'},
+{id:'t10',track:'triangle',year:-1900,r:7,title:'Si.427 — oldest applied geometry',desc:'Istanbul Museum. Land survey using Pythagorean triples (3-4-5) for right-angle boundaries. Oldest known applied geometry.',type:'gek',dayB:'B5: Pythagorean theorem 1000+ yrs before Pythagoras'},
+
+{id:'sq1',track:'square',year:-7000,r:5,title:'Rectangular architecture begins',desc:'Upper Mesopotamia. Rectilinear buildings 1000 yrs before Halaf circular tholoi. Right angles in construction.',type:'gea',dayB:'Foundational: rectangle as building unit'},
+{id:'sq2',track:'square',year:-6000,r:5,title:'Hassuna adobe dwellings',desc:'Tell Hassuna. Adobe houses around open central courts. Standardized rectangular plans.',type:'artifact',dayB:'B5: rectangle in civic planning'},
+{id:'sq3',track:'square',year:-5300,r:5,title:'Checkerboard grid — Arpachiyah',desc:'Burnt House plate A 751(B). Centered checkered field of equidistant staggered squares. One of earliest grid patterns.',type:'gem',dayB:'B5: grid as compositional principle'},
+{id:'sq4',track:'square',year:-5000,r:6,title:'Standardized mud bricks',desc:'Mould-made bricks of standard size. By Late Uruk: Riemchen bricks at 1:1:2 ratio. Modular geometric units.',type:'invention',dayB:'B6 candidate: standardization as geometric invention'},
+{id:'sq5',track:'square',year:-3400,r:6,title:'Cuneiform — geometric abstraction',desc:'Evolution from curved pictographs to 5 straight wedge elements. Triangular stylus impression = fundamental geometric unit.',type:'gek',dayB:'B5: geometry enables writing system'},
+{id:'sq6',track:'square',year:-2700,r:6,title:'Sexagesimal system matures',desc:'Base-60. 360 = 6×60. Smallest number divisible by 1-6. Enables fractional division for trade, surveying, astronomy.',type:'gek',dayB:'B2/B5: number system IS geometric'},
+{id:'sq7',track:'square',year:-2650,r:6,title:'Nippur cubit rod',desc:'Istanbul Museum. World\'s oldest ruler. Sumerian cubit ~518.5mm with graduated subdivisions. Standardized measurement.',type:'artifact',dayB:'B5: measurement standardization'},
+{id:'sq8',track:'square',year:-1800,r:7,title:'BM 15285 — 41 area problems',desc:'British Museum. Circles in squares, composite figures. Systematic geometric problem-solving with diagrams.',type:'gek',dayB:'B2: square/rectangle area formalization'}
+];
+
+const convergences=[
+{year:-3500,y1:'circle',y2:'star',label:'Cylinder seal: circle (rolling) + emerging star (recognition)',color:'#E24B4A'},
+{year:-2100,y1:'circle',y2:'triangle',label:'Ziggurat: circle (columns) + triangle (buttresses)',color:'#E24B4A'},
+{year:-1186,y1:'crescent',y2:'star',label:'Kudurru Sb 22: crescent + 8-star + solar disc (ALL elements)',color:'#E24B4A'},
+{year:-1200,y1:'star',y2:'square',label:'Palace tiles: octagon (8-star) + square tessellation',color:'#E24B4A'},
+{year:-3500,y1:'circle',y2:'square',label:'Potter\'s wheel + standardized brick: circular production of rectangular units',color:'#E24B4A'},
+{year:-2600,y1:'circle',y2:'triangle',label:'Standard of Ur: wheeled carts (circle) + structural frames (triangle)',color:'#E24B4A'},
+];
+
+let currentFilter='all';
+const canvas=document.getElementById('tl');
+const ctx=canvas.getContext('2d');
+const tooltip=document.getElementById('tooltip');
+
+function setFilter(f){
+currentFilter=f;
+document.querySelectorAll('#btn-all,#btn-circle,#btn-crescent,#btn-star,#btn-triangle,#btn-square,#btn-converge').forEach(b=>{b.style.opacity=0.5;b.style.fontWeight='400'});
+const btnMap={all:'btn-all',circle:'btn-circle',crescent:'btn-crescent',star:'btn-star',triangle:'btn-triangle',square:'btn-square',converge:'btn-converge'};
+const btn=document.getElementById(btnMap[f]);
+if(btn){btn.style.opacity=1;btn.style.fontWeight='500'}
+draw();
+}
+
+function draw(){
+ctx.clearRect(0,0,W,H);
+const eras=[{start:-6200,end:-5000,label:'Intuitive'},{start:-5000,end:-2100,label:'Measured'},{start:-1900,end:-1600,label:'Golden age'},{start:-700,end:-300,label:'360° + Abstract'}];
+eras.forEach((e,i)=>{
+const x1=xFor(e.start),x2=xFor(e.end);
+ctx.fillStyle=i%2===0?'rgba(0,0,0,0.02)':'rgba(0,0,0,0.00)';
+ctx.fillRect(x1,PAD_T-30,x2-x1,H-PAD_T-PAD_B+60);
+ctx.fillStyle='rgba(0,0,0,0.25)';
+ctx.font='500 11px system-ui';
+ctx.textAlign='center';
+ctx.fillText(e.label,(x1+x2)/2,PAD_T-15);
+});
+
+const centuries=[-6000,-5000,-4000,-3000,-2000,-1000];
+centuries.forEach(yr=>{
+const x=xFor(yr);
+ctx.strokeStyle='rgba(0,0,0,0.08)';
+ctx.lineWidth=0.5;
+ctx.beginPath();ctx.moveTo(x,PAD_T-5);ctx.lineTo(x,H-PAD_B+20);ctx.stroke();
+ctx.fillStyle='rgba(0,0,0,0.35)';
+ctx.font='400 11px system-ui';
+ctx.textAlign='center';
+ctx.fillText(Math.abs(yr)+' BCE',x,H-PAD_B+38);
+});
+
+Object.entries(tracks).forEach(([key,t])=>{
+const show=currentFilter==='all'||currentFilter===key||currentFilter==='converge';
+ctx.globalAlpha=show?1:0.1;
+ctx.strokeStyle=t.color;
+ctx.lineWidth=1.5;
+ctx.beginPath();ctx.moveTo(PAD_L,t.y);ctx.lineTo(W-PAD_R,t.y);ctx.stroke();
+ctx.fillStyle=t.color;
+ctx.font='500 12px system-ui';
+ctx.textAlign='right';
+ctx.fillText(t.label,PAD_L-12,t.y+4);
+ctx.globalAlpha=1;
+});
+
+if(currentFilter==='all'||currentFilter==='converge'){
+convergences.forEach(c=>{
+const x=xFor(c.year);
+const y1=tracks[c.y1].y;
+const y2=tracks[c.y2].y;
+ctx.strokeStyle='rgba(226,75,74,0.3)';
+ctx.lineWidth=2;
+ctx.setLineDash([4,4]);
+ctx.beginPath();ctx.moveTo(x,y1);ctx.lineTo(x,y2);ctx.stroke();
+ctx.setLineDash([]);
+const my=(y1+y2)/2;
+ctx.fillStyle='#E24B4A';
+ctx.beginPath();ctx.arc(x,my,4,0,Math.PI*2);ctx.fill();
+});
+}
+
+nodes.forEach(n=>{
+const show=currentFilter==='all'||currentFilter===n.track||(currentFilter==='converge'&&convergences.some(c=>(c.y1===n.track||c.y2===n.track)&&Math.abs(c.year-n.year)<200));
+ctx.globalAlpha=show?1:0.08;
+const t=tracks[n.track];
+const x=xFor(n.year);
+const y=t.y;
+ctx.fillStyle=n.type==='invention'?t.color:n.type==='gek'?t.color:t.bg;
+ctx.strokeStyle=t.color;
+ctx.lineWidth=n.type==='invention'?2:1;
+ctx.beginPath();ctx.arc(x,y,n.r,0,Math.PI*2);ctx.fill();ctx.stroke();
+if(n.type==='invention'){
+ctx.fillStyle='#fff';
+ctx.font='500 8px system-ui';
+ctx.textAlign='center';
+ctx.fillText('!',x,y+3);
+}
+if(n.type==='gek'){
+ctx.fillStyle=t.color;
+ctx.font='500 7px system-ui';
+ctx.textAlign='center';
+ctx.fillText('M',x,y+3);
+}
+ctx.globalAlpha=1;
+});
+
+nodes.forEach(n=>{
+const show=currentFilter==='all'||currentFilter===n.track;
+if(!show)return;
+const t=tracks[n.track];
+const x=xFor(n.year);
+const y=t.y;
+if(n.r>=7){
+ctx.fillStyle='rgba(0,0,0,0.55)';
+ctx.font='400 10px system-ui';
+ctx.textAlign='left';
+const tx=x+n.r+4;
+const ty=y-n.r-3;
+ctx.fillText(n.title.substring(0,30),tx,ty);
+}
+});
+}
+
+canvas.addEventListener('mousemove',function(e){
+const rect=canvas.getBoundingClientRect();
+const sx=canvas.width/rect.width;
+const sy=canvas.height/rect.height;
+const mx=(e.clientX-rect.left)*sx;
+const my=(e.clientY-rect.top)*sy;
+let hit=null;
+for(const n of nodes){
+const x=xFor(n.year);
+const y=tracks[n.track].y;
+const d=Math.sqrt((mx-x)**2+(my-y)**2);
+if(d<n.r+4){hit=n;break}
+}
+if(!hit){
+for(const c of convergences){
+const x=xFor(c.year);
+const ym=(tracks[c.y1].y+tracks[c.y2].y)/2;
+if(Math.abs(mx-x)<8&&Math.abs(my-ym)<8){
+hit={title:'Convergence',desc:c.label,year:c.year,dayB:'Multi-element braiding point',track:'converge'};break;
+}
+}
+}
+if(hit){
+tooltip.style.display='block';
+tooltip.style.left=(e.clientX+16)+'px';
+tooltip.style.top=(e.clientY-10)+'px';
+const yr=Math.abs(hit.year);
+tooltip.innerHTML=`<div style="font-weight:500;margin-bottom:4px;">${hit.title}</div><div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:6px;">~${yr} BCE</div><div style="margin-bottom:6px;">${hit.desc}</div><div style="font-size:11px;padding:4px 8px;background:var(--color-background-secondary);border-radius:4px;color:var(--color-text-secondary);">${hit.dayB}</div>`;
+}else{
+tooltip.style.display='none';
+}
+});
+canvas.addEventListener('mouseleave',()=>{tooltip.style.display='none'});
+
+setFilter('all');
+</script>

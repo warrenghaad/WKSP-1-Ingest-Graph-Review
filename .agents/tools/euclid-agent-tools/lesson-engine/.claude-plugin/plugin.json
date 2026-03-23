@@ -1,0 +1,26 @@
+{
+  "name": "euclid-lesson-engine",
+  "version": "0.1.0",
+  "description": "EUCLID lesson production pipeline — 7 skills covering section interpretation, content drafting at 5 distillation levels, gap assessment, research direction, image design, semantic deduplication, and reconciliation dashboard. Works with any civilization, period, or geometric element.",
+  "author": {
+    "name": "Sami Majeed"
+  },
+  "keywords": [
+    "euclid",
+    "lesson",
+    "curriculum",
+    "content",
+    "drafting",
+    "distillation",
+    "gap-analysis",
+    "research",
+    "images",
+    "deduplication",
+    "reconciliation",
+    "MAGIC",
+    "GEA",
+    "GEM",
+    "GECD",
+    "etextbook"
+  ]
+}

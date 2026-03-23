@@ -1,0 +1,19 @@
+{
+  "name": "euclid-gea-research",
+  "version": "0.1.0",
+  "description": "EUCLID GEA/GEM research engine — structured MAGIC-line investigations of geometric elements across civilizations. Tracks geometric elements through art, symbolism, mathematics, engineering, and power structures with museum references and image sourcing.",
+  "author": {
+    "name": "Sami Majeed"
+  },
+  "keywords": [
+    "euclid",
+    "geometry",
+    "research",
+    "MAGIC",
+    "GEA",
+    "GEM",
+    "civilization",
+    "archaeology",
+    "curriculum"
+  ]
+}
