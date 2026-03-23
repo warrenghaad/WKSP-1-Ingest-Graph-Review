@@ -1,0 +1,461 @@
+Absolutely — here’s a **Replit agent handoff** that (a) stays Prism-first, (b) enforces your “everything needs visuals” law, and (c) implements the **parallel sourcing + spec + VisionAI QC + fallback-to-generation** workflow you described. 🧱🖼️⚙️
+
+---
+
+# Replit Agent Handoff Prompt (copy/paste)
+
+## Project: **EUCLID DAM PRISM**
+
+**Purpose:** A definitive, uncluttered “open canvas” workspace where **text + images coexist**, and where **ingestion automatically triggers image sourcing + QC + prompt fallback** so the DAM accumulates visuals continuously.
+
+---
+
+## HARD GUARDRAILS (non-negotiable)
+
+### UI anti-crowding
+
+* **No permanent top header**
+* **No permanent left sidebar**
+* Center editor canvas must be **≥ 70% width** when drawers closed
+* Right drawer hidden by default; **hover = preview**, **click = pin**
+* Work Queue (pending docs/requirements) must be a **drawer**, never always visible
+* **No dashboards** / KPI cards / tabs-everywhere / admin panels
+
+### Provider safety (no scraping)
+
+* **Google images** via **Google Custom Search JSON API (CSE)** only (official)
+* **Pinterest:** stub only unless official API access is configured (no scraping)
+* **Adobe Stock:** stub only unless official API + licensing workflow configured (no scraping)
+* Preferred bulk sources: Wikimedia Commons, museum APIs, Openverse (if implemented)
+
+---
+
+## CORE CONCEPT
+
+A document becomes **work items** (requirements). Requirements drive harvesting and QC.
+
+### Key rule
+
+**Every concept/proper noun/civilization term/ritual/material culture practice/object/pattern/math/invention must end up with:**
+
+* **sourced image** OR **generated image**, and often
+* **sourced + overlays** (for patterns/math/inventions), or
+* **designed and imaged** when sourcing fails
+
+---
+
+# DATA MODEL (Prisma) ✅
+
+Implement the following schema (minimal but supports the full workflow). Use Postgres (Replit `DATABASE_URL`).
+
+### Enums
+
+```prisma
+enum DocStatus { PENDING_INGEST INGESTED PENDING_IMAGING READY_FOR_REVIEW DONE }
+enum EntityType { UNKNOWN PERSON PLACE DEITY ARTIFACT WORK_OF_ART MOTIF GEOMETRY MATH SCIENCE INVENTION PERIOD CIVILIZATION RITUAL ACTION }
+enum ReqStatus { MISSING SEARCHING CANDIDATES_FOUND QC_RUNNING QC_PASSED GENERATING GENERATED COMPLETE NEEDS_REVIEW FAILED }
+enum ReqKind { SOURCE_ONLY SOURCE_PLUS_OVERLAY GENERATE_ONLY }
+enum Provider { google commons met openverse pinterest adobe }
+enum AssetProvenance { WEB SYNTHETIC }
+```
+
+### Models
+
+```prisma
+model Document {
+  id          String    @id @default(cuid())
+  title       String?
+  sourceType  String    // url|pdf|html|text
+  sourceUrl   String?
+  rawText     String?
+  status      DocStatus @default(PENDING_INGEST)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  chunks       DocChunk[]
+  mentions     Mention[]
+  requirements VisualRequirement[]
+}
+
+model DocChunk {
+  id         String   @id @default(cuid())
+  documentId String
+  idx        Int
+  text       String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, idx])
+  @@index([documentId])
+}
+
+model Entity {
+  id          String     @id @default(cuid())
+  label       String
+  type        EntityType @default(UNKNOWN)
+  aliases     String[]   @default([])
+  confidence  Float      @default(0.5)
+  requiresVisual Boolean  @default(true) // your global policy default
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  mentions     Mention[]
+  requirements VisualRequirement[]
+  assets       EntityAsset[]
+  
+  @@unique([label])
+  @@index([type])
+}
+
+model Mention {
+  id         String   @id @default(cuid())
+  documentId String
+  chunkId    String?
+  entityId   String
+  context    String?
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  chunk      DocChunk? @relation(fields: [chunkId], references: [id], onDelete: SetNull)
+  entity     Entity    @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@index([entityId])
+}
+
+model VisualRequirement {
+  id          String    @id @default(cuid())
+  documentId  String
+  entityId    String?
+  kind        ReqKind   @default(SOURCE_ONLY)
+  status      ReqStatus @default(MISSING)
+  priority    Int       @default(50)
+
+  // Core: the spec that both QC and generation use
+  imageSpec   Json?
+  // If overlay is needed: what overlay should contain (axes, labels, etc.)
+  overlaySpec Json?
+
+  // When complete, these get filled:
+  primaryAssetId String?
+  overlayAssetId String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  entity      Entity?  @relation(fields: [entityId], references: [id], onDelete: SetNull)
+  primaryAsset Asset?  @relation("PrimaryAsset", fields: [primaryAssetId], references: [id], onDelete: SetNull)
+  overlayAsset Asset?  @relation("OverlayAsset", fields: [overlayAssetId], references: [id], onDelete: SetNull)
+
+  jobs        ImageSearchJob[]
+  candidates  ImageCandidate[]
+  prompts     ImagePrompt[]
+
+  @@index([documentId])
+  @@index([entityId])
+  @@index([status])
+}
+
+model ImageSearchJob {
+  id            String    @id @default(cuid())
+  requirementId String
+  provider      Provider
+  query         String
+  status        String    @default("pending") // pending|running|done|failed
+  tries         Int       @default(0)
+  lastRunAt     DateTime?
+
+  requirement   VisualRequirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+
+  @@index([requirementId])
+  @@index([provider])
+  @@index([status])
+}
+
+model ImageCandidate {
+  id            String   @id @default(cuid())
+  requirementId String
+  provider      Provider
+  title         String?
+  pageUrl       String?
+  imageUrl      String?
+  thumbUrl      String?
+  license       String?
+  attribution   String?
+  score         Float    @default(0.5)
+  raw           Json?
+
+  requirement   VisualRequirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+  qc            QCAssessment?
+
+  createdAt     DateTime @default(now())
+
+  @@index([requirementId])
+  @@index([provider])
+}
+
+model QCAssessment {
+  id          String   @id @default(cuid())
+  candidateId String  @unique
+  model       String  // "gemini-vision" | "openai-vision"
+  passed      Boolean @default(false)
+  score       Float   @default(0.0)
+  reasons     Json?
+  observations Json? // color/size/object presence/etc.
+
+  candidate   ImageCandidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+}
+
+model Asset {
+  id          String    @id @default(cuid())
+  provenance  AssetProvenance @default(WEB)
+  provider    Provider
+  title       String?
+  pageUrl     String?
+  imageUrl    String?
+  thumbUrl    String?
+  storedUrl   String?
+  width       Int?
+  height      Int?
+
+  license     String?
+  attribution String?
+  meta        Json?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  entityLinks EntityAsset[]
+  docLinks    DocAssetLink[]
+}
+
+model EntityAsset {
+  id        String   @id @default(cuid())
+  entityId  String
+  assetId   String
+  entity    Entity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  asset     Asset  @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@unique([entityId, assetId])
+}
+
+model DocAssetLink {
+  id         String   @id @default(cuid())
+  documentId String
+  blockId    String
+  assetId    String
+  createdAt  DateTime @default(now())
+
+  asset      Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@index([blockId])
+  @@unique([documentId, blockId, assetId])
+}
+
+model ImagePrompt {
+  id            String   @id @default(cuid())
+  requirementId String
+  title         String?
+  prompt        String
+  negative      String?
+  styleTag      String?
+  createdAt     DateTime @default(now())
+
+  requirement   VisualRequirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+
+  @@index([requirementId])
+}
+```
+
+---
+
+# REQUIRED UI (single Prism screen)
+
+### Prism screen
+
+* Center: TipTap editor
+* Right drawer: Entity/Requirement drawer (hidden by default)
+* Drawer shows:
+
+  * entity label + type
+  * requirement status badge
+  * saved assets (if any)
+  * candidate grid + QC state
+  * buttons: **Search**, **Run QC**, **Save**, **Generate Prompt Pack**, **Generate Image** (generation can be stubbed initially)
+
+### Work Queue (drawer only)
+
+Add a **Work Queue drawer** that lists:
+
+* documents with status `PENDING_INGEST` or `PENDING_IMAGING` or `READY_FOR_REVIEW`
+* counts:
+
+  * requirements missing
+  * requirements qc_failed
+  * requirements ready to save
+    This is the “clear system that assesses attached assets for pending articles.” ✅
+
+---
+
+# ENDPOINTS (must match)
+
+## Prism
+
+* `GET /api/entities/by-label?q=` → find/create entity
+* `GET /api/entities/:id` → entity + requirements + top candidates + saved assets
+* `GET /api/requirements/:id` → requirement detail + candidates + qc
+* `POST /api/requirements/:id/save-candidate` → candidate → Asset; link to Entity; set requirement primaryAssetId; status COMPLETE or QC_PASSED then COMPLETE
+
+## Work Queue (assessment system)
+
+* `GET /api/work/queue` → documents with missing imaging + requirement counts
+* `POST /api/work/recompute` → recompute requirement status from DB (safety net)
+
+## Ingestion
+
+* `POST /api/ingest/text` → create Document, chunks, mentions, entities, requirements (auto)
+* `POST /api/ingest/url` → fetch, extract readable text, same pipeline
+
+## Parallel pipeline triggers
+
+### Parallel 1: sourcing
+
+* `POST /api/requirements/:id/search` → enqueue jobs for providers (google/commons/met/openverse; pinterest/adobe stub)
+* `POST /api/harvest/run` → run one batch now (dev)
+
+### Parallel 2: spec
+
+* `POST /api/requirements/:id/spec/generate` → create imageSpec + overlaySpec (OpenAI-first; Gemini optional)
+* `POST /api/qc/:candidateId/evaluate` → VisionAI QC against imageSpec + overlaySpec
+
+### Prompt fallback + generation
+
+* `POST /api/requirements/:id/prompts/generate` → prompt pack created from spec
+* `POST /api/requirements/:id/image/generate` → (stub ok) generate synthetic asset using prompt/spec
+
+---
+
+# PARALLEL WORKFLOW (must implement)
+
+When a Document is ingested:
+
+### Create requirements (for everything)
+
+For each extracted entity/concept (including patterns/math/inventions/rituals/material culture/actions as needed), create `VisualRequirement` with:
+
+* `kind`:
+
+  * `SOURCE_PLUS_OVERLAY` for patterns/math/inventions (default)
+  * `SOURCE_ONLY` for places/artifacts when overlay not needed
+  * `GENERATE_ONLY` if known-to-be-missing category
+* status `MISSING`
+
+Then run in parallel:
+
+## Parallel 1: Sourcing
+
+* Gemini grounded query improvement (if configured) → query variants
+* Google CSE curated web search (if configured)
+* museum sources + commons + openverse
+* store candidates
+
+## Parallel 2: Image spec + QC spec
+
+* Generate `imageSpec` describing:
+
+  * subject + era + medium
+  * composition
+  * allowed variance (size/color tolerance)
+  * disallowed content
+  * required elements
+* Generate `overlaySpec` for:
+
+  * symmetry axes, tiling grid, labels, geometry skeleton, etc.
+* QC uses spec to evaluate candidates (VisionAI)
+
+  * if passed → mark requirement QC_PASSED and allow “Save”
+  * if failed repeatedly → prompt pack generated automatically
+
+### If VisionAI fails repeatedly
+
+* Use spec → generate prompts → generate image → store as synthetic Asset → mark requirement GENERATED then COMPLETE
+
+---
+
+# VisionAI QC REQUIREMENTS (important)
+
+QC must not be brittle; it must:
+
+* recognize objects even with variation in size/color/background
+* check **invariants** from imageSpec rather than pixel-perfect matching
+* return:
+
+  * pass/fail
+  * score
+  * reasons
+  * observations (colors present, objects detected, era mismatch risk)
+
+---
+
+# Definition of Done (MVP)
+
+1. Prism loads: editor canvas dominates, drawer hidden by default
+2. Ingest text creates entities + requirements
+3. For a hovered entity, drawer shows requirement + candidates
+4. Search produces candidates (at least google CSE + commons)
+5. QC can be run on candidates and stores assessment
+6. Candidate can be saved → asset linked → requirement completes
+7. Work Queue drawer lists pending docs/requirements correctly
+
+---
+
+# ENV VARS
+
+* `DATABASE_URL`
+* `GOOGLE_API_KEY`, `GOOGLE_CSE_ID`
+* `OPENAI_API_KEY`
+* `GEMINI_API_KEY` (or `GOOGLE_API_KEY` for Gemini)
+* `PINTEREST_API_KEY` optional (stub if absent)
+* `ADOBE_STOCK_API_KEY` optional (stub if absent)
+
+---
+
+# Notes
+
+* Pinterest/Adobe MUST remain stubbed unless official API integration is provided.
+* No scraping.
+* No UI bloat.
+* Prism first.
+
+---
+
+## Ticket List (optional IDs you can paste as “Issues”)
+
+**PRISM-00** Guardrails + linter docs
+**PRISM-01** Vite+Express scaffold + Prisma migrate
+**PRISM-02** Prism screen (editor + right drawer)
+**PRISM-03** TipTap entity mark + hover/click pin
+**DAM-01** Requirements engine (create VisualRequirements on ingest)
+**DAM-02** Work Queue endpoint + drawer (pending docs + missing assets assessment)
+**SRC-01** Provider adapters (commons/met/openverse/google CSE)
+**SRC-02** Search jobs + harvester batch runner
+**QC-01** VisionAI QC endpoint storing QCAssessment against spec
+**SPEC-01** Spec generator endpoint (imageSpec + overlaySpec)
+**FALL-01** Prompt pack generator from spec
+**GEN-01** Synthetic image generation stub → later enable
+
+---
+
+## Why this satisfies your “everything must be imaged” requirement
+
+Because the system doesn’t ask “do we need an image?”
+It creates **requirements by default**, then it’s just a question of:
+✅ sourced → ✅ qc → ✅ saved, or
+✅ spec → ✅ prompt → ✅ generated.
+
+---
+
+If you want, I can also add a **single computed rule** in `/api/work/recompute` that enforces:
+
+> “Document cannot be marked READY_FOR_REVIEW unless all requirements are COMPLETE.”
+> That’s the “dam gate” that keeps unfinished research from slipping into production.
