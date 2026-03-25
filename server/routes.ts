@@ -270,6 +270,23 @@ export async function registerRoutes(
     }
   });
 
+  app.patch("/api/textreader/sessions/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+      const updates: Record<string, unknown> = {};
+      const allowed = ["title", "rawText", "citation", "sourceUrl", "grade", "week", "sectionId", "sourceMode"] as const;
+      for (const key of allowed) {
+        if (key in req.body) updates[key] = req.body[key];
+      }
+      const updated = await storage.updateSession(id, updates as any);
+      if (!updated) return res.status(404).json({ error: "Session not found" });
+      res.json(updated);
+    } catch (error: unknown) {
+      res.status(400).json({ error: (error as Error).message || "Failed to update session" });
+    }
+  });
+
   app.delete("/api/textreader/sessions/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);

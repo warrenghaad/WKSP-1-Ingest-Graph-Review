@@ -3,6 +3,17 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "../lib/queryClient";
 import { Link } from "wouter";
 
+const SESSION_STORAGE_KEY = "chronos_textreader_session_id";
+
+function useDebounce<T>(value: T, delay: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(t);
+  }, [value, delay]);
+  return debounced;
+}
+
 type ConceptState =
   | "draft" | "parsed" | "query_ready" | "searching"
   | "candidates_ready" | "selected" | "ai_prompt_ready"
@@ -85,7 +96,11 @@ const NEXT_STATE: Partial<Record<ConceptState, ConceptState>> = {
 
 export default function Textreader() {
   const queryClient = useQueryClient();
-  const [sessionId, setSessionId] = useState<number | null>(null);
+  const [sessionId, setSessionId] = useState<number | null>(() => {
+    const stored = localStorage.getItem(SESSION_STORAGE_KEY);
+    return stored ? parseInt(stored, 10) || null : null;
+  });
+  const [hydrated, setHydrated] = useState(false);
   const [selectedConceptId, setSelectedConceptId] = useState<number | null>(null);
   const [sourceMode, setSourceMode] = useState<SourceMode>("open_web_fast");
 
@@ -116,6 +131,14 @@ export default function Textreader() {
   const readingPaneRef = useRef<HTMLDivElement>(null);
   const bubbleRef = useRef<HTMLDivElement>(null);
 
+  const debouncedTitle = useDebounce(title, 1500);
+  const debouncedRawText = useDebounce(rawText, 1500);
+  const debouncedCitation = useDebounce(citation, 1500);
+  const debouncedSourceUrl = useDebounce(sourceUrl, 1500);
+  const debouncedGrade = useDebounce(grade, 1500);
+  const debouncedWeek = useDebounce(week, 1500);
+  const debouncedSectionId = useDebounce(sectionId, 1500);
+
   const backendStatus = useQuery({
     queryKey: ["backend-status"],
     queryFn: () => fetch("/api/textreader/backend-status").then(r => r.json()),
@@ -127,6 +150,53 @@ export default function Textreader() {
     queryFn: () => sessionId ? fetch(`/api/textreader/sessions/${sessionId}`).then(r => r.json()) : null,
     enabled: !!sessionId,
   });
+
+  useEffect(() => {
+    if (sessionId !== null) {
+      localStorage.setItem(SESSION_STORAGE_KEY, String(sessionId));
+    } else {
+      localStorage.removeItem(SESSION_STORAGE_KEY);
+    }
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (sessionData.data && !hydrated) {
+      const s = sessionData.data.session || sessionData.data;
+      if (s?.id) {
+        setTitle(s.title || "");
+        setRawText(s.rawText || "");
+        setCitation(s.citation || "");
+        setSourceUrl(s.sourceUrl || "");
+        setGrade(s.grade != null ? String(s.grade) : "");
+        setWeek(s.week != null ? String(s.week) : "");
+        setSectionId(s.sectionId || "");
+        setSourceMode((s.sourceMode as SourceMode) || "open_web_fast");
+        setHydrated(true);
+      }
+    }
+  }, [sessionData.data, hydrated]);
+
+  const autosaveMutation = useMutation({
+    mutationFn: async (updates: Record<string, unknown>) => {
+      if (!sessionId) return null;
+      const res = await apiRequest("PATCH", `/api/textreader/sessions/${sessionId}`, updates);
+      return res.json();
+    },
+  });
+
+  useEffect(() => {
+    if (!hydrated || !sessionId) return;
+    autosaveMutation.mutate({
+      title: debouncedTitle || "Untitled Session",
+      rawText: debouncedRawText,
+      citation: debouncedCitation || null,
+      sourceUrl: debouncedSourceUrl || null,
+      grade: debouncedGrade ? parseInt(debouncedGrade) : null,
+      week: debouncedWeek ? parseInt(debouncedWeek) : null,
+      sectionId: debouncedSectionId || null,
+      sourceMode,
+    });
+  }, [debouncedTitle, debouncedRawText, debouncedCitation, debouncedSourceUrl, debouncedGrade, debouncedWeek, debouncedSectionId, sourceMode, sessionId, hydrated]);
 
   const concepts: ConceptCard[] = sessionData.data?.concepts || [];
 
@@ -338,6 +408,23 @@ export default function Textreader() {
             >
               {readingMode ? "📝 Edit Mode" : "📖 Reading Mode"}
             </button>
+          )}
+          {sessionId && (
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-gray-400" data-testid="autosave-indicator">
+                {autosaveMutation.isPending ? "💾 Saving…" : hydrated ? `✓ Session #${sessionId}` : "Loading…"}
+              </span>
+              <button
+                onClick={() => {
+                  setSessionId(null); setHydrated(false);
+                  setTitle(""); setRawText(""); setCitation(""); setSourceUrl("");
+                  setGrade(""); setWeek(""); setSectionId("");
+                  setSelectedConceptId(null); setQuickQuery(""); setQuickResults([]);
+                }}
+                className="text-[10px] px-2 py-0.5 border border-gray-200 text-gray-500 rounded hover:border-red-300 hover:text-red-500 transition-colors"
+                data-testid="button-new-session"
+              >New Session</button>
+            </div>
           )}
         </div>
         <div className="flex items-center gap-3">
