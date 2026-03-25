@@ -113,6 +113,17 @@ export async function sendDiagramSpec(payload: {
   return proxyRequest("/api/images/spec/diagram", "POST", payload);
 }
 
+export async function sendHandoffPacket(packet: {
+  title: string;
+  input: { text: string; citation: string | null; sourceUrl: string | null };
+  scope: { grade: number | null; week: number | null; sectionId: string | null; lessonId?: string | null };
+  concepts: any[];
+  selected_candidates: any[];
+  ai_prompt_packets: any[];
+}) {
+  return proxyRequest("/api/euclid/handoff", "POST", packet);
+}
+
 export function buildHandoffPacket(session: any, concepts: any[], candidates: any[]) {
   return {
     title: session.title,

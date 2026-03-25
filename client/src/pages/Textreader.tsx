@@ -109,6 +109,7 @@ export default function Textreader() {
   const [editingPrompts, setEditingPrompts] = useState(false);
   const [draftPrompts, setDraftPrompts] = useState<string[]>([]);
   const [aiStyle, setAiStyle] = useState<AIStyle>("museum_photograph");
+  const [aiProvider, setAiProvider] = useState<"auto" | "gemini" | "openai">("auto");
   const [customAiPrompt, setCustomAiPrompt] = useState("");
   const [generatingAI, setGeneratingAI] = useState(false);
 
@@ -257,6 +258,7 @@ export default function Textreader() {
       const res = await apiRequest("POST", `/api/textreader/concepts/${conceptId}/generate-image`, {
         prompt: customAiPrompt || undefined,
         style: aiStyle,
+        provider: aiProvider,
       });
       const data = await res.json();
       if (data.candidate) {
@@ -830,24 +832,31 @@ export default function Textreader() {
                         className="w-full text-xs border border-purple-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-purple-400 resize-none bg-purple-50/50"
                         data-testid="input-ai-prompt"
                       />
-                      <div className="flex gap-1.5 items-center">
+                      <div className="grid grid-cols-2 gap-1">
                         <select value={aiStyle} onChange={(e) => setAiStyle(e.target.value as AIStyle)}
-                          className="flex-1 text-xs border border-gray-200 rounded px-1.5 py-1 bg-white"
+                          className="text-xs border border-gray-200 rounded px-1.5 py-1 bg-white"
                           data-testid="select-ai-style">
                           <option value="museum_photograph">Museum Photo</option>
                           <option value="reconstruction">Reconstruction</option>
                           <option value="diagram">Diagram</option>
                           <option value="illustration">Illustration</option>
                         </select>
-                        <button
-                          onClick={() => generateAIImage(selectedConcept.id)}
-                          disabled={generatingAI}
-                          className="flex-1 text-xs py-1 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50 font-medium"
-                          data-testid="button-generate-ai-image"
-                        >
-                          {generatingAI ? "Generating…" : "✨ Generate AI"}
-                        </button>
+                        <select value={aiProvider} onChange={(e) => setAiProvider(e.target.value as "auto" | "gemini" | "openai")}
+                          className="text-xs border border-gray-200 rounded px-1.5 py-1 bg-white"
+                          data-testid="select-ai-provider">
+                          <option value="auto">Auto</option>
+                          <option value="gemini">Gemini</option>
+                          <option value="openai">OpenAI</option>
+                        </select>
                       </div>
+                      <button
+                        onClick={() => generateAIImage(selectedConcept.id)}
+                        disabled={generatingAI}
+                        className="w-full text-xs py-1.5 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50 font-medium"
+                        data-testid="button-generate-ai-image"
+                      >
+                        {generatingAI ? "Generating…" : "✨ Generate AI Image"}
+                      </button>
                     </div>
                   </div>
 

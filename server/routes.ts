@@ -9,7 +9,7 @@ import {
   insertEntitySchema, insertAssetSchema, insertDocumentSchema,
 } from "@shared/schema";
 import { extractConcepts, generateQueryPack } from "./conceptExtractor";
-import { checkBackendStatus, sendResearchIngest, buildHandoffPacket } from "./backendAdapter";
+import { checkBackendStatus, sendResearchIngest, buildHandoffPacket, sendHandoffPacket } from "./backendAdapter";
 import { extractEntitiesFromText } from "./entityExtractor";
 import { seedTimelineArtifacts, TIMELINE_NODES, CONVERGENCE_LINKS } from "./artifactSeeder";
 import { generateGeminiImage, searchGeminiForArtifact } from "./providers/gemini";
@@ -463,33 +463,63 @@ export async function registerRoutes(
       const card = await storage.getConceptCard(id);
       if (!card) return res.status(404).json({ error: "Concept not found" });
 
-      const { prompt, style = "museum_photograph" } = req.body;
+      const { prompt, style = "museum_photograph", provider = "auto" } = req.body;
       const aiPrompt = prompt || (card.aiPrompts?.[0]) || card.label;
 
-      const result = await generateGeminiImage(
-        aiPrompt,
-        style as "museum_photograph" | "reconstruction" | "diagram" | "illustration"
-      );
+      let imageUrl: string | null = null;
+      let modelLabel = "";
 
-      if (!result) {
-        return res.status(502).json({ error: "AI image generation failed or key not configured" });
+      const useOpenAI = provider === "openai" ||
+        (provider === "auto" && !process.env.Google_AI && process.env.AI_INTEGRATIONS_OPENAI_API_KEY);
+
+      if (!useOpenAI) {
+        const geminiResult = await generateGeminiImage(
+          aiPrompt,
+          style as "museum_photograph" | "reconstruction" | "diagram" | "illustration"
+        );
+        if (geminiResult) {
+          imageUrl = geminiResult.url;
+          modelLabel = `Gemini ${geminiResult.model}`;
+        }
+      }
+
+      if (!imageUrl && process.env.AI_INTEGRATIONS_OPENAI_API_KEY) {
+        const { generateImageBuffer } = await import("./replit_integrations/image/client");
+        const stylePrefix: Record<string, string> = {
+          museum_photograph: "Museum-quality archival photograph, professional lighting, white background, educational reference:",
+          reconstruction: "Archaeological reconstruction illustration, scholarly accuracy, academic style:",
+          diagram: "Clean schematic diagram with labels, academic publication quality:",
+          illustration: "Historical illustration, Victorian scholarly engraving style:",
+        };
+        const fullPrompt = `${stylePrefix[style] || ""} ${aiPrompt}`;
+        try {
+          const buf = await generateImageBuffer(fullPrompt, "1024x1024");
+          imageUrl = `data:image/png;base64,${buf.toString("base64")}`;
+          modelLabel = "gpt-image-1";
+        } catch (err) {
+          console.error("[OpenAI image] generation failed:", err);
+        }
+      }
+
+      if (!imageUrl) {
+        return res.status(502).json({ error: "AI image generation failed — no provider configured or available" });
       }
 
       const candidate = await storage.createCandidate({
         conceptCardId: id,
-        imageUrl: result.url,
+        imageUrl,
         title: `AI: ${aiPrompt.slice(0, 60)}`,
-        source: `Gemini ${result.model}`,
+        source: modelLabel,
         objectUrl: null,
         sourceType: "ai_generated",
         accuracyStatus: "plausible",
         approved: "pending",
-        metadata: { prompt: aiPrompt, style, model: result.model },
+        metadata: { prompt: aiPrompt, style, model: modelLabel },
       });
 
       await storage.updateConceptCard(id, { state: "candidates_ready" });
 
-      res.json({ candidate, prompt: aiPrompt });
+      res.json({ candidate, prompt: aiPrompt, model: modelLabel });
     } catch (error: unknown) {
       console.error("Concept AI image generation error:", error);
       res.status(500).json({ error: "Failed to generate AI image" });
@@ -515,19 +545,7 @@ export async function registerRoutes(
 
       const packet = buildHandoffPacket(session, readyConcepts, allCandidates);
 
-      const result = await sendResearchIngest({
-        title: session.title,
-        excerpt: session.rawText,
-        sourceUrl: session.sourceUrl || undefined,
-        citation: session.citation || undefined,
-        tags: {
-          grade: session.grade,
-          week: session.week,
-          section: session.sectionId,
-        },
-        autoSearchImages: false,
-        maxConcepts: readyConcepts.length,
-      });
+      const result = await sendHandoffPacket(packet);
 
       if (result.ok) {
         for (const concept of readyConcepts) {
@@ -535,7 +553,23 @@ export async function registerRoutes(
         }
         res.json({ success: true, backendResponse: result.data, packet });
       } else {
-        res.json({ success: false, error: result.error, packet, fallbackExport: true });
+        const ingestResult = await sendResearchIngest({
+          title: session.title,
+          excerpt: session.rawText,
+          sourceUrl: session.sourceUrl || undefined,
+          citation: session.citation || undefined,
+          tags: { grade: session.grade, week: session.week, section: session.sectionId },
+          autoSearchImages: false,
+          maxConcepts: readyConcepts.length,
+        });
+        if (ingestResult.ok) {
+          for (const concept of readyConcepts) {
+            await storage.updateConceptCard(concept.id, { state: "sent_to_backend" });
+          }
+          res.json({ success: true, backendResponse: ingestResult.data, packet, fallbackPath: "ingest" });
+        } else {
+          res.json({ success: false, error: result.error, packet, fallbackExport: true });
+        }
       }
     } catch (error: unknown) {
       console.error("Handoff error:", error);
