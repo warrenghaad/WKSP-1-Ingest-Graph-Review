@@ -1676,9 +1676,8 @@ Return JSON with:
       const { text, context, grade, week, sectionId } = req.body;
       if (!text || text.trim().length < 20) return res.status(400).json({ error: "text required (min 20 chars)" });
 
-      const apiKey  = process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
-      const baseUrl = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || "https://api.openai.com/v1";
-      if (!apiKey) return res.status(500).json({ error: "OpenAI integration not configured" });
+      const apiKey = process.env.Google_AI;
+      if (!apiKey) return res.status(500).json({ error: "Google AI key not configured" });
 
       const SYSTEM = `You are a GECD (Geometric Element Civilization Development) research analyst specializing in ancient Mesopotamian history and the MAGIC framework (Math, Aesthetic, Geometry, Institutional, Comptroller).
 
@@ -1706,32 +1705,32 @@ Return a JSON array of GECD node objects. Each object must have:
 Only include nodes with clear geometric element evidence. Accuracy over quantity.
 Respond with ONLY a valid JSON array, no markdown, no explanation.`;
 
-      const oaiRes = await fetch(`${baseUrl}/chat/completions`, {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${apiKey}`, "content-type": "application/json" },
-        body: JSON.stringify({
-          model: "gpt-4o",
-          max_tokens: 4096,
-          response_format: { type: "json_object" },
-          messages: [
-            { role: "system", content: SYSTEM + "\n\nWrap the array in {\"nodes\":[...]} since JSON mode requires an object." },
-            { role: "user", content: `${context ? `Context: ${context}\n\n` : ""}Text to analyze:\n\n${text}` },
-          ],
-        }),
-      });
+      const geminiRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{
+              parts: [{ text: `${SYSTEM}\n\n${context ? `Context: ${context}\n\n` : ""}Text to analyze:\n\n${text}\n\nRespond with ONLY a JSON array, no markdown, no explanation.` }],
+            }],
+            generationConfig: { temperature: 0.1, maxOutputTokens: 4096 },
+          }),
+        }
+      );
 
-      if (!oaiRes.ok) {
-        const err = await oaiRes.text();
-        return res.status(502).json({ error: `OpenAI API error: ${err.slice(0, 300)}` });
+      if (!geminiRes.ok) {
+        const err = await geminiRes.text();
+        return res.status(502).json({ error: `Gemini API error: ${err.slice(0, 300)}` });
       }
 
-      const oaiData = await oaiRes.json() as any;
-      const rawObj  = JSON.parse(oaiData.choices?.[0]?.message?.content ?? "{}");
-      const raw     = JSON.stringify(rawObj.nodes ?? rawObj);
+      const geminiData = await geminiRes.json() as any;
+      const raw = (geminiData.candidates?.[0]?.content?.parts?.[0]?.text ?? "[]")
+        .replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
 
       let extracted: any[];
       try {
-        const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+        const cleaned = raw;
         extracted = JSON.parse(cleaned);
         if (!Array.isArray(extracted)) extracted = [];
       } catch {

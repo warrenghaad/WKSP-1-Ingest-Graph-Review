@@ -408,123 +408,134 @@ export async function searchLouvre(query: string, limit = 5): Promise<MuseumResu
   }
 }
 
-export async function searchViaClaudeWebSearch(query: string): Promise<MuseumResult[]> {
-  const apiKey = process.env.anthropic;
-  if (!apiKey) return [];
-
+// ── Google Scholar (free, no key) ─────────────────────────────────────────────
+export async function searchGoogleScholar(query: string, limit = 6): Promise<MuseumResult[]> {
   try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
+    const url = `https://scholar.google.com/scholar?q=${encodeURIComponent(query + " ancient mesopotamia artifact")}&num=${limit}`;
+    const res = await fetch(url, {
       headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
+        "User-Agent": "Mozilla/5.0 (compatible; EuclidResearch/1.0; educational)",
+        "Accept": "text/html",
       },
-      body: JSON.stringify({
-        model: "claude-opus-4-5",
-        max_tokens: 4000,
-        tools: [{ type: "web_search_20250305", name: "web_search" }],
-        messages: [{
-          role: "user",
-          content: `You are a visual research assistant for EUCLID, an interdisciplinary K-8 geometry curriculum that teaches mathematical concepts through the history of civilizations (Mesopotamia, Egypt, Greece, India, China, Mesoamerica).
-
-When given a term, your job is to find real, viewable images from ANYWHERE on the web.
-
-## Step 1: Understand the term
-
-Before searching, identify what the term IS:
-- A deity or mythological figure → search for iconographic representations, reliefs, seals, statues
-- An artifact type → search museum collections, archaeological databases, auction catalogs
-- A geometric concept → search for artifacts SHOWING that geometry, plus diagrams and constructions
-- A material → search for objects MADE OF that material, plus raw material photographs
-- A place → search for archaeological site photos, reconstructions, maps, aerial views
-- An architectural feature → search for ruins, reconstructions, cross-sections, floor plans
-- An invention or tool → search for surviving examples, diagrams, reconstructions, patent drawings
-- An art technique → search for process photos, close-ups showing the technique, instructional images
-- A scientific concept → search for historical instruments, diagrams, demonstrations
-- A cultural practice → search for depictions in art, relief carvings, ritual objects
-- An unfamiliar term → search broadly first, then narrow based on what you find
-
-## Step 2: Generate multiple search queries
-
-NEVER search just the raw term. Generate 3-5 varied queries covering different aspects, contexts, and formulations of the term.
-
-## Step 3: Search broadly
-
-Search the ENTIRE web. Good sources include (but are NOT limited to):
-- Museum collection databases (Met, British Museum, Louvre, Pergamon, Iraq Museum, Penn Museum)
-- Wikimedia Commons, Wikipedia
-- Archaeological institute websites
-- University digital collections
-- World History Encyclopedia, Smarthistory
-- Google Arts & Culture, JSTOR
-- Flickr heritage/archaeology collections
-- Educational sites (Khan Academy, Britannica)
-- Archaeological survey reports
-- Art history textbooks online
-- CDLI (cuneiform tablets), any specialized database
-
-DO NOT limit yourself to this list. Search ANYWHERE an image might exist.
-
-## Special behaviors
-
-- For geometric terms: include at least one image of the geometry in a REAL ARTIFACT, not just an abstract diagram
-- For deity names: include at least one cylinder seal or relief carving AND one scholarly illustration
-- For materials: include both the raw material AND an artifact made from it
-- For places: include both a modern archaeological photo AND a historical reconstruction
-- For unfamiliar terms: search first, identify what it is from results, then search again with better queries
-
-## Term to look up: "${query}"
-
-After searching, respond ONLY with a JSON array. Each item must have:
-- "title": what the image shows
-- "imageUrl": direct image URL (ending in .jpg/.png/.gif/.webp) or best available image URL
-- "pageUrl": the webpage where the image was found
-- "source": museum/website/institution name
-- "description": one sentence about what is shown and why it is relevant to math, geometry, or ancient civilizations
-- "type": "photograph|diagram|illustration|relief|artifact|map|reconstruction|other"
-- "date": approximate date of the depicted object if known
-- "culture": civilization or culture if known
-
-Find 8-15 images from diverse sources. Respond ONLY with the JSON array, no other text.
-
-JSON array:`,
-        }],
-      }),
     });
-
-    if (!res.ok) {
-      console.error("Claude web search HTTP error:", res.status);
-      return [];
+    if (!res.ok) return [];
+    const html = await res.text();
+    const results: MuseumResult[] = [];
+    // Extract article cards from Scholar HTML
+    const titleRe = /<h3[^>]*class="gs_rt"[^>]*>.*?<a[^>]+href="([^"]+)"[^>]*>(.*?)<\/a>/gs;
+    const snippetRe = /<div[^>]*class="gs_rs"[^>]*>(.*?)<\/div>/gs;
+    const snippets: string[] = [];
+    let sm: RegExpExecArray | null;
+    while ((sm = snippetRe.exec(html)) !== null) snippets.push(sm[1].replace(/<[^>]+>/g, "").trim());
+    let tm: RegExpExecArray | null;
+    let i = 0;
+    while ((tm = titleRe.exec(html)) !== null && results.length < limit) {
+      const pageUrl = tm[1].startsWith("http") ? tm[1] : `https://scholar.google.com${tm[1]}`;
+      const title = tm[2].replace(/<[^>]+>/g, "").trim();
+      results.push({
+        url: `https://via.placeholder.com/400x300/1a2a3a/6699aa?text=${encodeURIComponent(title.slice(0,30))}`,
+        title,
+        source: "Google Scholar",
+        objectUrl: pageUrl,
+        medium: snippets[i] ? snippets[i].slice(0, 120) : undefined,
+        license: "Academic",
+      });
+      i++;
     }
+    return results;
+  } catch (err) {
+    console.error("Google Scholar error:", err);
+    return [];
+  }
+}
 
+// ── Pinterest (free, no key — public search JSON) ─────────────────────────────
+export async function searchPinterest(query: string, limit = 8): Promise<MuseumResult[]> {
+  try {
+    const bookmarks: string[] = [];
+    const url = `https://www.pinterest.com/resource/BaseSearchResource/get/?source_url=%2Fsearch%2Fpins%2F%3Fq%3D${encodeURIComponent(query)}&data=${encodeURIComponent(JSON.stringify({
+      options: { query, scope: "pins", page_size: limit, bookmarks },
+      context: {},
+    }))}&_=` + Date.now();
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; EuclidResearch/1.0)",
+        "X-Requested-With": "XMLHttpRequest",
+        "Accept": "application/json",
+      },
+    });
+    if (!res.ok) return [];
     const data = await res.json();
-    let responseText = "";
-    if (data.content) {
-      for (const block of data.content) {
-        if (block.type === "text") responseText += block.text;
+    const pins: any[] = data?.resource_response?.data?.results || [];
+    return pins.slice(0, limit).map((pin: any) => {
+      const img = pin.images?.["736x"] || pin.images?.orig || pin.images?.["236x"] || {};
+      return {
+        url: img.url || pin.image_cover_url || "",
+        title: pin.title || pin.description?.slice(0, 80) || "Pinterest pin",
+        source: "Pinterest",
+        objectUrl: `https://www.pinterest.com/pin/${pin.id}/`,
+        date: pin.created_at?.slice(0, 4),
+        license: "Public Pin",
+      } as MuseumResult;
+    }).filter(r => r.url);
+  } catch (err) {
+    console.error("Pinterest error:", err);
+    return [];
+  }
+}
+
+// ── Google Images via Gemini grounding (free Google_AI key) ───────────────────
+export async function searchGoogleImagesViaGemini(query: string): Promise<MuseumResult[]> {
+  const apiKey = process.env.Google_AI;
+  if (!apiKey) return [];
+  try {
+    const prompt = `You are a visual research assistant for a Mesopotamian artifact curriculum.
+
+Search for real images of: "${query}"
+
+Return a JSON array of 8–12 image results from across the web. Each item must have:
+- "title": what is shown
+- "imageUrl": a direct image URL ending in .jpg, .png, .gif, or .webp (real URLs only — museum sites, Wikimedia, archive.org, etc.)
+- "pageUrl": the page where the image lives
+- "source": site or institution name
+- "date": approximate date if known
+- "culture": civilization if known
+
+Prioritize: museum databases, Wikimedia Commons, archive.org, university collections, World History Encyclopedia, Smarthistory, Google Arts & Culture.
+Respond ONLY with a JSON array, no other text.`;
+
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.1, maxOutputTokens: 2048 },
+        }),
       }
-    }
-
-    const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "[]";
+    const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+    const jsonMatch = cleaned.match(/\[[\s\S]*\]/);
     if (!jsonMatch) return [];
-
     const images = JSON.parse(jsonMatch[0]);
     return images
       .filter((img: any) => img.imageUrl || img.pageUrl)
-      .slice(0, 15)
+      .slice(0, 12)
       .map((img: any) => ({
         url: img.imageUrl || img.pageUrl,
         title: img.title || "Untitled",
-        source: img.source || "Web Search",
+        source: img.source || "Google Images (Gemini)",
         objectUrl: img.pageUrl,
         date: img.date,
         culture: img.culture,
-        medium: img.type,
         license: "See source",
       } as MuseumResult));
   } catch (err) {
-    console.error("Claude web search error:", err);
+    console.error("Gemini image search error:", err);
     return [];
   }
 }
@@ -536,15 +547,20 @@ export async function searchAllMuseums(query: string): Promise<MuseumResult[]> {
     searchWikimediaCommons(query, 5),
     searchRijksmuseum(query, 5),
     searchEuropeana(query, 5),
-    searchInternetArchive(query, 4),
+    searchInternetArchive(query, 6),
     searchCDLI(query, 4),
     searchGetty(query, 5),
     searchAIC(query, 5),
     searchCleveland(query, 5),
     searchPennMuseum(query, 4),
     searchLouvre(query, 4),
-    searchViaClaudeWebSearch(query),
+    searchGoogleScholar(query, 5),
+    searchPinterest(query, 8),
+    searchGoogleImagesViaGemini(query),
   ]);
 
   return results.flat();
 }
+
+// Alias used by ingest routes
+export const searchAllSources = searchAllMuseums;
