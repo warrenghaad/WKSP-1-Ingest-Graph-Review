@@ -119,6 +119,10 @@ export default function Textreader() {
   const [quickSearching, setQuickSearching] = useState(false);
   const [quickManualQuery, setQuickManualQuery] = useState("");
 
+  const [autoImages, setAutoImages] = useState<QuickResult[]>([]);
+  const [autoSearching, setAutoSearching] = useState(false);
+  const [autoTerms, setAutoTerms] = useState<string[]>([]);
+
   const [editingQueries, setEditingQueries] = useState(false);
   const [draftQueries, setDraftQueries] = useState<string[]>([]);
   const [editingPrompts, setEditingPrompts] = useState(false);
@@ -309,6 +313,86 @@ export default function Textreader() {
     await res.json();
     queryClient.invalidateQueries({ queryKey: ["session", activeSessionId] });
   }, [rawText, sessionId]);
+
+  // ── Pure-JS keyword extractor — zero API calls ────────────────────────────
+  const extractKeywords = useCallback((text: string): string[] => {
+    const terms: string[] = [];
+
+    // 1. Named Mesopotamian artifact types (most specific)
+    const artifactRe = /\b(cylinder seal|cuneiform tablet|clay tablet|ziggurat|kudurru|stele|stela|votive plaque|stamp seal|bull.s head|warka vase|standard of ur|ram in (?:a |the )?thicket|ishtar gate|lion hunt|lapis lazuli pendant|carnelian bead|faience figurine)\b/gi;
+    for (const m of text.matchAll(artifactRe)) terms.push(m[0].trim() + " mesopotamia");
+
+    // 2. Culture-name + artifact-type phrases  e.g. "Hassuna ware", "Samarra pottery"
+    const cultureArtifactRe = /\b([A-Z][a-z]{2,}(?:[-\s][A-Z][a-z]+)?\s+(?:ware|pottery|seal|tablet|vessel|figurine|statuette|relief|inscription|period|style|bowl|jar|vase))\b/g;
+    for (const m of text.matchAll(cultureArtifactRe)) terms.push(m[0].trim() + " ancient");
+
+    // 3. Place names near BCE dates  e.g. "Uruk, c. 3500 BCE"
+    const siteRe = /\b(Ur|Uruk|Babylon|Nineveh|Nippur|Lagash|Eridu|Susa|Akkad|Ashur|Nimrud|Khorsabad|Kish|Mari|Ebla|Çatalhöyük|Jericho|Tell(?:\s+\w+)?)\b/g;
+    const siteMatches = Array.from(new Set(Array.from(text.matchAll(siteRe)).map(m => m[0])));
+    if (siteMatches.length) terms.push(siteMatches[0] + " ancient mesopotamia artifact");
+
+    // 4. Deity names → find associated objects
+    const deityRe = /\b(Ishtar|Inanna|Shamash|Marduk|Enlil|Anu|Nanna|Nabu|Tiamat|Gilgamesh|Enkidu)\b/g;
+    const deityMatches = Array.from(new Set(Array.from(text.matchAll(deityRe)).map(m => m[0])));
+    if (deityMatches.length) terms.push(deityMatches[0] + " mesopotamian artifact museum");
+
+    // 5. Capitalized multi-word phrases (fallback)
+    const capRe = /\b([A-Z][a-z]{3,}(?:\s+(?:of\s+)?[A-Z][a-z]{2,}){1,2})\b/g;
+    const SKIP = /^(The|This|That|These|Those|There|Their|They|When|Where|What|With|From|Into|Upon|Over|Under|After|Before|During|While|Each|Such|Some|More)/;
+    for (const m of text.matchAll(capRe)) {
+      if (!SKIP.test(m[0])) { terms.push(m[0] + " ancient artifact"); break; }
+    }
+
+    // Deduplicate, limit to 4
+    const seen = new Set<string>();
+    return terms
+      .map(t => t.toLowerCase().trim())
+      .filter(t => { if (seen.has(t) || t.length < 6) return false; seen.add(t); return true; })
+      .slice(0, 4);
+  }, []);
+
+  // ── Auto-search on paste — fires all museum sources, no LLM ──────────────
+  const autoSearchRef = useRef<{ active: boolean; seen: Set<string>; done: number; total: number }>({
+    active: false, seen: new Set(), done: 0, total: 0,
+  });
+
+  const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const pasted = e.clipboardData.getData("text");
+    if (!pasted || pasted.trim().length < 30) return;
+
+    const terms = extractKeywords(pasted);
+    if (!terms.length) return;
+
+    // Reset search state
+    autoSearchRef.current = { active: true, seen: new Set(), done: 0, total: terms.length };
+    setAutoImages([]);
+    setAutoSearching(true);
+    setAutoTerms(terms);
+    setSelectedConceptId(null);
+    setQuickResults([]);
+    setQuickQuery("");
+
+    terms.forEach(async (term) => {
+      try {
+        const res = await fetch(`/api/quick-search/images?q=${encodeURIComponent(term)}`);
+        const data = await res.json();
+        const results: QuickResult[] = data.results || [];
+        // Deduplicate using the ref's shared set
+        const fresh = results.filter(r => {
+          if (autoSearchRef.current.seen.has(r.url)) return false;
+          autoSearchRef.current.seen.add(r.url);
+          return true;
+        });
+        if (fresh.length) setAutoImages(prev => [...prev, ...fresh]);
+      } catch { /* non-fatal */ } finally {
+        autoSearchRef.current.done++;
+        if (autoSearchRef.current.done >= autoSearchRef.current.total) {
+          autoSearchRef.current.active = false;
+          setAutoSearching(false);
+        }
+      }
+    });
+  }, [extractKeywords]);
 
   const runQuickSearch = useCallback(async (query: string) => {
     if (!query.trim() || query.trim().length < 2) return;
@@ -507,8 +591,10 @@ export default function Textreader() {
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">Raw Text</label>
                 <textarea
-                  value={rawText} onChange={(e) => setRawText(e.target.value)}
-                  placeholder="Paste research text, lesson fragment, or brief..."
+                  value={rawText}
+                  onChange={(e) => setRawText(e.target.value)}
+                  onPaste={handlePaste}
+                  placeholder="Paste research text — images load instantly..."
                   rows={12}
                   className="w-full text-sm border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-400 resize-none leading-relaxed"
                   data-testid="input-raw-text"
@@ -559,6 +645,63 @@ export default function Textreader() {
 
         {/* CENTER PANE */}
         <div className="flex-1 overflow-y-auto" data-testid="center-pane">
+
+          {/* ── LIVE IMAGE FEED — fires the instant text is pasted ────────── */}
+          {(autoSearching || autoImages.length > 0) && (
+            <div className="border-b border-amber-200 bg-amber-50" data-testid="auto-image-feed">
+              <div className="flex items-center justify-between px-4 py-2 border-b border-amber-200">
+                <div className="flex items-center gap-2">
+                  <div className={`w-2 h-2 rounded-full ${autoSearching ? "bg-amber-500 animate-pulse" : "bg-emerald-500"}`} />
+                  <span className="text-xs font-semibold text-amber-900">
+                    {autoSearching ? `Searching across all sources…` : `${autoImages.length} images found`}
+                  </span>
+                  {autoTerms.length > 0 && (
+                    <div className="flex gap-1 flex-wrap">
+                      {autoTerms.map((t, i) => (
+                        <span key={i} className="text-[10px] px-1.5 py-0.5 bg-amber-200 text-amber-800 rounded font-mono">
+                          {t}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={() => { setAutoImages([]); setAutoTerms([]); setAutoSearching(false); }}
+                  className="text-[10px] text-amber-600 hover:text-amber-900"
+                  data-testid="button-clear-auto-images"
+                >clear</button>
+              </div>
+              <div className="p-3 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6 gap-2">
+                {autoImages.map((img, i) => (
+                  <a
+                    key={i}
+                    href={img.objectUrl || img.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group relative aspect-square bg-gray-100 rounded overflow-hidden hover:ring-2 hover:ring-amber-400 transition-all"
+                    title={`${img.title || "image"} — ${img.source}`}
+                    data-testid={`auto-image-${i}`}
+                  >
+                    <img
+                      src={img.url}
+                      alt={img.title || ""}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                      onError={(e) => { (e.target as HTMLImageElement).parentElement!.style.display = "none"; }}
+                    />
+                    <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[8px] px-1 py-0.5 truncate opacity-0 group-hover:opacity-100 transition-opacity">
+                      {img.source}
+                    </div>
+                  </a>
+                ))}
+                {autoSearching && autoImages.length === 0 && (
+                  Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="aspect-square bg-amber-100 rounded animate-pulse" />
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
           {readingMode && rawText.trim() ? (
             <div className="h-full flex flex-col">
               <div className="px-4 py-2 bg-amber-50 border-b border-amber-100 flex items-center gap-2 text-xs text-amber-700 shrink-0">
