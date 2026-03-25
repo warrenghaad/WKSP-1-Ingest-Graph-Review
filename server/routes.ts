@@ -43,11 +43,7 @@ export async function registerRoutes(
       if (!q || q.trim().length < 2) {
         return res.status(400).json({ error: "Query too short" });
       }
-      const [metResults, wikiResults] = await Promise.all([
-        searchMetMuseum(q, 8),
-        searchWikimediaCommons(q, 6),
-      ]);
-      const results = [...metResults, ...wikiResults];
+      const results = await searchAllMuseums(q);
       res.json({ results, query: q, total: results.length });
     } catch (err) {
       console.error("Quick image search error:", err);
@@ -380,7 +376,7 @@ export async function registerRoutes(
 
       const { sourceMode = card.sourceMode } = req.body;
 
-      await storage.updateConceptCard(id, { state: "searching" });
+      await storage.updateConceptCard(id, { state: "searching", sourceMode });
 
       const queries = card.searchQueries || [card.label];
       const allCandidates = [];

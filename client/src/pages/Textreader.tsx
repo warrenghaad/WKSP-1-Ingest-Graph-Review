@@ -295,13 +295,19 @@ export default function Textreader() {
 
   const handleExtract = useCallback(async () => {
     if (!rawText.trim()) return;
-    if (!sessionId) {
+    let activeSessionId = sessionId;
+    if (!activeSessionId) {
       const session = await createSession.mutateAsync();
-      setSessionId(session.id);
-      setTimeout(() => extractMutation.mutate(), 200);
-    } else {
-      extractMutation.mutate();
+      activeSessionId = session.id;
+      setSessionId(activeSessionId);
     }
+    const res = await apiRequest("POST", "/api/textreader/extract", {
+      sessionId: activeSessionId,
+      text: rawText,
+      maxConcepts: 8,
+    });
+    await res.json();
+    queryClient.invalidateQueries({ queryKey: ["session", activeSessionId] });
   }, [rawText, sessionId]);
 
   const runQuickSearch = useCallback(async (query: string) => {
