@@ -283,20 +283,62 @@ export async function searchViaClaudeWebSearch(query: string): Promise<MuseumRes
         tools: [{ type: "web_search_20250305", name: "web_search" }],
         messages: [{
           role: "user",
-          content: `You are a visual research assistant for EUCLID, an interdisciplinary K-8 geometry curriculum teaching math through ancient civilizations (Mesopotamia, Egypt, Greece, India, China, Mesoamerica).
+          content: `You are a visual research assistant for EUCLID, an interdisciplinary K-8 geometry curriculum that teaches mathematical concepts through the history of civilizations (Mesopotamia, Egypt, Greece, India, China, Mesoamerica).
 
-Find real, viewable images for this term: "${query}"
+When given a term, your job is to find real, viewable images from ANYWHERE on the web.
 
-First identify what this term IS (deity, artifact, geometric concept, material, place, architectural feature, technique, etc.), then generate 3-5 varied search queries and search the ENTIRE web — museum databases, archaeological sites, Wikimedia, university collections, journals, encyclopedias, ANYWHERE.
+## Step 1: Understand the term
 
-Good sources include (but are NOT limited to): Met Museum, British Museum, Louvre, Pergamon, Penn Museum, Iraq Museum, Wikimedia Commons, Wikipedia, World History Encyclopedia, Smarthistory, Google Arts & Culture, JSTOR, Flickr heritage collections, Britannica, CDLI, university digital collections, archaeological reports.
+Before searching, identify what the term IS:
+- A deity or mythological figure → search for iconographic representations, reliefs, seals, statues
+- An artifact type → search museum collections, archaeological databases, auction catalogs
+- A geometric concept → search for artifacts SHOWING that geometry, plus diagrams and constructions
+- A material → search for objects MADE OF that material, plus raw material photographs
+- A place → search for archaeological site photos, reconstructions, maps, aerial views
+- An architectural feature → search for ruins, reconstructions, cross-sections, floor plans
+- An invention or tool → search for surviving examples, diagrams, reconstructions, patent drawings
+- An art technique → search for process photos, close-ups showing the technique, instructional images
+- A scientific concept → search for historical instruments, diagrams, demonstrations
+- A cultural practice → search for depictions in art, relief carvings, ritual objects
+- An unfamiliar term → search broadly first, then narrow based on what you find
+
+## Step 2: Generate multiple search queries
+
+NEVER search just the raw term. Generate 3-5 varied queries covering different aspects, contexts, and formulations of the term.
+
+## Step 3: Search broadly
+
+Search the ENTIRE web. Good sources include (but are NOT limited to):
+- Museum collection databases (Met, British Museum, Louvre, Pergamon, Iraq Museum, Penn Museum)
+- Wikimedia Commons, Wikipedia
+- Archaeological institute websites
+- University digital collections
+- World History Encyclopedia, Smarthistory
+- Google Arts & Culture, JSTOR
+- Flickr heritage/archaeology collections
+- Educational sites (Khan Academy, Britannica)
+- Archaeological survey reports
+- Art history textbooks online
+- CDLI (cuneiform tablets), any specialized database
+
+DO NOT limit yourself to this list. Search ANYWHERE an image might exist.
+
+## Special behaviors
+
+- For geometric terms: include at least one image of the geometry in a REAL ARTIFACT, not just an abstract diagram
+- For deity names: include at least one cylinder seal or relief carving AND one scholarly illustration
+- For materials: include both the raw material AND an artifact made from it
+- For places: include both a modern archaeological photo AND a historical reconstruction
+- For unfamiliar terms: search first, identify what it is from results, then search again with better queries
+
+## Term to look up: "${query}"
 
 After searching, respond ONLY with a JSON array. Each item must have:
 - "title": what the image shows
 - "imageUrl": direct image URL (ending in .jpg/.png/.gif/.webp) or best available image URL
-- "pageUrl": the webpage where the image was found  
+- "pageUrl": the webpage where the image was found
 - "source": museum/website/institution name
-- "description": one sentence about what is shown and why it is relevant
+- "description": one sentence about what is shown and why it is relevant to math, geometry, or ancient civilizations
 - "type": "photograph|diagram|illustration|relief|artifact|map|reconstruction|other"
 - "date": approximate date of the depicted object if known
 - "culture": civilization or culture if known
