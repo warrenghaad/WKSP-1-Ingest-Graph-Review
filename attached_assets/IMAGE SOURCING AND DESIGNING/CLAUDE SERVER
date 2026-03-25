@@ -1,0 +1,273 @@
+/**
+ * EUCLID Visual Lookup v3 — Web Search Powered
+ * ==============================================
+ * Uses Claude + web_search tool to find images from ANYWHERE.
+ * No source lists. No API limits. The entire internet.
+ * 
+ * When you highlight "apkallu" — Claude searches the web, finds images
+ * from museum sites, journals, university databases, Wikimedia, blogs,
+ * archaeological reports — whatever exists.
+ * 
+ * SETUP:
+ *   1. Set ANTHROPIC_API_KEY in Replit Secrets
+ *   2. npm install && npm start
+ */
+
+const express = require('express');
+const cors = require('cors');
+const fetch = require('node-fetch');
+const path = require('path');
+
+const app = express();
+app.use(cors());
+app.use(express.json({ limit: '50kb' }));
+app.use(express.static(path.join(__dirname, 'public')));
+
+const PORT = process.env.PORT || 3000;
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || '';
+
+// ═══════════════════════════════════════════════════════════════
+// CORE: Claude + web_search finds images from ANYWHERE
+// ═══════════════════════════════════════════════════════════════
+
+async function lookupTermImages(term, context) {
+  if (!ANTHROPIC_API_KEY) {
+    return { term, error: 'No API key set. Add ANTHROPIC_API_KEY to Replit Secrets.', images: [] };
+  }
+
+  const contextLine = context ? `\nContext: "${context}"` : '';
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 4000,
+        tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+        messages: [{
+          role: 'user',
+          content: `You are an image research assistant for an interdisciplinary K-8 geometry curriculum that teaches math through the history of civilizations (Mesopotamia, Egypt, Greece, India, China, Mesoamerica).
+
+I need you to find real, viewable images for this term: "${term}"${contextLine}
+
+SEARCH THE WEB for images of this term. Search broadly — museum collections, archaeological databases, university archives, Wikimedia Commons, educational sites, academic publications, any source with good images.
+
+Do multiple searches if needed:
+- Search for the term directly
+- Search for artifacts/objects showing it
+- Search for diagrams or illustrations of it
+- Search for it in specific cultural/historical context
+
+After searching, respond with ONLY a JSON array of image results. Each result needs:
+- "title": what the image shows
+- "imageUrl": direct URL to the image (must be an actual image URL ending in .jpg, .png, .gif, .webp, or from a known image host)
+- "pageUrl": the webpage where the image was found
+- "source": website or institution name
+- "description": one sentence about what's shown and why it's relevant
+- "type": "photograph|diagram|illustration|relief|artifact|map|reconstruction|other"
+- "date": approximate date of the depicted object/artwork if known
+- "culture": civilization or culture if known
+
+Find 6-12 images from diverse sources. Prioritize:
+1. Real artifact photographs from museums
+2. Archaeological site photographs
+3. Scholarly diagrams and reconstructions
+4. Historical illustrations
+5. Educational diagrams
+
+Respond ONLY with the JSON array, no other text. If you found URLs in search results that are image pages (like museum collection pages), include them even if you can't confirm the direct image URL — use the page URL as both imageUrl and pageUrl.
+
+JSON array:`
+        }],
+      }),
+      timeout: 30000,
+    });
+
+    const data = await res.json();
+
+    // Extract text content from response (may have multiple blocks due to web search)
+    let responseText = '';
+    if (data.content) {
+      for (const block of data.content) {
+        if (block.type === 'text') {
+          responseText += block.text;
+        }
+      }
+    }
+
+    // Parse JSON from response
+    const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+    if (jsonMatch) {
+      try {
+        const images = JSON.parse(jsonMatch[0]);
+        return {
+          term,
+          type: 'web_search',
+          resultCount: images.length,
+          images: images.filter(img => img.imageUrl || img.pageUrl).slice(0, 15),
+        };
+      } catch (parseErr) {
+        console.error('JSON parse error:', parseErr.message);
+      }
+    }
+
+    // If no JSON array, try to extract useful info from the text
+    return {
+      term,
+      type: 'web_search',
+      resultCount: 0,
+      images: [],
+      rawResponse: responseText.substring(0, 500),
+    };
+
+  } catch (err) {
+    console.error('Lookup error:', err.message);
+    return { term, error: err.message, images: [] };
+  }
+}
+
+async function extractTermsFromText(text, context) {
+  if (!ANTHROPIC_API_KEY) {
+    // Fallback: extract capitalized words and multi-word phrases
+    const words = [...new Set(text.match(/\b[A-Z][a-zA-Z'-]+(?:\s+[A-Za-z'-]+){0,2}\b/g) || [])];
+    return words.map(w => ({ term: w, type: 'unknown', confidence: 0.5 }));
+  }
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 2000,
+        messages: [{
+          role: 'user',
+          content: `Extract ALL terms from this text that would benefit from seeing an image. Be EXPANSIVE. Include:
+
+- Deity/mythological names (any civilization)
+- Artifact types (cylinder seal, kudurru, stele, ANY object type)
+- Geometric concepts (tessellation, D₈ symmetry, ANY math/geometry term)
+- Materials (lapis lazuli, glazed brick, ANY material)
+- Places (ancient or modern)
+- Architectural features (ziggurat, colonnade, ANY building feature)
+- Inventions and tools (ANY historical or modern)
+- Art techniques (relief carving, lost-wax, ANY technique)
+- Scientific concepts (centrifugal force, compression, ANY science)
+- Cultural practices (divination, votive offering, ANY practice)
+- Historical periods or events
+- ANY unfamiliar or specialized term
+- ANY term where seeing an image would help understanding
+- Multi-word phrases that form single concepts
+
+${context ? `Context: ${context}\n` : ''}
+Text:
+${text}
+
+Respond ONLY as JSON array: [{"term":"exact term","type":"deity|artifact|geometric|material|place|architecture|invention|figure|technique|science|cultural|period|unknown","confidence":0.0-1.0}]`
+        }],
+      }),
+      timeout: 15000,
+    });
+
+    const data = await res.json();
+    const responseText = data.content?.map(b => b.text || '').join('') || '';
+    const match = responseText.match(/\[[\s\S]*\]/);
+    if (match) return JSON.parse(match[0]);
+  } catch (err) {
+    console.error('Extract error:', err.message);
+  }
+
+  return [];
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CACHE — avoid re-searching the same term
+// ═══════════════════════════════════════════════════════════════
+
+const cache = new Map();
+const CACHE_TTL = 1000 * 60 * 60; // 1 hour
+
+function getCached(term) {
+  const entry = cache.get(term.toLowerCase());
+  if (entry && Date.now() - entry.timestamp < CACHE_TTL) return entry.data;
+  return null;
+}
+
+function setCache(term, data) {
+  cache.set(term.toLowerCase(), { data, timestamp: Date.now() });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ROUTES
+// ═══════════════════════════════════════════════════════════════
+
+app.get('/api/lookup', async (req, res) => {
+  const { term, context } = req.query;
+  if (!term) return res.status(400).json({ error: 'term is required' });
+
+  // Check cache
+  const cached = getCached(term);
+  if (cached) return res.json({ ...cached, fromCache: true });
+
+  const result = await lookupTermImages(term, context || '');
+  if (result.images?.length > 0) setCache(term, result);
+  res.json(result);
+});
+
+app.get('/api/classify', async (req, res) => {
+  const { text, context } = req.query;
+  if (!text) return res.status(400).json({ error: 'text is required' });
+  const terms = await extractTermsFromText(text, context || '');
+  res.json({ termCount: terms.length, terms });
+});
+
+app.post('/api/batch', async (req, res) => {
+  const { text, context, maxTerms = 15 } = req.body;
+  if (!text) return res.status(400).json({ error: 'text is required' });
+
+  const terms = await extractTermsFromText(text, context || '');
+  const results = [];
+
+  for (const t of terms.slice(0, maxTerms)) {
+    const cached = getCached(t.term);
+    if (cached) {
+      results.push({ ...t, images: cached.images?.slice(0, 4) || [] });
+      continue;
+    }
+
+    const lookup = await lookupTermImages(t.term, context || '');
+    if (lookup.images?.length > 0) setCache(t.term, lookup);
+    results.push({ ...t, images: lookup.images?.slice(0, 4) || [] });
+  }
+
+  res.json({ termCount: results.length, results });
+});
+
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    version: 3,
+    engine: 'Claude + web_search',
+    llm: !!ANTHROPIC_API_KEY,
+    cacheSize: cache.size,
+    note: ANTHROPIC_API_KEY
+      ? 'Web search active — searches the ENTIRE internet. No source limits.'
+      : 'No API key — set ANTHROPIC_API_KEY in Replit Secrets',
+  });
+});
+
+app.listen(PORT, () => {
+  console.log(`\n  EUCLID Visual Lookup v3 — Web Search Powered`);
+  console.log(`  http://localhost:${PORT}`);
+  console.log(`  Engine: ${ANTHROPIC_API_KEY ? 'Claude + web_search (entire internet)' : '⚠ No key'}`);
+  console.log(`  No source lists. No API limits. No bounds.\n`);
+});
