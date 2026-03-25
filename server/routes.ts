@@ -37,6 +37,24 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
 
+  app.get("/api/quick-search/images", async (req, res) => {
+    try {
+      const q = req.query.q as string;
+      if (!q || q.trim().length < 2) {
+        return res.status(400).json({ error: "Query too short" });
+      }
+      const [metResults, wikiResults] = await Promise.all([
+        searchMetMuseum(q, 8),
+        searchWikimediaCommons(q, 6),
+      ]);
+      const results = [...metResults, ...wikiResults];
+      res.json({ results, query: q, total: results.length });
+    } catch (err) {
+      console.error("Quick image search error:", err);
+      res.status(500).json({ error: "Search failed", results: [] });
+    }
+  });
+
   app.post("/api/search-images", async (req, res) => {
     try {
       const { query } = req.body;
