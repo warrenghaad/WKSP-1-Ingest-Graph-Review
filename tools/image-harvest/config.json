@@ -1,0 +1,250 @@
+{
+  "output_base": "./downloads",
+  "default_max_items": 0,
+
+  "met": {
+    "search_queries": {
+      "mesopotamian_art": {
+        "department": "ancient_near_east",
+        "queries": [
+          "Mesopotamia",
+          "cuneiform",
+          "cylinder seal",
+          "Assyrian",
+          "Babylonian",
+          "Sumerian",
+          "relief",
+          "Akkadian"
+        ]
+      },
+      "egyptian_art": {
+        "department": "egyptian_art",
+        "queries": [
+          "hieroglyph",
+          "papyrus",
+          "relief",
+          "sarcophagus",
+          "amulet",
+          "stela",
+          "tomb painting",
+          "pharaoh"
+        ]
+      },
+      "greek_pottery": {
+        "department": "greek_roman_art",
+        "queries": [
+          "vase",
+          "pottery",
+          "amphora",
+          "krater",
+          "kylix",
+          "geometric pattern",
+          "ceramic"
+        ]
+      }
+    }
+  },
+  "smithsonian": {
+    "api_key": null,
+    "search_queries": {
+      "mesopotamian_ancient_near_east": [
+        "Mesopotamian art",
+        "Assyrian relief",
+        "Babylonian artifact",
+        "Sumerian cylinder seal",
+        "cuneiform tablet"
+      ],
+      "egyptian_art": [
+        "Egyptian art ancient",
+        "Egyptian hieroglyph",
+        "Egyptian sculpture ancient",
+        "pharaoh artifact"
+      ],
+      "greek_roman_art": [
+        "Greek pottery ancient",
+        "Roman mosaic",
+        "Greek sculpture ancient",
+        "Hellenistic art"
+      ]
+    }
+  },
+  "wikimedia": {
+    "categories": {
+      "mesopotamian_art": "Category:Mesopotamian_art",
+      "ancient_near_east": "Category:Ancient_Near_East",
+      "assyrian_art": "Category:Assyrian_art",
+      "sumerian_art": "Category:Sumerian_art",
+      "cuneiform": "Category:Cuneiform",
+      "egyptian_art": "Category:Ancient_Egyptian_art",
+      "sacred_geometry": "Category:Sacred_geometry"
+    }
+  },
+  "archive": {
+    "searches": {
+      "mesopotamian_art": [
+        "Mesopotamian art",
+        "Assyrian sculpture",
+        "Babylonian art",
+        "cuneiform tablets"
+      ],
+      "ancient_near_east": [
+        "ancient Near East",
+        "Sumerian artifacts",
+        "Akkadian cylinder seals"
+      ],
+      "egyptian_art": [
+        "Egyptian hieroglyphs",
+        "ancient Egypt art",
+        "pharaoh tomb painting"
+      ],
+      "geometry_diagrams": [
+        "geometric diagrams mathematics",
+        "historical geometry illustrations",
+        "euclidean geometry diagrams"
+      ]
+    }
+  },
+  "chicago": {
+    "search_queries": {
+      "mesopotamian_art": ["Mesopotamia", "Assyrian", "Babylonian", "Sumerian", "cuneiform", "ancient Near East"],
+      "egyptian_art": ["ancient Egypt", "Egyptian sculpture", "pharaoh", "hieroglyph", "mummy"],
+      "greek_roman_art": ["Greek vase", "Roman sculpture", "amphora", "Hellenistic", "ancient Greece"],
+      "islamic_art": ["Islamic art", "geometric pattern", "arabesque", "Islamic tile", "calligraphy"],
+      "asian_art": ["Chinese bronze", "Japanese woodblock", "Buddhist sculpture", "mandala", "jade carving"]
+    }
+  },
+  "cleveland": {
+    "search_queries": {
+      "mesopotamian_art": ["Mesopotamia", "Assyrian", "Babylonian", "Sumerian", "cuneiform"],
+      "egyptian_art": ["Egyptian", "pharaoh", "hieroglyph", "sarcophagus", "ancient Egypt"],
+      "greek_roman_art": ["Greek vase", "Roman", "amphora", "Hellenistic", "ancient Greece"],
+      "asian_art": ["Chinese bronze", "Japanese scroll", "Buddhist", "Hindu sculpture", "mandala"],
+      "african_art": ["African mask", "African textile", "Benin bronze", "Kente"],
+      "medieval_art": ["medieval illumination", "Byzantine", "Romanesque", "Gothic sculpture"]
+    }
+  },
+  "rijksmuseum": {
+    "api_key": null,
+    "search_queries": {
+      "dutch_golden_age": ["Rembrandt", "Vermeer", "golden age", "Dutch painting"],
+      "asian_art": ["Japanese print", "Chinese porcelain", "Asian art"],
+      "ancient_art": ["Egyptian", "Greek", "Roman antiquity"],
+      "decorative_arts": ["Delft tile", "silver", "tapestry", "ceramic"]
+    }
+  },
+  "europeana": {
+    "api_key": null,
+    "search_queries": {
+      "mesopotamian_art": ["Mesopotamia", "Assyrian relief", "Babylonian", "cuneiform", "Sumerian"],
+      "egyptian_art": ["ancient Egypt art", "pharaoh", "hieroglyph", "Egyptian sculpture"],
+      "greek_roman_art": ["ancient Greek pottery", "Roman mosaic", "amphora", "Hellenistic sculpture"],
+      "medieval_manuscripts": ["illuminated manuscript", "medieval illustration", "Book of Hours"],
+      "islamic_art": ["Islamic geometric", "arabesque", "mosque decoration", "Islamic tile"],
+      "celtic_art": ["Celtic knot", "Celtic illumination", "Book of Kells"]
+    }
+  },
+  "loc": {
+    "search_queries": {
+      "ancient_near_east": ["Mesopotamia", "Assyria", "Babylon", "cuneiform", "ancient Near East"],
+      "ancient_egypt": ["ancient Egypt", "hieroglyph", "pyramid", "pharaoh"],
+      "ancient_greece_rome": ["ancient Greece", "ancient Rome", "Greek art", "Roman art"],
+      "maps_historical": ["ancient map", "historical atlas", "cartography"],
+      "manuscripts": ["illuminated manuscript", "medieval manuscript", "ancient text"],
+      "sacred_geometry": ["geometric pattern", "sacred geometry", "mathematical diagram"]
+    }
+  },
+  "harvard": {
+    "api_key": null,
+    "search_queries": {
+      "ancient_near_east": ["Mesopotamian", "Assyrian", "Babylonian", "Sumerian", "cuneiform"],
+      "egyptian_art": ["Egyptian ancient", "pharaoh", "hieroglyph", "mummy"],
+      "greek_roman_art": ["Greek vase", "Roman sculpture", "amphora", "coin ancient"],
+      "asian_art": ["Chinese painting", "Japanese print", "Buddhist art", "Indian sculpture"],
+      "islamic_art": ["Islamic art", "Persian miniature", "calligraphy Arabic"]
+    }
+  },
+  "vanda": {
+    "search_queries": {
+      "islamic_art": ["Islamic tile", "Islamic geometric", "arabesque", "mosque lamp", "Iznik"],
+      "asian_art": ["Chinese porcelain", "Japanese lacquer", "Indian textile", "Buddhist sculpture"],
+      "medieval_art": ["medieval textile", "Gothic sculpture", "Romanesque", "reliquary"],
+      "ancient_art": ["Egyptian", "Greek pottery", "Roman glass", "ancient sculpture"],
+      "textiles_patterns": ["textile pattern", "embroidery", "woven silk", "tapestry", "carpet design"]
+    }
+  },
+  "brooklyn": {
+    "api_key": null,
+    "search_queries": {
+      "egyptian_art": ["Egyptian", "pharaoh", "ancient Egypt", "mummy", "hieroglyph"],
+      "african_art": ["African mask", "African textile", "Benin", "Yoruba", "Kongo"],
+      "asian_art": ["Chinese painting", "Japanese print", "Buddhist", "Indian sculpture"],
+      "ancient_near_east": ["Mesopotamian", "Assyrian", "Babylonian", "ancient Near East"],
+      "american_art": ["Native American", "pre-Columbian", "Aztec", "Maya"]
+    }
+  },
+  "walters": {
+    "search_queries": {
+      "ancient_near_east": ["Mesopotamian", "Assyrian", "Babylonian", "cuneiform"],
+      "egyptian_art": ["Egyptian", "pharaoh", "hieroglyph", "ancient Egypt"],
+      "greek_roman_art": ["Greek", "Roman", "amphora", "ancient sculpture"],
+      "islamic_art": ["Islamic", "Persian", "Arabic calligraphy", "Quran"],
+      "medieval_art": ["medieval", "illuminated", "Byzantine", "Gothic"],
+      "asian_art": ["Chinese", "Japanese", "Buddhist", "Indian"]
+    }
+  },
+  "dpla": {
+    "api_key": null,
+    "search_queries": {
+      "mesopotamian_art": ["Mesopotamia", "Assyria", "Babylon", "cuneiform", "Sumerian"],
+      "egyptian_art": ["ancient Egypt", "pharaoh", "hieroglyph", "Egyptian art"],
+      "greek_roman_art": ["ancient Greece", "ancient Rome", "Greek pottery", "Roman sculpture"],
+      "native_american": ["Native American art", "pre-Columbian", "indigenous art"],
+      "medieval_manuscripts": ["illuminated manuscript", "medieval art", "Book of Hours"],
+      "maps_cartography": ["historical map", "ancient cartography", "atlas historical"]
+    }
+  },
+  "google_images": {
+    "api_key": null,
+    "cse_id": null,
+    "search_queries": {
+      "mesopotamian_art": ["Mesopotamian cylinder seal", "Assyrian palace relief", "Sumerian ziggurat", "cuneiform tablet close up", "Babylonian boundary stone kudurru"],
+      "egyptian_art": ["Egyptian tomb painting", "hieroglyph inscription", "pharaoh sculpture", "Book of the Dead papyrus"],
+      "greek_roman_art": ["Greek black figure vase", "Roman floor mosaic geometric", "Parthenon frieze detail"],
+      "geometry_in_art": ["sacred geometry ancient", "Islamic geometric tile pattern", "mandala symmetry", "tessellation historical"],
+      "architecture": ["ziggurat reconstruction", "pyramid cross section diagram", "ancient temple floor plan"]
+    }
+  },
+  "pinterest": {
+    "search_queries": {
+      "mesopotamian_art": ["Mesopotamian art cylinder seal", "Assyrian relief sculpture", "Sumerian art", "cuneiform tablet", "ancient Babylon"],
+      "egyptian_art": ["ancient Egyptian art", "Egyptian tomb painting", "hieroglyph art", "pharaoh sculpture"],
+      "geometry_patterns": ["sacred geometry pattern", "Islamic geometric art", "ancient tessellation", "mandala art"],
+      "educational_diagrams": ["ancient civilization diagram", "geometry teaching visual", "historical map illustration"]
+    }
+  },
+  "unsplash": {
+    "api_key": null,
+    "search_queries": {
+      "ancient_sites": ["Mesopotamia ruins", "Egyptian pyramid", "ancient temple", "archaeological site"],
+      "artifacts": ["ancient artifact museum", "cuneiform", "hieroglyph", "ancient pottery"],
+      "geometric_patterns": ["geometric pattern", "Islamic tile", "mosaic", "tessellation", "mandala"],
+      "textures_materials": ["clay texture ancient", "stone carving detail", "ancient brick wall"]
+    }
+  },
+  "pexels": {
+    "api_key": null,
+    "search_queries": {
+      "ancient_sites": ["ancient ruins", "pyramid Egypt", "archaeological excavation", "ancient temple"],
+      "artifacts_museum": ["museum artifact", "ancient sculpture", "pottery ancient", "stone carving"],
+      "patterns_geometry": ["geometric pattern", "mosaic tile", "symmetry architecture", "tessellation"]
+    }
+  },
+  "getty": {
+    "search_queries": {
+      "mesopotamian_art": ["Mesopotamia", "Assyrian", "Babylonian", "cylinder seal", "cuneiform"],
+      "egyptian_art": ["Egyptian ancient", "pharaoh", "hieroglyph", "sarcophagus"],
+      "greek_roman_art": ["Greek vase", "Roman sculpture", "amphora", "Hellenistic"],
+      "decorative_arts": ["Islamic tile", "mosaic", "textile pattern", "calligraphy"]
+    }
+  }
+}
