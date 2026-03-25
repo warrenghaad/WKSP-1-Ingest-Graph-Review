@@ -1,0 +1,683 @@
+# GECD 3D Timeline — Replit Build Specification
+
+## Project Overview
+
+Build a 3D interactive timeline visualization of **GECD (Geometric Element Civilization Development) nodes** — moments in history where geometry, civilization, and development converge. This is NOT a project management tool. It is a research visualization tool that plots archaeological and historical artifacts in three-dimensional space.
+
+### Core Concept
+
+Geometry (G) is the **central axis** — the spine of the visualization. The four remaining MAGIC drivers (Math, Aesthetic, Institutional, Comptroller) determine each node's position in Y/Z space relative to that spine. Time runs along X.
+
+Each node represents a moment where a geometric element (circle, triangle, spiral, etc.) intersected with civilization development — a beveled-rim bowl, a ziggurat, a potter's wheel, a cylinder seal.
+
+---
+
+## Architecture
+
+### Stack
+
+| Layer | Technology | Why |
+|-------|-----------|-----|
+| **3D Engine** | Three.js | Industry standard, works in browser, massive community. Do NOT use Babylon.js or raw WebGL. |
+| **Framework** | React + Vite | Fast dev, component model for UI panels. |
+| **3D React binding** | @react-three/fiber + @react-three/drei | Declarative Three.js in React. Drei gives OrbitControls, Html overlays, Line, Text, etc. |
+| **State** | Zustand | Lightweight, works perfectly with R3F. Not Redux. |
+| **Data** | JSON flat files (initially) → Supabase (later) | Start simple. Each node is a JSON object. |
+| **Styling** | Tailwind CSS | For the 2D UI panels (filters, detail view). |
+| **Image pipeline** | Already exists in Replit project | Connects to Gemini/Imagen for artifact imagery. |
+
+### Install Commands (Replit shell)
+
+```bash
+npm create vite@latest gecd-timeline -- --template react
+cd gecd-timeline
+npm install three @react-three/fiber @react-three/drei zustand
+npm install tailwindcss @tailwindcss/vite
+npm install leva  # optional: GUI controls for dev/debugging
+```
+
+---
+
+## Data Model
+
+### GECD Node Schema
+
+```json
+{
+  "id": "node_brb_001",
+  "name": "Beveled-Rim Bowl",
+  "date_bce": 3500,
+  "date_ce": null,
+  "date_display": "c. 3500 BCE",
+  "geometric_element": "circle",
+  "deity": "Shamash",
+  
+  "magic_drivers": {
+    "math": 0.3,
+    "aesthetic": 0.5,
+    "institutional": 0.9,
+    "comptroller": 0.7
+  },
+  
+  "description": "Standardized mold-made bowls found across Uruk expansion sites. Evidence of institutional food rationing at scale.",
+  "provenance": "Uruk, southern Mesopotamia",
+  "civilization": "Sumerian / Uruk Period",
+  
+  "intensification_category": "object_form",
+  "intensification_categories": ["object_form", "functional_assembly"],
+  
+  "image_url": null,
+  "image_status": "pending",
+  "image_prompt": "Archaeological beveled-rim bowl, crude clay, mold-made, Uruk period",
+  
+  "connections": ["node_wheel_001", "node_pottery_001"],
+  
+  "tags": ["circle", "standardization", "institutional", "uruk"],
+  "notes": "NOT wheel-thrown. Mold-made. Common misconception."
+}
+```
+
+### MAGIC Driver Values
+
+Each driver is a float from 0.0 to 1.0 representing how strongly that driver influenced this particular GECD node:
+
+- **Math (M)**: Mathematical/computational significance (0 = none, 1 = primary mathematical breakthrough)
+- **Aesthetic (A)**: Artistic/decorative significance (0 = purely functional, 1 = primarily aesthetic achievement)
+- **Institutional (I)**: Institutional/organizational significance (0 = individual craft, 1 = civilization-scale system)
+- **Comptroller (C)**: Economic/administrative significance (0 = no economic function, 1 = primary economic/accounting tool)
+
+**G (Geometry) is NOT a driver value** — it is the categorical element assignment (circle, triangle, spiral, etc.) and determines the node's COLOR, not its position.
+
+---
+
+## 3D Coordinate System
+
+### Axis Mapping
+
+```
+X-axis = TIME
+  - Runs left (ancient) → right (modern)
+  - Range: ~8000 BCE → 500 CE (adjustable)
+  - Scale: logarithmic compression for deep time, 
+    linear for dense periods (3500-1500 BCE)
+
+Y-axis = INSTITUTIONAL + COMPTROLLER composite
+  - These are the "civilization infrastructure" drivers
+  - Y = (Institutional × weight) + (Comptroller × weight)
+  - High Y = high organizational/economic significance
+  - Low Y = individual/craft/non-institutional
+
+Z-axis = MATH + AESTHETIC composite  
+  - These are the "human expression" drivers
+  - Z = (Math × weight) + (Aesthetic × weight)
+  - High Z = high mathematical or artistic significance
+  - Low Z = purely functional, no expressive dimension
+```
+
+### Why This Pairing
+
+The Y/Z split creates a meaningful 2D cross-section at any time slice:
+
+- **High Y, High Z** = Institutional + Expressive (ziggurats, palace reliefs)
+- **High Y, Low Z** = Institutional + Functional (ration bowls, accounting tokens)
+- **Low Y, High Z** = Individual + Expressive (decorative pottery, personal seals)
+- **Low Y, Low Z** = Individual + Functional (hand tools, simple vessels)
+
+The central G axis runs through the midpoint — geometry is always present, it's the *distribution* of the other forces that positions each node.
+
+### The Central Spine
+
+The G axis is visualized as a **glowing vertical line or tube** running along X at Y=0.5, Z=0.5 (the center of the MAGIC space). It represents pure geometry — the constant through all development. Nodes orbit around it at distances determined by their driver values.
+
+---
+
+## Visual Design
+
+### Node Rendering
+
+Each node is a **sphere** (or icosahedron for variety) with:
+
+- **Color** = Geometric element assignment:
+  - Circle (Shamash) → Gold/Amber `#F5A623`
+  - 8-Pointed Star (Ishtar) → Deep Rose `#C62368`
+  - Triangle (Enlil) → Storm Blue `#2B6CC4`
+  - Square (Nabu) → Scribe Green `#2D8659`
+  - Spiral (Tiamat) → Deep Ocean `#1A3A5C`
+  - Arc (Anu) → Sky/Heaven `#7CB9E8`
+  - Hexagon (Nisaba) → Grain Gold `#DAA520`
+  - Pyramid (Marduk) → Royal Purple `#6A0DAD`
+
+- **Size** = sum of all MAGIC driver values (total significance)
+- **Opacity** = confidence level (well-attested = solid, speculative = translucent)
+- **Glow/emissive** = on hover or selection
+
+### Connections
+
+Connections between related nodes rendered as **curved lines** (CatmullRomCurve3 or QuadraticBezier):
+
+- Color: white at 30% opacity
+- On hover of either connected node: brighten to 80%
+- Line thickness: 1px default, 2px on highlight
+
+### Background and Atmosphere
+
+- Dark background: near-black with subtle blue undertone `#0A0E1A`
+- Subtle grid on the X-Y plane (ground plane) with very low opacity
+- Star-field particle system in deep background (optional, adds depth)
+- Fog/distance fade for depth perception
+
+### Time Axis Labels
+
+- Major era labels floating along X axis: "Ubaid", "Uruk", "Early Dynastic", "Akkadian", "Ur III", "Old Babylonian", etc.
+- Year markers at key intervals
+- Use drei's `<Text>` or `<Html>` for labels
+
+---
+
+## UI Components (2D Overlay)
+
+### Filter Panel (Left sidebar)
+
+```
+┌─────────────────────────┐
+│ FILTERS                 │
+│                         │
+│ Geometric Element       │
+│ ☑ Circle    ☑ Triangle  │
+│ ☑ Star      ☑ Square    │
+│ ☑ Spiral    ☑ Arc       │
+│ ☑ Hexagon   ☑ Pyramid   │
+│                         │
+│ MAGIC Drivers           │
+│ M ──●────────── [0-1]   │
+│ A ──●────────── [0-1]   │
+│ I ──●────────── [0-1]   │
+│ C ──●────────── [0-1]   │
+│                         │
+│ Time Range              │
+│ ├──●──────────●──┤      │
+│ 8000 BCE    500 CE      │
+│                         │
+│ Era Quick-Select        │
+│ [Ubaid] [Uruk] [ED]     │
+│ [Akkad] [UrIII] [OB]   │
+└─────────────────────────┘
+```
+
+### Detail Panel (Right sidebar, appears on node click)
+
+```
+┌─────────────────────────┐
+│ ✕                       │
+│ ┌─────────────────────┐ │
+│ │                     │ │
+│ │   [Artifact Image]  │ │
+│ │                     │ │
+│ └─────────────────────┘ │
+│                         │
+│ Beveled-Rim Bowl        │
+│ c. 3500 BCE · Uruk      │
+│                         │
+│ Element: Circle (Shamash)│
+│                         │
+│ MAGIC Profile:          │
+│ M ██░░░░░░░░ 0.3       │
+│ A █████░░░░░ 0.5       │
+│ I █████████░ 0.9       │
+│ C ███████░░░ 0.7       │
+│                         │
+│ Standardized mold-made  │
+│ bowls found across Uruk │
+│ expansion sites...      │
+│                         │
+│ Connected to:           │
+│ → Potter's Wheel        │
+│ → Ceramic Kiln          │
+│                         │
+│ [Send to Image Pipeline]│
+└─────────────────────────┘
+```
+
+### Camera Controls
+
+- **OrbitControls** from drei: rotate, zoom, pan
+- **Keyboard shortcuts**:
+  - `R` = reset camera to default position
+  - `T` = toggle top-down view (time × Y, flattening Z)
+  - `S` = toggle side view (time × Z, flattening Y)
+  - `F` = fly to selected node
+  - `C` = toggle connections visibility
+
+---
+
+## Component Structure
+
+```
+src/
+├── App.jsx                    # Main layout: 3D canvas + UI panels
+├── main.jsx                   # Entry point
+│
+├── components/
+│   ├── Scene.jsx              # R3F Canvas wrapper, lights, controls
+│   ├── GECDNode.jsx           # Single 3D node (sphere + interaction)
+│   ├── NodeCloud.jsx          # Maps data → GECDNode instances
+│   ├── ConnectionLines.jsx    # Renders edges between connected nodes
+│   ├── TimeAxis.jsx           # X-axis labels, era markers, grid
+│   ├── CentralSpine.jsx       # The G axis visualization
+│   ├── Background.jsx         # Starfield, fog, atmosphere
+│   │
+│   ├── ui/
+│   │   ├── FilterPanel.jsx    # Left sidebar filters
+│   │   ├── DetailPanel.jsx    # Right sidebar node details
+│   │   ├── TimeSlider.jsx     # Time range filter
+│   │   ├── MagicSliders.jsx   # MAGIC driver threshold sliders
+│   │   └── Legend.jsx         # Color legend for elements
+│   │
+│   └── hooks/
+│       ├── useGECDStore.js    # Zustand store (nodes, filters, selection)
+│       ├── useNodePositions.js # Computes 3D positions from data
+│       └── useTimeScale.js    # Time → X coordinate mapping
+│
+├── data/
+│   ├── nodes.json             # All GECD nodes
+│   ├── eras.json              # Historical era definitions
+│   └── elements.json          # Element → color/deity mapping
+│
+└── utils/
+    ├── coordinates.js         # MAGIC values → Y,Z position math
+    ├── timeScale.js           # BCE/CE → X position conversion
+    └── colors.js              # Element color constants
+```
+
+---
+
+## Key Implementation Details
+
+### Position Calculation (coordinates.js)
+
+```javascript
+// Convert MAGIC driver values to 3D position
+export function magicToPosition(node, timeScale) {
+  const { date_bce, date_ce, magic_drivers } = node;
+  const { math, aesthetic, institutional, comptroller } = magic_drivers;
+  
+  // X = time (use timeScale function for log/linear hybrid)
+  const x = timeScale(date_bce ? -date_bce : date_ce);
+  
+  // Y = Institutional-Comptroller axis
+  // Weighted: institutional is primary, comptroller modulates
+  const y = (institutional * 0.6 + comptroller * 0.4) * SPACE_SCALE;
+  
+  // Z = Math-Aesthetic axis  
+  // Weighted: neither dominates
+  const z = (math * 0.5 + aesthetic * 0.5) * SPACE_SCALE;
+  
+  return [x, y, z];
+}
+
+const SPACE_SCALE = 10; // World units for the Y/Z spread
+```
+
+### Time Scale (timeScale.js)
+
+```javascript
+// Hybrid log-linear scale for archaeological time
+// Dense period (3500-1500 BCE) gets more space
+export function createTimeScale(minYear, maxYear, worldWidth) {
+  return function(year) {
+    // Normalize to 0-1 range
+    const t = (year - minYear) / (maxYear - minYear);
+    // Apply slight log compression for deep time
+    const compressed = Math.sign(t - 0.5) * 
+      Math.pow(Math.abs(t - 0.5) * 2, 0.8) / 2 + 0.5;
+    return (compressed - 0.5) * worldWidth;
+  };
+}
+```
+
+### GECDNode Component (simplified)
+
+```jsx
+function GECDNode({ node, position, color, isSelected, onSelect }) {
+  const meshRef = useRef();
+  const [hovered, setHovered] = useState(false);
+  
+  const size = useMemo(() => {
+    const { math, aesthetic, institutional, comptroller } = node.magic_drivers;
+    return 0.1 + (math + aesthetic + institutional + comptroller) * 0.1;
+  }, [node]);
+
+  return (
+    <mesh
+      ref={meshRef}
+      position={position}
+      onClick={() => onSelect(node.id)}
+      onPointerOver={() => setHovered(true)}
+      onPointerOut={() => setHovered(false)}
+      scale={hovered ? 1.3 : 1}
+    >
+      <icosahedronGeometry args={[size, 2]} />
+      <meshStandardMaterial
+        color={color}
+        emissive={color}
+        emissiveIntensity={hovered || isSelected ? 0.5 : 0.1}
+        transparent
+        opacity={node.confidence || 1}
+      />
+      {hovered && (
+        <Html distanceFactor={15}>
+          <div className="tooltip">{node.name}<br/>{node.date_display}</div>
+        </Html>
+      )}
+    </mesh>
+  );
+}
+```
+
+---
+
+## Zustand Store
+
+```javascript
+import { create } from 'zustand';
+
+const useGECDStore = create((set, get) => ({
+  // Data
+  nodes: [],
+  connections: [],
+  
+  // Filters
+  filters: {
+    elements: ['circle','star','triangle','square','spiral','arc','hexagon','pyramid'],
+    timeRange: [-8000, 500],
+    magicThresholds: { math: 0, aesthetic: 0, institutional: 0, comptroller: 0 },
+  },
+  
+  // Selection
+  selectedNodeId: null,
+  hoveredNodeId: null,
+  
+  // Camera presets
+  cameraPreset: 'default', // 'default' | 'top' | 'side' | 'front'
+  
+  // Actions
+  setNodes: (nodes) => set({ nodes }),
+  selectNode: (id) => set({ selectedNodeId: id }),
+  hoverNode: (id) => set({ hoveredNodeId: id }),
+  
+  setElementFilter: (elements) => set(s => ({ 
+    filters: { ...s.filters, elements } 
+  })),
+  
+  setTimeRange: (range) => set(s => ({ 
+    filters: { ...s.filters, timeRange: range } 
+  })),
+  
+  // Computed: filtered nodes
+  getFilteredNodes: () => {
+    const { nodes, filters } = get();
+    return nodes.filter(n => {
+      if (!filters.elements.includes(n.geometric_element)) return false;
+      const year = n.date_bce ? -n.date_bce : n.date_ce;
+      if (year < filters.timeRange[0] || year > filters.timeRange[1]) return false;
+      const m = n.magic_drivers;
+      if (m.math < filters.magicThresholds.math) return false;
+      if (m.aesthetic < filters.magicThresholds.aesthetic) return false;
+      if (m.institutional < filters.magicThresholds.institutional) return false;
+      if (m.comptroller < filters.magicThresholds.comptroller) return false;
+      return true;
+    });
+  },
+  
+  // Connection to image pipeline
+  sendToImagePipeline: (nodeId) => {
+    const node = get().nodes.find(n => n.id === nodeId);
+    if (node) {
+      // Hook into existing image pipeline
+      console.log('Sending to image pipeline:', node.image_prompt);
+      // TODO: connect to existing Replit image pipeline endpoint
+    }
+  },
+}));
+```
+
+---
+
+## Starter Data (nodes.json)
+
+```json
+[
+  {
+    "id": "node_brb_001",
+    "name": "Beveled-Rim Bowl",
+    "date_bce": 3500,
+    "date_display": "c. 3500 BCE",
+    "geometric_element": "circle",
+    "deity": "Shamash",
+    "magic_drivers": { "math": 0.3, "aesthetic": 0.2, "institutional": 0.9, "comptroller": 0.7 },
+    "description": "Standardized mold-made bowls. Evidence of institutional rationing at Uruk expansion scale.",
+    "provenance": "Uruk, southern Mesopotamia",
+    "civilization": "Sumerian / Uruk Period",
+    "intensification_category": "object_form",
+    "connections": ["node_potter_wheel_001"],
+    "tags": ["circle", "standardization", "institutional", "uruk"]
+  },
+  {
+    "id": "node_potter_wheel_001",
+    "name": "Potter's Wheel (Tournette)",
+    "date_bce": 4500,
+    "date_display": "c. 4500 BCE",
+    "geometric_element": "circle",
+    "deity": "Shamash",
+    "magic_drivers": { "math": 0.5, "aesthetic": 0.4, "institutional": 0.3, "comptroller": 0.2 },
+    "description": "Slow-wheel (tournette) for hand-building assistance. NOT fast wheel-throwing, which comes ~2000 BCE.",
+    "provenance": "Mesopotamia, widespread",
+    "civilization": "Ubaid Period",
+    "intensification_category": "functional_assembly",
+    "connections": ["node_brb_001", "node_fast_wheel_001"],
+    "tags": ["circle", "rotation", "craft", "tool"]
+  },
+  {
+    "id": "node_fast_wheel_001",
+    "name": "Fast Wheel-Throwing",
+    "date_bce": 2000,
+    "date_display": "c. 2000 BCE",
+    "geometric_element": "circle",
+    "deity": "Shamash",
+    "magic_drivers": { "math": 0.7, "aesthetic": 0.6, "institutional": 0.5, "comptroller": 0.6 },
+    "description": "True centrifugal wheel-throwing. Often misdated to 3500 BCE — corrected chronology places it here.",
+    "provenance": "Mesopotamia",
+    "civilization": "Isin-Larsa / Old Babylonian",
+    "intensification_category": "complex_designed_system",
+    "connections": ["node_potter_wheel_001"],
+    "tags": ["circle", "rotation", "centrifugal", "mastery"]
+  },
+  {
+    "id": "node_cylinder_seal_001",
+    "name": "Cylinder Seal",
+    "date_bce": 3500,
+    "date_display": "c. 3500 BCE",
+    "geometric_element": "circle",
+    "deity": "Shamash",
+    "magic_drivers": { "math": 0.4, "aesthetic": 0.9, "institutional": 0.8, "comptroller": 0.9 },
+    "description": "Carved cylinder rolled on clay to produce continuous relief. Simultaneously art, identity, and economic authentication.",
+    "provenance": "Uruk, Susa",
+    "civilization": "Sumerian / Uruk Period",
+    "intensification_category": "complex_designed_system",
+    "connections": ["node_brb_001"],
+    "tags": ["circle", "cylinder", "seal", "aesthetic", "comptroller"]
+  },
+  {
+    "id": "node_ziggurat_001",
+    "name": "Ziggurat of Ur",
+    "date_bce": 2100,
+    "date_display": "c. 2100 BCE",
+    "geometric_element": "pyramid",
+    "deity": "Marduk",
+    "magic_drivers": { "math": 0.8, "aesthetic": 0.9, "institutional": 1.0, "comptroller": 0.7 },
+    "description": "Monumental stepped pyramid. Peak institutional geometry — math, aesthetics, and state power converging.",
+    "provenance": "Ur, southern Iraq",
+    "civilization": "Ur III Dynasty",
+    "intensification_category": "complex_designed_system",
+    "connections": [],
+    "tags": ["pyramid", "monumental", "institutional", "ur-iii"]
+  },
+  {
+    "id": "node_ishtar_star_001",
+    "name": "Eight-Pointed Star of Ishtar",
+    "date_bce": 3000,
+    "date_display": "c. 3000 BCE",
+    "geometric_element": "star",
+    "deity": "Ishtar",
+    "magic_drivers": { "math": 0.6, "aesthetic": 0.9, "institutional": 0.7, "comptroller": 0.3 },
+    "description": "Iconographic symbol of Ishtar/Inanna. Geometric regularity encoding divine identity.",
+    "provenance": "Mesopotamia, widespread",
+    "civilization": "Early Dynastic",
+    "intensification_category": "composite_geometry",
+    "connections": [],
+    "tags": ["star", "eight-pointed", "deity", "symbol"]
+  },
+  {
+    "id": "node_transport_wheel_001",
+    "name": "Transport Wheel",
+    "date_bce": 3500,
+    "date_display": "c. 3500 BCE",
+    "geometric_element": "circle",
+    "deity": "Shamash",
+    "magic_drivers": { "math": 0.8, "aesthetic": 0.1, "institutional": 0.6, "comptroller": 0.8 },
+    "description": "Solid disc wheels on carts. Pure function — geometry serving logistics and trade.",
+    "provenance": "Mesopotamia / Eurasian steppe",
+    "civilization": "Uruk / Late Chalcolithic",
+    "intensification_category": "functional_assembly",
+    "connections": ["node_potter_wheel_001"],
+    "tags": ["circle", "wheel", "transport", "function"]
+  },
+  {
+    "id": "node_cuneiform_triangle_001",
+    "name": "Cuneiform Wedge",
+    "date_bce": 3200,
+    "date_display": "c. 3200 BCE",
+    "geometric_element": "triangle",
+    "deity": "Nabu",
+    "magic_drivers": { "math": 0.6, "aesthetic": 0.3, "institutional": 0.9, "comptroller": 0.9 },
+    "description": "Triangular reed impression on clay. The wedge — a geometric atom of written language.",
+    "provenance": "Uruk",
+    "civilization": "Late Uruk",
+    "intensification_category": "composite_geometry",
+    "connections": ["node_cylinder_seal_001"],
+    "tags": ["triangle", "writing", "wedge", "script"]
+  },
+  {
+    "id": "node_spiral_pottery_001",
+    "name": "Halaf Spiral Pottery",
+    "date_bce": 5500,
+    "date_display": "c. 5500 BCE",
+    "geometric_element": "spiral",
+    "deity": "Tiamat",
+    "magic_drivers": { "math": 0.3, "aesthetic": 0.9, "institutional": 0.2, "comptroller": 0.1 },
+    "description": "Exquisitely painted polychrome pottery with spiral motifs. Peak aesthetic expression, minimal institutional function.",
+    "provenance": "Tell Halaf, northern Mesopotamia",
+    "civilization": "Halaf Culture",
+    "intensification_category": "decoration",
+    "connections": [],
+    "tags": ["spiral", "pottery", "painted", "aesthetic", "halaf"]
+  },
+  {
+    "id": "node_plano_convex_001",
+    "name": "Plano-Convex Brick",
+    "date_bce": 2900,
+    "date_display": "c. 2900 BCE",
+    "geometric_element": "square",
+    "deity": "Nabu",
+    "magic_drivers": { "math": 0.4, "aesthetic": 0.2, "institutional": 0.7, "comptroller": 0.5 },
+    "description": "Standardized rectangular bricks with curved top. Modular geometry enabling monumental architecture.",
+    "provenance": "Southern Mesopotamia",
+    "civilization": "Early Dynastic",
+    "intensification_category": "object_form",
+    "connections": ["node_ziggurat_001"],
+    "tags": ["square", "rectangle", "brick", "modular", "architecture"]
+  }
+]
+```
+
+---
+
+## Integration Points
+
+### Existing Image Pipeline
+
+The Replit project already has an image pipeline. Connect it:
+
+```javascript
+// In your existing image pipeline module
+export async function requestImage(node) {
+  // Use node.image_prompt as the generation prompt
+  // Update node.image_url when complete
+  // Update node.image_status: 'pending' → 'generating' → 'complete'
+}
+
+// In DetailPanel.jsx
+const handleImageRequest = () => {
+  store.sendToImagePipeline(selectedNode.id);
+};
+```
+
+### Existing Timeline
+
+If you have partial timeline code, the key integration point is the **position calculation**. Replace any existing 2D positioning with the `magicToPosition()` function above. The 3D nodes should use the same data source as your existing timeline — just rendered in Three.js space instead of flat SVG/Canvas.
+
+### Research Ingestion
+
+When new research is ingested:
+1. Parse the research for artifact references
+2. Create a new GECD node object (or update existing)
+3. Assign MAGIC driver values (can be AI-assisted)
+4. Add to nodes.json / data store
+5. Node appears in 3D space automatically via React reactivity
+
+---
+
+## Build Order (Replit Agent Prompts)
+
+Use these as sequential prompts to Replit's AI agent:
+
+### Phase 1: Scaffold
+> "Create a React + Vite project with Three.js using @react-three/fiber and @react-three/drei. Set up a dark-themed 3D canvas with OrbitControls. Add a single glowing sphere in the center as a test. Use Tailwind for styling."
+
+### Phase 2: Data + Nodes
+> "Load GECD node data from a JSON file. For each node, render a colored icosahedron in 3D space. Position nodes using: X = time (date_bce converted to world coordinates), Y = (institutional × 0.6 + comptroller × 0.4) × 10, Z = (math × 0.5 + aesthetic × 0.5) × 10. Color each node by its geometric_element field using a color map. Add hover tooltip showing name and date."
+
+### Phase 3: Central Spine + Time Axis
+> "Add a glowing line along the X axis at Y=5, Z=5 representing the central geometry spine. Add text labels along the X axis for historical eras (Ubaid, Uruk, Early Dynastic, Akkadian, Ur III, Old Babylonian). Add a subtle grid on the X-Y plane."
+
+### Phase 4: Interactions
+> "When clicking a node, show a detail panel on the right side with the node's name, date, description, MAGIC driver bar charts, connected nodes list, and an artifact image placeholder. Add connection lines between nodes that share entries in their connections array. Lines should be subtle by default, bright when either endpoint is hovered."
+
+### Phase 5: Filters
+> "Add a left sidebar with: checkboxes to filter by geometric_element, range sliders for each MAGIC driver threshold, a time range slider, and era quick-select buttons. All filters should reactively update which nodes are visible in the 3D view."
+
+### Phase 6: Camera Presets
+> "Add keyboard shortcuts: R = reset camera, T = top-down view (looking down Y axis), S = side view (looking along Z axis), F = fly camera to selected node. Use smooth animation transitions between camera positions."
+
+### Phase 7: Image Pipeline Connection
+> "Connect the detail panel's image request button to the existing image pipeline. When clicked, send the node's image_prompt to the pipeline and update the node's image_status."
+
+---
+
+## Performance Notes
+
+- For < 100 nodes: no optimization needed
+- For 100-500 nodes: use InstancedMesh for identical geometries
+- For 500+: implement LOD (Level of Detail) — far nodes become points
+- Connection lines: use a single LineSegments geometry, not individual Line components
+- Use React.memo on GECDNode to prevent unnecessary re-renders
+
+---
+
+## Future Extensions
+
+- **GECD Differential**: Animate the dGECD/dt — show velocity of change between nodes over time as a heat gradient along the X axis
+- **Cross-civilization layer**: Add non-Mesopotamian GECD nodes from the 18-civilization research, color-coded by civilization
+- **Convergence detection**: Highlight moments where multiple geometric elements cluster in time AND MAGIC-space (potential convergence moments)
+- **VR mode**: Three.js supports WebXR — the same scene can be viewed in VR headset
+- **Supabase sync**: Replace JSON with real-time database, enabling collaborative annotation
