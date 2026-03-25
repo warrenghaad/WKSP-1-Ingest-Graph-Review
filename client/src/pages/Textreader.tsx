@@ -3,8 +3,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "../lib/queryClient";
 import { Link } from "wouter";
 
-type ConceptState = "draft" | "parsed" | "query_ready" | "searching" | "candidates_ready" | "selected" | "ai_prompt_ready" | "ready_for_handoff" | "sent_to_backend" | "error";
+type ConceptState =
+  | "draft" | "parsed" | "query_ready" | "searching"
+  | "candidates_ready" | "selected" | "ai_prompt_ready"
+  | "ready_for_handoff" | "sent_to_backend" | "error";
 type SourceMode = "open_web_fast" | "museum_context" | "ai_reconstruction" | "hybrid";
+type AIStyle = "museum_photograph" | "reconstruction" | "diagram" | "illustration";
 
 interface ConceptCard {
   id: number; sessionId: number; conceptId: string; label: string;
@@ -20,23 +24,22 @@ interface Candidate {
   accuracyStatus: string; approved: string;
 }
 
-interface Session {
-  id: number; title: string; rawText: string; citation: string | null;
-  sourceUrl: string | null; grade: number | null; week: number | null;
-  sectionId: string | null; sourceMode: string;
-}
-
 interface QuickResult {
   url: string; title: string; source: string;
   objectUrl?: string; date?: string; culture?: string; medium?: string;
 }
 
 const STATE_COLORS: Record<string, string> = {
-  draft: "bg-gray-100 text-gray-600", parsed: "bg-blue-100 text-blue-700",
-  query_ready: "bg-indigo-100 text-indigo-700", searching: "bg-yellow-100 text-yellow-700",
-  candidates_ready: "bg-emerald-100 text-emerald-700", selected: "bg-teal-100 text-teal-700",
-  ai_prompt_ready: "bg-purple-100 text-purple-700", ready_for_handoff: "bg-amber-100 text-amber-800",
-  sent_to_backend: "bg-green-100 text-green-800", error: "bg-red-100 text-red-700",
+  draft: "bg-gray-100 text-gray-600",
+  parsed: "bg-blue-100 text-blue-700",
+  query_ready: "bg-indigo-100 text-indigo-700",
+  searching: "bg-yellow-100 text-yellow-700",
+  candidates_ready: "bg-emerald-100 text-emerald-700",
+  selected: "bg-teal-100 text-teal-700",
+  ai_prompt_ready: "bg-purple-100 text-purple-700",
+  ready_for_handoff: "bg-amber-100 text-amber-800",
+  sent_to_backend: "bg-green-100 text-green-800",
+  error: "bg-red-100 text-red-700",
 };
 
 const PRIORITY_COLORS: Record<string, string> = {
@@ -71,6 +74,15 @@ const SOURCE_COLORS: Record<string, string> = {
   "Smithsonian Institution": "bg-amber-50 text-amber-700",
 };
 
+const NEXT_STATE: Partial<Record<ConceptState, ConceptState>> = {
+  draft: "parsed",
+  parsed: "query_ready",
+  query_ready: "searching",
+  candidates_ready: "selected",
+  selected: "ai_prompt_ready",
+  ai_prompt_ready: "ready_for_handoff",
+};
+
 export default function Textreader() {
   const queryClient = useQueryClient();
   const [sessionId, setSessionId] = useState<number | null>(null);
@@ -91,6 +103,15 @@ export default function Textreader() {
   const [quickResults, setQuickResults] = useState<QuickResult[]>([]);
   const [quickSearching, setQuickSearching] = useState(false);
   const [quickManualQuery, setQuickManualQuery] = useState("");
+
+  const [editingQueries, setEditingQueries] = useState(false);
+  const [draftQueries, setDraftQueries] = useState<string[]>([]);
+  const [editingPrompts, setEditingPrompts] = useState(false);
+  const [draftPrompts, setDraftPrompts] = useState<string[]>([]);
+  const [aiStyle, setAiStyle] = useState<AIStyle>("museum_photograph");
+  const [customAiPrompt, setCustomAiPrompt] = useState("");
+  const [generatingAI, setGeneratingAI] = useState(false);
+
   const readingPaneRef = useRef<HTMLDivElement>(null);
   const bubbleRef = useRef<HTMLDivElement>(null);
 
@@ -135,9 +156,7 @@ export default function Textreader() {
 
   const extractMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/textreader/extract", {
-        sessionId, text: rawText, maxConcepts: 8,
-      });
+      const res = await apiRequest("POST", "/api/textreader/extract", { sessionId, text: rawText, maxConcepts: 8 });
       return res.json();
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["session", sessionId] }); },
@@ -154,6 +173,14 @@ export default function Textreader() {
     },
   });
 
+  const generateQueriesMutation = useMutation({
+    mutationFn: async (conceptId: number) => {
+      const res = await apiRequest("POST", `/api/textreader/concepts/${conceptId}/generate-queries`, {});
+      return res.json();
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["session", sessionId] }); },
+  });
+
   const updateConcept = useMutation({
     mutationFn: async ({ id, updates }: { id: number; updates: Record<string, unknown> }) => {
       const res = await apiRequest("PATCH", `/api/textreader/concepts/${id}`, updates);
@@ -167,8 +194,14 @@ export default function Textreader() {
       const res = await apiRequest("PATCH", `/api/textreader/candidates/${id}`, updates);
       return res.json();
     },
-    onSuccess: () => {
-      if (selectedConceptId) queryClient.invalidateQueries({ queryKey: ["candidates", selectedConceptId] });
+    onSuccess: async (_, { id: _id, updates }) => {
+      if (selectedConceptId) {
+        queryClient.invalidateQueries({ queryKey: ["candidates", selectedConceptId] });
+        if (updates.approved === "approved") {
+          await apiRequest("PATCH", `/api/textreader/concepts/${selectedConceptId}`, { state: "selected" });
+          queryClient.invalidateQueries({ queryKey: ["session", sessionId] });
+        }
+      }
     },
   });
 
@@ -218,6 +251,35 @@ export default function Textreader() {
     }
   }, []);
 
+  const generateAIImage = useCallback(async (conceptId: number) => {
+    setGeneratingAI(true);
+    try {
+      const res = await apiRequest("POST", `/api/textreader/concepts/${conceptId}/generate-image`, {
+        prompt: customAiPrompt || undefined,
+        style: aiStyle,
+      });
+      const data = await res.json();
+      if (data.candidate) {
+        queryClient.invalidateQueries({ queryKey: ["candidates", conceptId] });
+        queryClient.invalidateQueries({ queryKey: ["session", sessionId] });
+      }
+    } catch (err) {
+      console.error("AI image generation failed:", err);
+    } finally {
+      setGeneratingAI(false);
+    }
+  }, [customAiPrompt, aiStyle, sessionId]);
+
+  const saveQueryEdits = useCallback(async (conceptId: number) => {
+    await updateConcept.mutateAsync({ id: conceptId, updates: { searchQueries: draftQueries.filter(Boolean) } });
+    setEditingQueries(false);
+  }, [draftQueries]);
+
+  const savePromptEdits = useCallback(async (conceptId: number) => {
+    await updateConcept.mutateAsync({ id: conceptId, updates: { aiPrompts: draftPrompts.filter(Boolean) } });
+    setEditingPrompts(false);
+  }, [draftPrompts]);
+
   const handleTextSelect = useCallback(() => {
     const sel = window.getSelection();
     if (!sel || sel.isCollapsed) { setSelectionBubble(null); return; }
@@ -236,13 +298,21 @@ export default function Textreader() {
 
   useEffect(() => {
     const dismiss = (e: MouseEvent) => {
-      if (bubbleRef.current && !bubbleRef.current.contains(e.target as Node)) {
-        setSelectionBubble(null);
-      }
+      if (bubbleRef.current && !bubbleRef.current.contains(e.target as Node)) setSelectionBubble(null);
     };
     document.addEventListener("mousedown", dismiss);
     return () => document.removeEventListener("mousedown", dismiss);
   }, []);
+
+  useEffect(() => {
+    if (selectedConcept) {
+      setDraftQueries(selectedConcept.searchQueries || []);
+      setDraftPrompts(selectedConcept.aiPrompts || []);
+      setEditingQueries(false);
+      setEditingPrompts(false);
+      setCustomAiPrompt("");
+    }
+  }, [selectedConceptId]);
 
   const readyConcepts = concepts.filter(c => c.state === "ready_for_handoff");
   const showQuickPanel = quickSearching || quickResults.length > 0 || quickQuery;
@@ -304,7 +374,7 @@ export default function Textreader() {
         <div className="w-72 border-r border-gray-200 bg-white flex flex-col shrink-0 overflow-y-auto" data-testid="left-pane">
           <div className="p-3 space-y-3">
 
-            {/* Quick Image Search bar — always visible */}
+            {/* Quick Image Search */}
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-2.5">
               <p className="text-[10px] font-semibold text-amber-800 mb-1.5 uppercase tracking-wide">Find Images from Text</p>
               <div className="flex gap-1.5">
@@ -326,29 +396,23 @@ export default function Textreader() {
                 </button>
               </div>
               {readingMode && (
-                <p className="text-[10px] text-amber-600 mt-1.5">
-                  ✨ In reading mode — highlight any text to search
-                </p>
+                <p className="text-[10px] text-amber-600 mt-1.5">✨ Highlight text in reader to search</p>
               )}
             </div>
 
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Title</label>
-              <input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
+              <input value={title} onChange={(e) => setTitle(e.target.value)}
                 placeholder="Research excerpt title..."
                 className="w-full text-sm border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-400"
-                data-testid="input-title"
-              />
+                data-testid="input-title" />
             </div>
 
             {!readingMode && (
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">Raw Text</label>
                 <textarea
-                  value={rawText}
-                  onChange={(e) => setRawText(e.target.value)}
+                  value={rawText} onChange={(e) => setRawText(e.target.value)}
                   placeholder="Paste research text, lesson fragment, or brief..."
                   rows={12}
                   className="w-full text-sm border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-400 resize-none leading-relaxed"
@@ -360,39 +424,31 @@ export default function Textreader() {
 
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Citation</label>
-              <input value={citation} onChange={(e) => setCitation(e.target.value)}
-                placeholder="Source citation..."
+              <input value={citation} onChange={(e) => setCitation(e.target.value)} placeholder="Source citation..."
                 className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-400"
                 data-testid="input-citation" />
             </div>
 
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Source URL</label>
-              <input value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)}
-                placeholder="https://..."
+              <input value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} placeholder="https://..."
                 className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-400"
                 data-testid="input-source-url" />
             </div>
 
             <div className="grid grid-cols-3 gap-2">
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Grade</label>
-                <input value={grade} onChange={(e) => setGrade(e.target.value)} placeholder="3" type="number"
-                  className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-400"
-                  data-testid="input-grade" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Week</label>
-                <input value={week} onChange={(e) => setWeek(e.target.value)} placeholder="1" type="number"
-                  className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-400"
-                  data-testid="input-week" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Section</label>
-                <input value={sectionId} onChange={(e) => setSectionId(e.target.value)} placeholder="A1"
-                  className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-400"
-                  data-testid="input-section" />
-              </div>
+              {[
+                { label: "Grade", val: grade, set: setGrade, ph: "3", tid: "input-grade", type: "number" },
+                { label: "Week", val: week, set: setWeek, ph: "1", tid: "input-week", type: "number" },
+                { label: "Section", val: sectionId, set: setSectionId, ph: "A1", tid: "input-section", type: "text" },
+              ].map(({ label, val, set, ph, tid, type }) => (
+                <div key={tid}>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">{label}</label>
+                  <input value={val} onChange={(e) => set(e.target.value)} placeholder={ph} type={type}
+                    className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                    data-testid={tid} />
+                </div>
+              ))}
             </div>
 
             <button
@@ -406,34 +462,23 @@ export default function Textreader() {
           </div>
         </div>
 
-        {/* CENTER PANE — Reading Mode OR Concept Board */}
+        {/* CENTER PANE */}
         <div className="flex-1 overflow-y-auto" data-testid="center-pane">
-
           {readingMode && rawText.trim() ? (
             <div className="h-full flex flex-col">
               <div className="px-4 py-2 bg-amber-50 border-b border-amber-100 flex items-center gap-2 text-xs text-amber-700 shrink-0">
                 <span className="font-medium">Reading Mode</span>
                 <span className="text-amber-400">·</span>
-                <span>Select any text to search for images</span>
+                <span>Select any text to find images</span>
                 <span className="text-amber-400">·</span>
                 <span className="text-amber-500">{rawText.split(/\s+/).filter(Boolean).length} words</span>
               </div>
-              <div
-                ref={readingPaneRef}
-                className="flex-1 overflow-y-auto p-8 max-w-3xl mx-auto w-full"
-                data-testid="reading-pane"
-              >
-                <h2 className="text-xl font-serif text-gray-900 mb-4 leading-tight">
-                  {title || "Untitled"}
-                </h2>
-                {citation && (
-                  <p className="text-xs text-gray-400 italic mb-6">— {citation}</p>
-                )}
+              <div ref={readingPaneRef} className="flex-1 overflow-y-auto p-8 max-w-3xl mx-auto w-full" data-testid="reading-pane">
+                <h2 className="text-xl font-serif text-gray-900 mb-4 leading-tight">{title || "Untitled"}</h2>
+                {citation && <p className="text-xs text-gray-400 italic mb-6">— {citation}</p>}
                 <div className="prose prose-sm max-w-none text-gray-800 leading-relaxed select-text">
                   {rawText.split(/\n+/).map((para, i) =>
-                    para.trim() ? (
-                      <p key={i} className="mb-4">{para}</p>
-                    ) : null
+                    para.trim() ? <p key={i} className="mb-4">{para}</p> : null
                   )}
                 </div>
                 <div className="mt-8 pt-4 border-t border-gray-100 text-xs text-gray-300 text-center">
@@ -448,11 +493,10 @@ export default function Textreader() {
                   <div className="text-center">
                     <div className="text-4xl mb-3">📜</div>
                     <p>Paste text in the left pane and click "Extract Concepts"</p>
-                    <p className="text-xs mt-1 text-gray-300">Or use Reading Mode to highlight and search</p>
+                    <p className="text-xs mt-1 text-gray-300">Or switch to Reading Mode to highlight and search</p>
                   </div>
                 </div>
               )}
-
               {extractMutation.isPending && (
                 <div className="flex items-center justify-center h-64 text-gray-500 text-sm">
                   <div className="text-center">
@@ -483,9 +527,11 @@ export default function Textreader() {
                         {concept.priority}
                       </span>
                     </div>
+
                     {concept.description && (
                       <p className="text-xs text-gray-500 mb-2 line-clamp-2">{concept.description}</p>
                     )}
+
                     <div className="flex flex-wrap gap-1 mb-2">
                       <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${STATE_COLORS[concept.state] || STATE_COLORS.draft}`}>
                         {concept.state.replace(/_/g, " ")}
@@ -495,41 +541,46 @@ export default function Textreader() {
                           {SOURCE_TYPE_BADGES[concept.sourceType].label}
                         </span>
                       )}
+                      {ACCURACY_BADGES[concept.accuracyStatus] && (
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded ${ACCURACY_BADGES[concept.accuracyStatus].color}`}>
+                          {ACCURACY_BADGES[concept.accuracyStatus].label}
+                        </span>
+                      )}
                     </div>
+
                     {concept.tags && concept.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
+                      <div className="flex flex-wrap gap-1 mb-2">
                         {concept.tags.slice(0, 4).map((tag, i) => (
                           <span key={i} className="text-[10px] px-1 py-0.5 bg-gray-100 text-gray-500 rounded">{tag}</span>
                         ))}
                         {concept.tags.length > 4 && <span className="text-[10px] text-gray-400">+{concept.tags.length - 4}</span>}
                       </div>
                     )}
-                    <div className="flex gap-1 mt-2 pt-2 border-t border-gray-100">
+
+                    <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-gray-100">
                       <button
                         onClick={(e) => { e.stopPropagation(); runQuickSearch(concept.label); }}
                         className="text-[10px] px-2 py-1 bg-amber-50 text-amber-700 rounded hover:bg-amber-100 font-medium"
                         data-testid={`button-find-images-${concept.conceptId}`}
-                      >
-                        🔍 Find Images
-                      </button>
+                      >🔍 Images</button>
                       {(concept.state === "parsed" || concept.state === "query_ready" || concept.state === "candidates_ready") && (
                         <button
                           onClick={(e) => { e.stopPropagation(); searchMutation.mutate(concept.id); }}
                           disabled={searchMutation.isPending}
                           className="text-[10px] px-2 py-1 bg-blue-50 text-blue-700 rounded hover:bg-blue-100 font-medium"
                           data-testid={`button-search-${concept.conceptId}`}
-                        >
-                          {searchMutation.isPending ? "..." : "Run Search"}
-                        </button>
+                        >{searchMutation.isPending ? "…" : "Search"}</button>
                       )}
                       {concept.state !== "ready_for_handoff" && concept.state !== "sent_to_backend" && (
                         <button
-                          onClick={(e) => { e.stopPropagation(); updateConcept.mutate({ id: concept.id, updates: { state: "ready_for_handoff" } }); }}
-                          className="text-[10px] px-2 py-1 bg-amber-50 text-amber-700 rounded hover:bg-amber-100 font-medium"
-                          data-testid={`button-ready-${concept.conceptId}`}
-                        >
-                          Ready
-                        </button>
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const next = NEXT_STATE[concept.state] || "ready_for_handoff";
+                            updateConcept.mutate({ id: concept.id, updates: { state: next } });
+                          }}
+                          className="text-[10px] px-2 py-1 bg-gray-50 text-gray-600 rounded hover:bg-gray-100 font-medium"
+                          data-testid={`button-advance-${concept.conceptId}`}
+                        >Advance →</button>
                       )}
                       {concept.state === "sent_to_backend" && (
                         <span className="text-[10px] text-green-600 font-medium">✓ Sent</span>
@@ -542,17 +593,17 @@ export default function Textreader() {
           )}
         </div>
 
-        {/* RIGHT PANE — Quick Image Results OR Concept Detail */}
+        {/* RIGHT PANE */}
         {(showQuickPanel || selectedConcept) && (
           <div className="w-80 border-l border-gray-200 bg-white flex flex-col shrink-0 overflow-hidden" data-testid="right-drawer">
 
+            {/* ── QUICK IMAGE RESULTS ── */}
             {showQuickPanel ? (
               <>
-                {/* Quick Image Results Header */}
-                <div className="p-3 border-b border-gray-100 bg-amber-50">
+                <div className="p-3 border-b border-gray-100 bg-amber-50 shrink-0">
                   <div className="flex items-center justify-between mb-1.5">
                     <h2 className="text-sm font-semibold text-amber-900">
-                      {quickSearching ? "Searching…" : `${quickResults.length} images found`}
+                      {quickSearching ? "Searching…" : `${quickResults.length} images`}
                     </h2>
                     <button
                       onClick={() => { setQuickQuery(""); setQuickResults([]); setQuickManualQuery(""); }}
@@ -560,171 +611,288 @@ export default function Textreader() {
                       data-testid="button-close-quick"
                     >✕</button>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-amber-700 italic truncate">"{quickQuery}"</span>
-                  </div>
-                  <div className="flex gap-1 mt-2">
+                  <p className="text-xs text-amber-700 italic truncate mb-2">"{quickQuery}"</p>
+                  <div className="flex gap-1">
                     <input
                       defaultValue={quickQuery}
                       key={quickQuery}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") runQuickSearch((e.target as HTMLInputElement).value);
-                      }}
+                      onKeyDown={(e) => e.key === "Enter" && runQuickSearch((e.target as HTMLInputElement).value)}
                       placeholder="Refine search..."
                       className="flex-1 text-xs border border-amber-200 rounded px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-amber-400"
                       data-testid="input-refine-search"
                     />
                     <button
-                      onClick={(e) => {
-                        const input = (e.currentTarget.previousSibling as HTMLInputElement);
-                        runQuickSearch(input.value);
-                      }}
+                      onClick={(e) => { const inp = e.currentTarget.previousSibling as HTMLInputElement; runQuickSearch(inp.value); }}
                       className="px-2 text-xs bg-amber-500 text-white rounded hover:bg-amber-600"
                     >Go</button>
                   </div>
                 </div>
 
-                {/* Results Grid */}
                 <div className="flex-1 overflow-y-auto p-2">
                   {quickSearching && (
-                    <div className="flex flex-col gap-2">
-                      {[...Array(6)].map((_, i) => (
+                    <div className="space-y-2">
+                      {[...Array(5)].map((_, i) => (
                         <div key={i} className="animate-pulse bg-gray-100 rounded aspect-video" />
                       ))}
                     </div>
                   )}
-
                   {!quickSearching && quickResults.length === 0 && quickQuery && (
                     <div className="text-center py-8 text-gray-400 text-xs">
                       <div className="text-2xl mb-2">🏛️</div>
-                      <p>No museum images found for this phrase.</p>
-                      <p className="mt-1">Try a broader search term.</p>
+                      <p>No museum images found.</p>
+                      <p className="mt-1">Try a broader term.</p>
                     </div>
                   )}
-
                   <div className="space-y-2">
                     {quickResults.map((result, i) => (
-                      <div
-                        key={i}
-                        className="rounded-lg border border-gray-200 overflow-hidden hover:border-amber-300 transition-colors group"
-                        data-testid={`quick-result-${i}`}
-                      >
+                      <div key={i} className="rounded-lg border border-gray-200 overflow-hidden hover:border-amber-300 transition-colors group" data-testid={`quick-result-${i}`}>
                         <div className="aspect-video bg-gray-100 relative overflow-hidden">
-                          <img
-                            src={result.url}
-                            alt={result.title}
+                          <img src={result.url} alt={result.title}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).style.display = "none";
-                            }}
-                          />
-                          <a
-                            href={result.objectUrl || result.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 rounded px-1.5 py-0.5 text-[9px] text-gray-700 font-medium"
-                          >
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                          <a href={result.objectUrl || result.url} target="_blank" rel="noreferrer"
+                            className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 rounded px-1.5 py-0.5 text-[9px] text-gray-700 font-medium">
                             View ↗
                           </a>
                         </div>
                         <div className="p-2">
-                          <p className="text-[11px] text-gray-800 font-medium leading-tight line-clamp-2 mb-1">
-                            {result.title}
-                          </p>
+                          <p className="text-[11px] text-gray-800 font-medium leading-tight line-clamp-2 mb-1">{result.title}</p>
                           <div className="flex items-center justify-between gap-1">
                             <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${SOURCE_COLORS[result.source] || "bg-gray-100 text-gray-600"}`}>
                               {result.source}
                             </span>
-                            {result.date && (
-                              <span className="text-[9px] text-gray-400">{result.date}</span>
-                            )}
+                            {result.date && <span className="text-[9px] text-gray-400">{result.date}</span>}
                           </div>
-                          {result.culture && (
-                            <p className="text-[9px] text-gray-400 mt-0.5 truncate">{result.culture}</p>
-                          )}
-                          {result.medium && (
-                            <p className="text-[9px] text-gray-300 truncate">{result.medium}</p>
-                          )}
+                          {result.culture && <p className="text-[9px] text-gray-400 mt-0.5 truncate">{result.culture}</p>}
+                          {result.medium && <p className="text-[9px] text-gray-300 truncate">{result.medium}</p>}
                         </div>
                       </div>
                     ))}
                   </div>
                 </div>
               </>
+
             ) : selectedConcept ? (
+              /* ── CONCEPT DETAIL DRAWER ── */
               <>
-                {/* Concept Detail */}
-                <div className="p-3 border-b border-gray-100">
+                <div className="p-3 border-b border-gray-100 shrink-0">
                   <div className="flex items-center justify-between mb-1">
                     <h2 className="text-sm font-semibold text-gray-900">{selectedConcept.label}</h2>
-                    <button onClick={() => setSelectedConceptId(null)} className="text-gray-400 hover:text-gray-600 text-sm" data-testid="button-close-drawer">✕</button>
+                    <button onClick={() => setSelectedConceptId(null)} className="text-gray-400 hover:text-gray-600" data-testid="button-close-drawer">✕</button>
                   </div>
-                  {selectedConcept.description && <p className="text-xs text-gray-500">{selectedConcept.description}</p>}
-                  <div className="flex gap-1 mt-2">
+                  {selectedConcept.description && <p className="text-xs text-gray-500 mb-2">{selectedConcept.description}</p>}
+                  <div className="flex flex-wrap gap-1">
                     <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${STATE_COLORS[selectedConcept.state]}`}>
                       {selectedConcept.state.replace(/_/g, " ")}
                     </span>
                     <span className="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded">{selectedConcept.visualType}</span>
+                    {ACCURACY_BADGES[selectedConcept.accuracyStatus] && (
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded ${ACCURACY_BADGES[selectedConcept.accuracyStatus].color}`}>
+                        {ACCURACY_BADGES[selectedConcept.accuracyStatus].label}
+                      </span>
+                    )}
                   </div>
-                  <button
-                    onClick={() => runQuickSearch(selectedConcept.label)}
-                    className="mt-2 w-full text-xs py-1.5 bg-amber-500 text-white rounded hover:bg-amber-600 font-medium"
-                    data-testid="button-find-images-drawer"
-                  >
-                    🔍 Find Images for "{selectedConcept.label}"
-                  </button>
+                  <div className="grid grid-cols-2 gap-1 mt-2">
+                    <button
+                      onClick={() => runQuickSearch(selectedConcept.label)}
+                      className="text-xs py-1.5 bg-amber-500 text-white rounded hover:bg-amber-600 font-medium"
+                      data-testid="button-find-images-drawer"
+                    >🔍 Find Images</button>
+                    <button
+                      onClick={() => { const next = NEXT_STATE[selectedConcept.state] || "ready_for_handoff"; updateConcept.mutate({ id: selectedConcept.id, updates: { state: next } }); }}
+                      disabled={selectedConcept.state === "ready_for_handoff" || selectedConcept.state === "sent_to_backend"}
+                      className="text-xs py-1.5 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 font-medium disabled:opacity-40"
+                      data-testid="button-advance-state"
+                    >Advance State →</button>
+                  </div>
                 </div>
 
                 <div className="flex-1 overflow-y-auto">
+                  {/* Search Queries */}
                   <div className="p-3 border-b border-gray-100">
-                    <h3 className="text-xs font-semibold text-gray-700 mb-2">Search Queries</h3>
-                    {selectedConcept.searchQueries?.length ? (
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-xs font-semibold text-gray-700">Search Queries</h3>
+                      <div className="flex gap-1">
+                        {!editingQueries ? (
+                          <>
+                            <button onClick={() => { setDraftQueries(selectedConcept.searchQueries || []); setEditingQueries(true); }}
+                              className="text-[9px] px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded hover:bg-gray-200"
+                              data-testid="button-edit-queries">Edit</button>
+                            <button onClick={() => generateQueriesMutation.mutate(selectedConcept.id)}
+                              disabled={generateQueriesMutation.isPending}
+                              className="text-[9px] px-1.5 py-0.5 bg-indigo-50 text-indigo-700 rounded hover:bg-indigo-100 disabled:opacity-50"
+                              data-testid="button-generate-queries">
+                              {generateQueriesMutation.isPending ? "…" : "Regenerate"}
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button onClick={() => saveQueryEdits(selectedConcept.id)}
+                              className="text-[9px] px-1.5 py-0.5 bg-green-500 text-white rounded hover:bg-green-600"
+                              data-testid="button-save-queries">Save</button>
+                            <button onClick={() => setEditingQueries(false)}
+                              className="text-[9px] px-1.5 py-0.5 bg-gray-200 text-gray-600 rounded hover:bg-gray-300">Cancel</button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {editingQueries ? (
+                      <div className="space-y-1.5">
+                        {draftQueries.map((q, i) => (
+                          <div key={i} className="flex gap-1">
+                            <input value={q} onChange={(e) => { const n = [...draftQueries]; n[i] = e.target.value; setDraftQueries(n); }}
+                              className="flex-1 text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                              data-testid={`query-edit-${i}`} />
+                            <button onClick={() => setDraftQueries(draftQueries.filter((_, j) => j !== i))}
+                              className="text-[9px] px-1 text-red-400 hover:text-red-600">✕</button>
+                          </div>
+                        ))}
+                        <button onClick={() => setDraftQueries([...draftQueries, ""])}
+                          className="text-[9px] px-2 py-1 w-full border border-dashed border-gray-300 text-gray-500 rounded hover:border-indigo-400 hover:text-indigo-600"
+                          data-testid="button-add-query">+ Add query</button>
+                      </div>
+                    ) : selectedConcept.searchQueries?.length ? (
                       <div className="space-y-1">
                         {selectedConcept.searchQueries.map((q, i) => (
-                          <div
-                            key={i}
-                            onClick={() => runQuickSearch(q)}
+                          <div key={i} onClick={() => runQuickSearch(q)}
                             className="text-xs text-gray-600 bg-gray-50 hover:bg-amber-50 hover:text-amber-700 rounded px-2 py-1.5 flex items-start gap-1 cursor-pointer transition-colors"
-                            data-testid={`query-item-${i}`}
-                          >
+                            data-testid={`query-item-${i}`}>
                             <span className="text-gray-400 shrink-0">{i + 1}.</span>
                             <span className="break-words">{q}</span>
                           </div>
                         ))}
                       </div>
-                    ) : <p className="text-xs text-gray-400 italic">No queries generated yet</p>}
-                    <button
-                      onClick={() => searchMutation.mutate(selectedConcept.id)}
+                    ) : <p className="text-xs text-gray-400 italic">No queries yet — click Regenerate</p>}
+
+                    <button onClick={() => searchMutation.mutate(selectedConcept.id)}
                       disabled={searchMutation.isPending}
                       className="mt-2 w-full text-xs py-1.5 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 font-medium"
-                      data-testid="button-run-search-drawer"
-                    >
+                      data-testid="button-run-search-drawer">
                       {searchMutation.isPending ? "Searching..." : "Run Full Search"}
                     </button>
                   </div>
 
+                  {/* AI Prompt Pack */}
                   <div className="p-3 border-b border-gray-100">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-xs font-semibold text-gray-700">AI Image Prompts</h3>
+                      <div className="flex gap-1">
+                        {!editingPrompts ? (
+                          <button onClick={() => { setDraftPrompts(selectedConcept.aiPrompts || []); setEditingPrompts(true); }}
+                            className="text-[9px] px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded hover:bg-gray-200"
+                            data-testid="button-edit-prompts">Edit</button>
+                        ) : (
+                          <>
+                            <button onClick={() => savePromptEdits(selectedConcept.id)}
+                              className="text-[9px] px-1.5 py-0.5 bg-green-500 text-white rounded hover:bg-green-600"
+                              data-testid="button-save-prompts">Save</button>
+                            <button onClick={() => setEditingPrompts(false)}
+                              className="text-[9px] px-1.5 py-0.5 bg-gray-200 text-gray-600 rounded hover:bg-gray-300">Cancel</button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {editingPrompts ? (
+                      <div className="space-y-1.5">
+                        {draftPrompts.map((p, i) => (
+                          <div key={i} className="flex gap-1">
+                            <textarea value={p} onChange={(e) => { const n = [...draftPrompts]; n[i] = e.target.value; setDraftPrompts(n); }}
+                              rows={2}
+                              className="flex-1 text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-purple-400 resize-none"
+                              data-testid={`prompt-edit-${i}`} />
+                            <button onClick={() => setDraftPrompts(draftPrompts.filter((_, j) => j !== i))}
+                              className="text-[9px] px-1 text-red-400 hover:text-red-600">✕</button>
+                          </div>
+                        ))}
+                        <button onClick={() => setDraftPrompts([...draftPrompts, ""])}
+                          className="text-[9px] px-2 py-1 w-full border border-dashed border-gray-300 text-gray-500 rounded hover:border-purple-400 hover:text-purple-600"
+                          data-testid="button-add-prompt">+ Add prompt</button>
+                      </div>
+                    ) : selectedConcept.aiPrompts?.length ? (
+                      <div className="space-y-1">
+                        {selectedConcept.aiPrompts.map((p, i) => (
+                          <div key={i} onClick={() => setCustomAiPrompt(p)}
+                            className="text-xs text-gray-600 bg-purple-50 hover:bg-purple-100 rounded px-2 py-1.5 cursor-pointer transition-colors"
+                            data-testid={`prompt-item-${i}`}>{p}</div>
+                        ))}
+                      </div>
+                    ) : <p className="text-xs text-gray-400 italic">No prompts yet</p>}
+
+                    {/* AI Generate control */}
+                    <div className="mt-2 space-y-1.5 pt-2 border-t border-gray-100">
+                      <textarea
+                        value={customAiPrompt}
+                        onChange={(e) => setCustomAiPrompt(e.target.value)}
+                        placeholder={selectedConcept.aiPrompts?.[0] || "Custom AI image prompt…"}
+                        rows={2}
+                        className="w-full text-xs border border-purple-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-purple-400 resize-none bg-purple-50/50"
+                        data-testid="input-ai-prompt"
+                      />
+                      <div className="flex gap-1.5 items-center">
+                        <select value={aiStyle} onChange={(e) => setAiStyle(e.target.value as AIStyle)}
+                          className="flex-1 text-xs border border-gray-200 rounded px-1.5 py-1 bg-white"
+                          data-testid="select-ai-style">
+                          <option value="museum_photograph">Museum Photo</option>
+                          <option value="reconstruction">Reconstruction</option>
+                          <option value="diagram">Diagram</option>
+                          <option value="illustration">Illustration</option>
+                        </select>
+                        <button
+                          onClick={() => generateAIImage(selectedConcept.id)}
+                          disabled={generatingAI}
+                          className="flex-1 text-xs py-1 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50 font-medium"
+                          data-testid="button-generate-ai-image"
+                        >
+                          {generatingAI ? "Generating…" : "✨ Generate AI"}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Candidates */}
+                  <div className="p-3">
                     <h3 className="text-xs font-semibold text-gray-700 mb-2">Candidates ({candidates.length})</h3>
                     {candidatesQuery.isLoading ? (
                       <p className="text-xs text-gray-400">Loading...</p>
                     ) : candidates.length === 0 ? (
-                      <p className="text-xs text-gray-400 italic">Run search to find candidates</p>
+                      <p className="text-xs text-gray-400 italic">Run search or generate AI image</p>
                     ) : (
                       <div className="grid grid-cols-2 gap-2">
                         {candidates.map((c) => (
-                          <div key={c.id} className={`rounded border overflow-hidden ${c.approved === "approved" ? "border-green-400 ring-1 ring-green-200" : c.approved === "rejected" ? "border-red-300 opacity-50" : "border-gray-200"}`} data-testid={`candidate-${c.id}`}>
-                            <div className="aspect-square bg-gray-100">
-                              <img src={c.imageUrl} alt={c.title || ""} className="w-full h-full object-cover"
+                          <div key={c.id}
+                            className={`rounded border overflow-hidden ${c.approved === "approved" ? "border-green-400 ring-1 ring-green-200" : c.approved === "rejected" ? "border-red-300 opacity-50" : "border-gray-200"}`}
+                            data-testid={`candidate-${c.id}`}>
+                            <div className="aspect-square bg-gray-100 relative">
+                              <img src={c.imageUrl} alt={c.title || ""}
+                                className="w-full h-full object-cover"
                                 onError={(e) => { (e.target as HTMLImageElement).src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect width='100' height='100' fill='%23eee'/%3E%3Ctext x='50' y='55' text-anchor='middle' fill='%23999' font-size='10'%3ENo img%3C/text%3E%3C/svg%3E"; }} />
+                              <div className="absolute top-1 left-1 flex gap-0.5">
+                                {SOURCE_TYPE_BADGES[c.sourceType] && (
+                                  <span className={`text-[8px] px-1 py-0.5 rounded ${SOURCE_TYPE_BADGES[c.sourceType].color}`}>
+                                    {SOURCE_TYPE_BADGES[c.sourceType].label}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="absolute bottom-1 left-1">
+                                {ACCURACY_BADGES[c.accuracyStatus] && (
+                                  <span className={`text-[8px] px-1 py-0.5 rounded ${ACCURACY_BADGES[c.accuracyStatus].color}`}>
+                                    {ACCURACY_BADGES[c.accuracyStatus].label}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                             <div className="p-1.5">
                               <p className="text-[10px] text-gray-700 font-medium line-clamp-1">{c.title || "Untitled"}</p>
                               <p className="text-[9px] text-gray-400">{c.source || "?"}</p>
                               <div className="flex gap-1 mt-1">
-                                <button onClick={() => updateCandidate.mutate({ id: c.id, updates: { approved: "approved" } })}
+                                <button
+                                  onClick={() => updateCandidate.mutate({ id: c.id, updates: { approved: "approved", accuracyStatus: "historically_grounded" } })}
                                   className={`flex-1 text-[9px] py-0.5 rounded font-medium ${c.approved === "approved" ? "bg-green-500 text-white" : "bg-green-50 text-green-700 hover:bg-green-100"}`}
                                   data-testid={`button-approve-${c.id}`}>✓</button>
-                                <button onClick={() => updateCandidate.mutate({ id: c.id, updates: { approved: "rejected" } })}
+                                <button
+                                  onClick={() => updateCandidate.mutate({ id: c.id, updates: { approved: "rejected" } })}
                                   className={`flex-1 text-[9px] py-0.5 rounded font-medium ${c.approved === "rejected" ? "bg-red-500 text-white" : "bg-red-50 text-red-700 hover:bg-red-100"}`}
                                   data-testid={`button-reject-${c.id}`}>✕</button>
                               </div>
@@ -735,14 +903,20 @@ export default function Textreader() {
                     )}
                   </div>
 
+                  {/* Concept Actions */}
                   <div className="p-3 border-t border-gray-100">
                     {selectedConcept.state !== "ready_for_handoff" && selectedConcept.state !== "sent_to_backend" && (
-                      <button onClick={() => updateConcept.mutate({ id: selectedConcept.id, updates: { state: "ready_for_handoff" } })}
+                      <button
+                        onClick={() => updateConcept.mutate({ id: selectedConcept.id, updates: { state: "ready_for_handoff" } })}
                         className="w-full text-xs py-1.5 bg-amber-500 text-white rounded hover:bg-amber-600 font-medium"
                         data-testid="button-mark-ready">Mark Ready for Handoff</button>
                     )}
-                    {selectedConcept.state === "ready_for_handoff" && <div className="text-center text-xs text-amber-600 font-medium py-1.5">✓ Ready for handoff</div>}
-                    {selectedConcept.state === "sent_to_backend" && <div className="text-center text-xs text-green-600 font-medium py-1.5">✓ Sent to backend</div>}
+                    {selectedConcept.state === "ready_for_handoff" && (
+                      <div className="text-center text-xs text-amber-600 font-medium py-1.5">✓ Ready for handoff</div>
+                    )}
+                    {selectedConcept.state === "sent_to_backend" && (
+                      <div className="text-center text-xs text-green-600 font-medium py-1.5">✓ Sent to backend</div>
+                    )}
                   </div>
                 </div>
               </>
@@ -753,15 +927,8 @@ export default function Textreader() {
 
       {/* FLOATING SELECTION BUBBLE */}
       {selectionBubble && (
-        <div
-          ref={bubbleRef}
-          className="fixed z-50 pointer-events-auto"
-          style={{
-            left: selectionBubble.x,
-            top: selectionBubble.y - 48,
-            transform: "translateX(-50%)",
-          }}
-        >
+        <div ref={bubbleRef} className="fixed z-50 pointer-events-auto"
+          style={{ left: selectionBubble.x, top: selectionBubble.y - 48, transform: "translateX(-50%)" }}>
           <button
             onClick={() => runQuickSearch(selectionBubble.text)}
             className="flex items-center gap-2 px-3 py-2 bg-gray-900 text-white text-xs font-medium rounded-full shadow-xl border border-gray-700 hover:bg-amber-600 transition-colors whitespace-nowrap"

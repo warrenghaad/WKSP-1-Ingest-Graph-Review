@@ -455,6 +455,47 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/textreader/concepts/:id/generate-image", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+
+      const card = await storage.getConceptCard(id);
+      if (!card) return res.status(404).json({ error: "Concept not found" });
+
+      const { prompt, style = "museum_photograph" } = req.body;
+      const aiPrompt = prompt || (card.aiPrompts?.[0]) || card.label;
+
+      const result = await generateGeminiImage(
+        aiPrompt,
+        style as "museum_photograph" | "reconstruction" | "diagram" | "illustration"
+      );
+
+      if (!result) {
+        return res.status(502).json({ error: "AI image generation failed or key not configured" });
+      }
+
+      const candidate = await storage.createCandidate({
+        conceptCardId: id,
+        imageUrl: result.url,
+        title: `AI: ${aiPrompt.slice(0, 60)}`,
+        source: `Gemini ${result.model}`,
+        objectUrl: null,
+        sourceType: "ai_generated",
+        accuracyStatus: "plausible",
+        approved: "pending",
+        metadata: { prompt: aiPrompt, style, model: result.model },
+      });
+
+      await storage.updateConceptCard(id, { state: "candidates_ready" });
+
+      res.json({ candidate, prompt: aiPrompt });
+    } catch (error: unknown) {
+      console.error("Concept AI image generation error:", error);
+      res.status(500).json({ error: "Failed to generate AI image" });
+    }
+  });
+
   app.post("/api/textreader/handoff", async (req, res) => {
     try {
       const { sessionId } = req.body;
