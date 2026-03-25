@@ -1670,14 +1670,15 @@ Return JSON with:
 
   // ── GECD Ingest + Nodes ────────────────────────────────────────────────────
 
-  // POST /api/gecd/ingest — Claude extracts GECD nodes from text, stores in graph_nodes + rwi_needs
+  // POST /api/gecd/ingest — extracts GECD nodes from text via OpenAI, stores in graph_nodes + rwi_needs
   app.post("/api/gecd/ingest", async (req, res) => {
     try {
       const { text, context, grade, week, sectionId } = req.body;
       if (!text || text.trim().length < 20) return res.status(400).json({ error: "text required (min 20 chars)" });
 
-      const apiKey = process.env.anthropic;
-      if (!apiKey) return res.status(500).json({ error: "No Anthropic API key configured" });
+      const apiKey  = process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
+      const baseUrl = process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || "https://api.openai.com/v1";
+      if (!apiKey) return res.status(500).json({ error: "OpenAI integration not configured" });
 
       const SYSTEM = `You are a GECD (Geometric Element Civilization Development) research analyst specializing in ancient Mesopotamian history and the MAGIC framework (Math, Aesthetic, Geometry, Institutional, Comptroller).
 
@@ -1705,28 +1706,28 @@ Return a JSON array of GECD node objects. Each object must have:
 Only include nodes with clear geometric element evidence. Accuracy over quantity.
 Respond with ONLY a valid JSON array, no markdown, no explanation.`;
 
-      const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
+      const oaiRes = await fetch(`${baseUrl}/chat/completions`, {
         method: "POST",
-        headers: {
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
-          "content-type": "application/json",
-        },
+        headers: { "Authorization": `Bearer ${apiKey}`, "content-type": "application/json" },
         body: JSON.stringify({
-          model: "claude-opus-4-5",
+          model: "gpt-4o",
           max_tokens: 4096,
-          system: SYSTEM,
-          messages: [{ role: "user", content: `${context ? `Context: ${context}\n\n` : ""}Text to analyze:\n\n${text}` }],
+          response_format: { type: "json_object" },
+          messages: [
+            { role: "system", content: SYSTEM + "\n\nWrap the array in {\"nodes\":[...]} since JSON mode requires an object." },
+            { role: "user", content: `${context ? `Context: ${context}\n\n` : ""}Text to analyze:\n\n${text}` },
+          ],
         }),
       });
 
-      if (!claudeRes.ok) {
-        const err = await claudeRes.text();
-        return res.status(502).json({ error: `Claude API error: ${err.slice(0, 300)}` });
+      if (!oaiRes.ok) {
+        const err = await oaiRes.text();
+        return res.status(502).json({ error: `OpenAI API error: ${err.slice(0, 300)}` });
       }
 
-      const claudeData = await claudeRes.json() as any;
-      const raw = claudeData.content?.[0]?.text ?? "[]";
+      const oaiData = await oaiRes.json() as any;
+      const rawObj  = JSON.parse(oaiData.choices?.[0]?.message?.content ?? "{}");
+      const raw     = JSON.stringify(rawObj.nodes ?? rawObj);
 
       let extracted: any[];
       try {
