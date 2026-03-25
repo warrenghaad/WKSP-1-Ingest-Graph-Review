@@ -265,6 +265,149 @@ export async function searchCDLI(query: string, limit = 6): Promise<MuseumResult
   }
 }
 
+export async function searchGetty(query: string, limit = 6): Promise<MuseumResult[]> {
+  try {
+    const searchUrl =
+      `https://search.getty.edu/gateway/search?q=${encodeURIComponent(query)}` +
+      `&f=${encodeURIComponent('"Open Content Images"')}&rows=20&srt=a&dir=s&pg=1`;
+
+    const res = await fetch(searchUrl, {
+      headers: { "User-Agent": "Mozilla/5.0 (Educational Research) euclid-chronos" },
+    });
+    if (!res.ok) return [];
+    const html = await res.text();
+
+    const results: MuseumResult[] = [];
+    const re = /st_url="([^"]*recordIDs=[^"]+)"[^>]*st_title="([^"]+)"[^>]*st_image="([^"]+)"/g;
+    let match: RegExpExecArray | null;
+    while ((match = re.exec(html)) !== null && results.length < limit) {
+      const pageUrl = match[1].replace(/^http:\/\//i, "https://");
+      const title = match[2].trim();
+      const thumb = match[3].trim();
+      if (!thumb) continue;
+      results.push({
+        url: thumb.replace(/\/full\/!600,600\//, "/full/!2400,2400/"),
+        title,
+        source: "Getty Museum",
+        objectUrl: pageUrl,
+        license: "Open Content",
+      });
+    }
+    return results;
+  } catch (err) {
+    console.error("Getty search error:", err);
+    return [];
+  }
+}
+
+export async function searchAIC(query: string, limit = 6): Promise<MuseumResult[]> {
+  try {
+    const res = await fetch(
+      `https://api.artic.edu/api/v1/artworks/search?q=${encodeURIComponent(query)}&limit=${limit}&fields=id,title,image_id,is_public_domain,artist_title,date_display,place_of_origin,medium_display`
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    const iiif = data.config?.iiif_url || "https://www.artic.edu/iiif/2";
+    const items: any[] = data.data || [];
+
+    return items
+      .filter((item: any) => item.image_id && item.is_public_domain !== false)
+      .map((item: any) => ({
+        url: `${iiif}/${item.image_id}/full/843,/0/default.jpg`,
+        title: item.title || "Untitled",
+        source: "Art Institute of Chicago",
+        objectUrl: `https://www.artic.edu/artworks/${item.id}`,
+        date: item.date_display,
+        culture: item.place_of_origin,
+        medium: item.medium_display,
+        license: "CC0",
+      } as MuseumResult));
+  } catch (err) {
+    console.error("AIC API error:", err);
+    return [];
+  }
+}
+
+export async function searchCleveland(query: string, limit = 6): Promise<MuseumResult[]> {
+  try {
+    const res = await fetch(
+      `https://openaccess-api.clevelandart.org/api/artworks/?q=${encodeURIComponent(query)}&has_image=1&limit=${limit}`
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    const items: any[] = data.data || [];
+
+    return items
+      .filter((item: any) => item.images?.web?.url || item.images?.print?.url)
+      .map((item: any) => ({
+        url: item.images?.print?.url || item.images?.web?.url,
+        title: item.title || "Untitled",
+        source: "Cleveland Museum of Art",
+        objectUrl: item.url,
+        date: item.creation_date,
+        culture: item.culture,
+        medium: item.technique,
+        license: item.share_license_status || "CC0",
+      } as MuseumResult));
+  } catch (err) {
+    console.error("Cleveland API error:", err);
+    return [];
+  }
+}
+
+export async function searchPennMuseum(query: string, limit = 5): Promise<MuseumResult[]> {
+  try {
+    const res = await fetch(
+      `https://www.penn.museum/api/objects/search?q=${encodeURIComponent(query)}&has_image=true&per_page=${limit}`
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    const items: any[] = data.objects || [];
+
+    return items
+      .filter((item: any) => item.image_url)
+      .map((item: any) => ({
+        url: item.image_url,
+        title: item.object_name || "Untitled",
+        source: "Penn Museum",
+        objectUrl: `https://www.penn.museum/collections/object/${item.object_number}`,
+        date: item.period,
+        culture: item.culture,
+        medium: item.material,
+        license: "Educational Use",
+      } as MuseumResult));
+  } catch (err) {
+    console.error("Penn Museum API error:", err);
+    return [];
+  }
+}
+
+export async function searchLouvre(query: string, limit = 5): Promise<MuseumResult[]> {
+  try {
+    const res = await fetch(
+      `https://collections.louvre.fr/api/search?q=${encodeURIComponent(query)}&limit=${limit}`
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    const items: any[] = data.results || data.records || [];
+
+    return items
+      .filter((item: any) => item.image || item.thumbnail)
+      .map((item: any) => ({
+        url: item.image || item.thumbnail,
+        title: item.title || "Untitled",
+        source: "Louvre Museum",
+        objectUrl: item.url || `https://collections.louvre.fr/en/ark:/53355/${item.id}`,
+        date: item.period,
+        culture: item.department,
+        license: "Public Domain",
+      } as MuseumResult));
+  } catch (err) {
+    console.error("Louvre API error:", err);
+    return [];
+  }
+}
+
 export async function searchViaClaudeWebSearch(query: string): Promise<MuseumResult[]> {
   const apiKey = process.env.anthropic;
   if (!apiKey) return [];
@@ -387,7 +530,7 @@ JSON array:`,
 }
 
 export async function searchAllMuseums(query: string): Promise<MuseumResult[]> {
-  const [met, smithsonian, wikimedia, rijksmuseum, europeana, archive, cdli, claudeWeb] = await Promise.all([
+  const results = await Promise.all([
     searchMetMuseum(query, 6),
     searchSmithsonian(query, 5),
     searchWikimediaCommons(query, 5),
@@ -395,8 +538,13 @@ export async function searchAllMuseums(query: string): Promise<MuseumResult[]> {
     searchEuropeana(query, 5),
     searchInternetArchive(query, 4),
     searchCDLI(query, 4),
+    searchGetty(query, 5),
+    searchAIC(query, 5),
+    searchCleveland(query, 5),
+    searchPennMuseum(query, 4),
+    searchLouvre(query, 4),
     searchViaClaudeWebSearch(query),
   ]);
 
-  return [...met, ...smithsonian, ...wikimedia, ...rijksmuseum, ...europeana, ...archive, ...cdli, ...claudeWeb];
+  return results.flat();
 }

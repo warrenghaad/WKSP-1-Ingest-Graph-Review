@@ -4,6 +4,8 @@ import {
   users, savedImages, textreaderSessions, conceptCards, conceptCandidates,
   entities, assets, entityAssets, mentions, documents, docChunks, imagePrompts,
   visualRequirements, imageSearchJobs, imageCandidates, qcAssessments, docAssetLinks,
+  rwiNeeds, rwiImageCandidateSets, imageProviderCache, imageSearchLog,
+  imageQualityScores, imageReviewQueue, rwiImageApprovals, mediaAssets, graphNodes,
   type User, type InsertUser,
   type SavedImage, type InsertSavedImage,
   type TextreaderSession, type InsertTextreaderSession,
@@ -21,6 +23,15 @@ import {
   type ImageCandidate, type InsertImageCandidate,
   type QcAssessment, type InsertQcAssessment,
   type DocAssetLink, type InsertDocAssetLink,
+  type RwiNeed, type InsertRwiNeed,
+  type RwiImageCandidateSet, type InsertRwiImageCandidateSet,
+  type ImageProviderCache, type InsertImageProviderCache,
+  type ImageSearchLog, type InsertImageSearchLog,
+  type ImageQualityScore, type InsertImageQualityScore,
+  type ImageReviewQueue, type InsertImageReviewQueue,
+  type RwiImageApproval, type InsertRwiImageApproval,
+  type MediaAsset, type InsertMediaAsset,
+  type GraphNode, type InsertGraphNode,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -107,6 +118,39 @@ export interface IStorage {
     qcFailed: number;
     readyToSave: number;
   }>>;
+
+  // Storage Contract
+  createRwiNeed(need: InsertRwiNeed): Promise<RwiNeed>;
+  getRwiNeed(id: number): Promise<RwiNeed | undefined>;
+  getRwiNeedsByArtifact(artifactId: string): Promise<RwiNeed[]>;
+  updateRwiNeed(id: number, updates: Partial<InsertRwiNeed>): Promise<RwiNeed | undefined>;
+
+  createCandidateSet(set: InsertRwiImageCandidateSet): Promise<RwiImageCandidateSet>;
+  getCandidateSets(artifactId: string): Promise<RwiImageCandidateSet[]>;
+
+  getCachedProviderResult(cacheKey: string): Promise<ImageProviderCache | undefined>;
+  upsertProviderCache(entry: InsertImageProviderCache): Promise<ImageProviderCache>;
+
+  logImageSearch(entry: InsertImageSearchLog): Promise<ImageSearchLog>;
+
+  createQualityScore(score: InsertImageQualityScore): Promise<ImageQualityScore>;
+  getQualityScores(needsId: number): Promise<ImageQualityScore[]>;
+
+  createReviewQueueItem(item: InsertImageReviewQueue): Promise<ImageReviewQueue>;
+  getReviewQueue(): Promise<ImageReviewQueue[]>;
+  updateReviewQueueItem(id: number, updates: Partial<InsertImageReviewQueue>): Promise<ImageReviewQueue | undefined>;
+
+  createApproval(approval: InsertRwiImageApproval): Promise<RwiImageApproval>;
+  getApprovals(artifactId: string): Promise<RwiImageApproval[]>;
+
+  createMediaAsset(asset: InsertMediaAsset): Promise<MediaAsset>;
+  getMediaAsset(id: number): Promise<MediaAsset | undefined>;
+  getMediaAssets(filters?: { artifactId?: string; sectionId?: string; grade?: number }): Promise<MediaAsset[]>;
+  updateMediaAsset(id: number, updates: Partial<InsertMediaAsset>): Promise<MediaAsset | undefined>;
+
+  createGraphNode(node: InsertGraphNode): Promise<GraphNode>;
+  getGraphNode(nodeId: string): Promise<GraphNode | undefined>;
+  upsertGraphNode(node: InsertGraphNode): Promise<GraphNode>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -454,6 +498,121 @@ export class DatabaseStorage implements IStorage {
 
   async getDocAssetLinksByDocument(documentId: number): Promise<DocAssetLink[]> {
     return db.select().from(docAssetLinks).where(eq(docAssetLinks.documentId, documentId));
+  }
+
+  // ── Storage Contract Implementations ────────────────────────────────────────
+
+  async createRwiNeed(need: InsertRwiNeed): Promise<RwiNeed> {
+    const [row] = await db.insert(rwiNeeds).values(need).returning();
+    return row;
+  }
+  async getRwiNeed(id: number): Promise<RwiNeed | undefined> {
+    const [row] = await db.select().from(rwiNeeds).where(eq(rwiNeeds.id, id));
+    return row;
+  }
+  async getRwiNeedsByArtifact(artifactId: string): Promise<RwiNeed[]> {
+    return db.select().from(rwiNeeds).where(eq(rwiNeeds.artifactId, artifactId)).orderBy(desc(rwiNeeds.createdAt));
+  }
+  async updateRwiNeed(id: number, updates: Partial<InsertRwiNeed>): Promise<RwiNeed | undefined> {
+    const [row] = await db.update(rwiNeeds).set({ ...updates, updatedAt: new Date() }).where(eq(rwiNeeds.id, id)).returning();
+    return row;
+  }
+
+  async createCandidateSet(set: InsertRwiImageCandidateSet): Promise<RwiImageCandidateSet> {
+    const [row] = await db.insert(rwiImageCandidateSets).values(set).returning();
+    return row;
+  }
+  async getCandidateSets(artifactId: string): Promise<RwiImageCandidateSet[]> {
+    return db.select().from(rwiImageCandidateSets).where(eq(rwiImageCandidateSets.artifactId, artifactId)).orderBy(desc(rwiImageCandidateSets.createdAt));
+  }
+
+  async getCachedProviderResult(cacheKey: string): Promise<ImageProviderCache | undefined> {
+    const [row] = await db.select().from(imageProviderCache).where(eq(imageProviderCache.cacheKey, cacheKey));
+    if (!row) return undefined;
+    if (row.expiresAt < new Date()) return undefined;
+    await db.update(imageProviderCache).set({ hitCount: row.hitCount + 1 }).where(eq(imageProviderCache.id, row.id));
+    return row;
+  }
+  async upsertProviderCache(entry: InsertImageProviderCache): Promise<ImageProviderCache> {
+    const existing = await db.select().from(imageProviderCache).where(eq(imageProviderCache.cacheKey, entry.cacheKey));
+    if (existing.length > 0) {
+      const [row] = await db.update(imageProviderCache)
+        .set({ results: entry.results, expiresAt: entry.expiresAt, hitCount: existing[0].hitCount + 1 })
+        .where(eq(imageProviderCache.cacheKey, entry.cacheKey)).returning();
+      return row;
+    }
+    const [row] = await db.insert(imageProviderCache).values(entry).returning();
+    return row;
+  }
+
+  async logImageSearch(entry: InsertImageSearchLog): Promise<ImageSearchLog> {
+    const [row] = await db.insert(imageSearchLog).values(entry).returning();
+    return row;
+  }
+
+  async createQualityScore(score: InsertImageQualityScore): Promise<ImageQualityScore> {
+    const [row] = await db.insert(imageQualityScores).values(score).returning();
+    return row;
+  }
+  async getQualityScores(needsId: number): Promise<ImageQualityScore[]> {
+    return db.select().from(imageQualityScores).where(eq(imageQualityScores.needsId, needsId));
+  }
+
+  async createReviewQueueItem(item: InsertImageReviewQueue): Promise<ImageReviewQueue> {
+    const [row] = await db.insert(imageReviewQueue).values(item).returning();
+    return row;
+  }
+  async getReviewQueue(): Promise<ImageReviewQueue[]> {
+    return db.select().from(imageReviewQueue).orderBy(desc(imageReviewQueue.createdAt));
+  }
+  async updateReviewQueueItem(id: number, updates: Partial<InsertImageReviewQueue>): Promise<ImageReviewQueue | undefined> {
+    const [row] = await db.update(imageReviewQueue).set(updates).where(eq(imageReviewQueue.id, id)).returning();
+    return row;
+  }
+
+  async createApproval(approval: InsertRwiImageApproval): Promise<RwiImageApproval> {
+    const [row] = await db.insert(rwiImageApprovals).values(approval).returning();
+    return row;
+  }
+  async getApprovals(artifactId: string): Promise<RwiImageApproval[]> {
+    return db.select().from(rwiImageApprovals).where(eq(rwiImageApprovals.artifactId, artifactId)).orderBy(desc(rwiImageApprovals.createdAt));
+  }
+
+  async createMediaAsset(asset: InsertMediaAsset): Promise<MediaAsset> {
+    const [row] = await db.insert(mediaAssets).values(asset).returning();
+    return row;
+  }
+  async getMediaAsset(id: number): Promise<MediaAsset | undefined> {
+    const [row] = await db.select().from(mediaAssets).where(eq(mediaAssets.id, id));
+    return row;
+  }
+  async getMediaAssets(filters?: { artifactId?: string; sectionId?: string; grade?: number }): Promise<MediaAsset[]> {
+    let q = db.select().from(mediaAssets).$dynamic();
+    if (filters?.artifactId) q = q.where(eq(mediaAssets.artifactId, filters.artifactId));
+    else if (filters?.sectionId) q = q.where(eq(mediaAssets.sectionId, filters.sectionId));
+    else if (filters?.grade !== undefined) q = q.where(eq(mediaAssets.grade, filters.grade));
+    return q.orderBy(desc(mediaAssets.createdAt));
+  }
+  async updateMediaAsset(id: number, updates: Partial<InsertMediaAsset>): Promise<MediaAsset | undefined> {
+    const [row] = await db.update(mediaAssets).set(updates).where(eq(mediaAssets.id, id)).returning();
+    return row;
+  }
+
+  async createGraphNode(node: InsertGraphNode): Promise<GraphNode> {
+    const [row] = await db.insert(graphNodes).values(node).returning();
+    return row;
+  }
+  async getGraphNode(nodeId: string): Promise<GraphNode | undefined> {
+    const [row] = await db.select().from(graphNodes).where(eq(graphNodes.nodeId, nodeId));
+    return row;
+  }
+  async upsertGraphNode(node: InsertGraphNode): Promise<GraphNode> {
+    const existing = await this.getGraphNode(node.nodeId);
+    if (existing) {
+      const [row] = await db.update(graphNodes).set(node).where(eq(graphNodes.nodeId, node.nodeId)).returning();
+      return row;
+    }
+    return this.createGraphNode(node);
   }
 
   async getWorkQueue(): Promise<Array<{

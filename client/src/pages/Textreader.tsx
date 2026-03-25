@@ -962,13 +962,23 @@ export default function Textreader() {
                       <p className="text-xs text-gray-400 italic">Run search or generate AI image</p>
                     ) : (
                       <div className="grid grid-cols-2 gap-2">
-                        {candidates.map((c) => (
+                        {candidates.map((c) => {
+                          const d = c.approved;
+                          const cardBorder =
+                            d === "approve_reference" ? "border-green-400 ring-1 ring-green-200" :
+                            d === "reject" ? "border-red-300 opacity-50" :
+                            d === "needs_ai_generation" ? "border-purple-400 ring-1 ring-purple-100" :
+                            d === "needs_overlay" ? "border-orange-400 ring-1 ring-orange-100" :
+                            d === "needs_crop_or_resize" ? "border-yellow-400 ring-1 ring-yellow-100" :
+                            d === "needs_better_source" ? "border-gray-400 ring-1 ring-gray-200" :
+                            "border-gray-200";
+                          return (
                           <div key={c.id}
-                            className={`rounded border overflow-hidden ${c.approved === "approved" ? "border-green-400 ring-1 ring-green-200" : c.approved === "rejected" ? "border-red-300 opacity-50" : "border-gray-200"}`}
+                            className={`rounded border overflow-hidden ${cardBorder}`}
                             data-testid={`candidate-${c.id}`}>
-                            <div className="aspect-square bg-gray-100 relative">
+                            <div className="relative bg-gray-100" style={{ aspectRatio: "1/1", maxHeight: 120 }}>
                               <img src={c.imageUrl} alt={c.title || ""}
-                                className="w-full h-full object-cover"
+                                className="w-full h-full object-contain"
                                 onError={(e) => { (e.target as HTMLImageElement).src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect width='100' height='100' fill='%23eee'/%3E%3Ctext x='50' y='55' text-anchor='middle' fill='%23999' font-size='10'%3ENo img%3C/text%3E%3C/svg%3E"; }} />
                               <div className="absolute top-1 left-1 flex gap-0.5">
                                 {SOURCE_TYPE_BADGES[c.sourceType] && (
@@ -984,23 +994,65 @@ export default function Textreader() {
                                   </span>
                                 )}
                               </div>
+                              {d && d !== "pending" && (
+                                <div className="absolute top-1 right-1">
+                                  <span className={`text-[8px] px-1 py-0.5 rounded font-bold ${
+                                    d === "approve_reference" ? "bg-green-500 text-white" :
+                                    d === "reject" ? "bg-red-500 text-white" :
+                                    d === "needs_ai_generation" ? "bg-purple-500 text-white" :
+                                    d === "needs_overlay" ? "bg-orange-500 text-white" :
+                                    d === "needs_crop_or_resize" ? "bg-yellow-500 text-white" :
+                                    "bg-gray-500 text-white"
+                                  }`}>
+                                    {d === "approve_reference" ? "✓REF" :
+                                     d === "reject" ? "✕" :
+                                     d === "needs_ai_generation" ? "AI" :
+                                     d === "needs_overlay" ? "OVR" :
+                                     d === "needs_crop_or_resize" ? "CROP" :
+                                     "SRC"}
+                                  </span>
+                                </div>
+                              )}
                             </div>
                             <div className="p-1.5">
                               <p className="text-[10px] text-gray-700 font-medium line-clamp-1">{c.title || "Untitled"}</p>
-                              <p className="text-[9px] text-gray-400">{c.source || "?"}</p>
-                              <div className="flex gap-1 mt-1">
+                              <p className="text-[9px] text-gray-400 mb-1">{c.source || "?"}</p>
+                              <div className="grid grid-cols-3 gap-0.5">
                                 <button
-                                  onClick={() => updateCandidate.mutate({ id: c.id, updates: { approved: "approved", accuracyStatus: "historically_grounded" } })}
-                                  className={`flex-1 text-[9px] py-0.5 rounded font-medium ${c.approved === "approved" ? "bg-green-500 text-white" : "bg-green-50 text-green-700 hover:bg-green-100"}`}
-                                  data-testid={`button-approve-${c.id}`}>✓</button>
+                                  onClick={() => updateCandidate.mutate({ id: c.id, updates: { approved: "approve_reference", accuracyStatus: "historically_grounded" } })}
+                                  className={`text-[8px] py-0.5 px-0.5 rounded font-medium truncate ${d === "approve_reference" ? "bg-green-500 text-white" : "bg-green-50 text-green-700 hover:bg-green-100"}`}
+                                  title="Approve as Reference"
+                                  data-testid={`button-approve-ref-${c.id}`}>✓ Ref</button>
                                 <button
-                                  onClick={() => updateCandidate.mutate({ id: c.id, updates: { approved: "rejected" } })}
-                                  className={`flex-1 text-[9px] py-0.5 rounded font-medium ${c.approved === "rejected" ? "bg-red-500 text-white" : "bg-red-50 text-red-700 hover:bg-red-100"}`}
-                                  data-testid={`button-reject-${c.id}`}>✕</button>
+                                  onClick={() => updateCandidate.mutate({ id: c.id, updates: { approved: "needs_overlay" } })}
+                                  className={`text-[8px] py-0.5 px-0.5 rounded font-medium truncate ${d === "needs_overlay" ? "bg-orange-500 text-white" : "bg-orange-50 text-orange-700 hover:bg-orange-100"}`}
+                                  title="Needs Overlay"
+                                  data-testid={`button-needs-overlay-${c.id}`}>Overlay</button>
+                                <button
+                                  onClick={() => updateCandidate.mutate({ id: c.id, updates: { approved: "needs_crop_or_resize" } })}
+                                  className={`text-[8px] py-0.5 px-0.5 rounded font-medium truncate ${d === "needs_crop_or_resize" ? "bg-yellow-500 text-white" : "bg-yellow-50 text-yellow-700 hover:bg-yellow-100"}`}
+                                  title="Needs Crop / Resize"
+                                  data-testid={`button-needs-crop-${c.id}`}>Crop</button>
+                                <button
+                                  onClick={() => updateCandidate.mutate({ id: c.id, updates: { approved: "needs_ai_generation" } })}
+                                  className={`text-[8px] py-0.5 px-0.5 rounded font-medium truncate ${d === "needs_ai_generation" ? "bg-purple-500 text-white" : "bg-purple-50 text-purple-700 hover:bg-purple-100"}`}
+                                  title="Needs AI Generation"
+                                  data-testid={`button-needs-ai-${c.id}`}>Gen AI</button>
+                                <button
+                                  onClick={() => updateCandidate.mutate({ id: c.id, updates: { approved: "needs_better_source" } })}
+                                  className={`text-[8px] py-0.5 px-0.5 rounded font-medium truncate ${d === "needs_better_source" ? "bg-gray-500 text-white" : "bg-gray-50 text-gray-700 hover:bg-gray-100"}`}
+                                  title="Needs Better Source"
+                                  data-testid={`button-needs-src-${c.id}`}>Re-src</button>
+                                <button
+                                  onClick={() => updateCandidate.mutate({ id: c.id, updates: { approved: "reject" } })}
+                                  className={`text-[8px] py-0.5 px-0.5 rounded font-medium truncate ${d === "reject" ? "bg-red-500 text-white" : "bg-red-50 text-red-700 hover:bg-red-100"}`}
+                                  title="Reject"
+                                  data-testid={`button-reject-${c.id}`}>✕ Rej</button>
                               </div>
                             </div>
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>

@@ -1654,5 +1654,265 @@ Return JSON with:
     }
   });
 
+  // ── Storage Contract Routes ───────────────────────────────────────────────────
+
+  // POST /api/research/ingest — ingest a text document, extract visual concepts, create rwi_needs rows
+  app.post("/api/research/ingest", async (req, res) => {
+    try {
+      const { text, title, artifactId, grade, week, sectionId, lessonId, lessonFile } = req.body;
+      if (!text || !artifactId) return res.status(400).json({ error: "text and artifactId required" });
+
+      // Create a session/document record
+      const session = await storage.createSession({ name: title || artifactId, inputText: text });
+
+      // Extract concept cards and create rwi_needs for each
+      const needs: any[] = [];
+      // Placeholder: actual extraction happens via concept card creation; for now just return session
+      res.json({ ok: true, sessionId: session.id, artifactId, message: "Document ingested. Run concept extraction to generate rwi_needs." });
+    } catch (err: unknown) {
+      res.status(500).json({ error: err instanceof Error ? err.message : "Ingest error" });
+    }
+  });
+
+  // POST /api/rwi/needs — create a rwi_need record
+  app.post("/api/rwi/needs", async (req, res) => {
+    try {
+      const need = await storage.createRwiNeed(req.body);
+      res.json(need);
+    } catch (err: unknown) {
+      res.status(500).json({ error: err instanceof Error ? err.message : "Create need error" });
+    }
+  });
+
+  // GET /api/rwi/needs/:artifactId — list needs for an artifact
+  app.get("/api/rwi/needs/:artifactId", async (req, res) => {
+    try {
+      const needs = await storage.getRwiNeedsByArtifact(req.params.artifactId);
+      res.json(needs);
+    } catch (err: unknown) {
+      res.status(500).json({ error: err instanceof Error ? err.message : "List needs error" });
+    }
+  });
+
+  // POST /api/rwi/images/search — run image search for a rwi_need, persist candidate set + search log
+  app.post("/api/rwi/images/search", async (req, res) => {
+    try {
+      const { needsId, artifactId, query, sourceMode, grade, week, sectionId, lessonId } = req.body;
+      if (!query || !artifactId) return res.status(400).json({ error: "query and artifactId required" });
+
+      const { searchAllSources } = await import("./museumSearch");
+      const startTime = Date.now();
+      const rawResults = await searchAllSources(query, sourceMode || "open_web_fast");
+      const durationMs = Date.now() - startTime;
+
+      const candidates = rawResults.map((r: any) => ({
+        imageUrl: r.imageUrl,
+        title: r.title,
+        source: r.source,
+        sourceUrl: r.sourceUrl,
+        license: r.license,
+        provider: r.provider || r.source,
+      }));
+
+      // Persist candidate set
+      const set = await storage.createCandidateSet({
+        needsId: needsId || null,
+        artifactId,
+        query,
+        sourceMode: sourceMode || "open_web_fast",
+        candidates,
+        totalCount: candidates.length,
+        grade: grade || null,
+        week: week || null,
+        sectionId: sectionId || null,
+        lessonId: lessonId || null,
+      });
+
+      // Log each provider result
+      const providerGroups: Record<string, number> = {};
+      rawResults.forEach((r: any) => {
+        const p = r.provider || r.source || "unknown";
+        providerGroups[p] = (providerGroups[p] || 0) + 1;
+      });
+      for (const [provider, count] of Object.entries(providerGroups)) {
+        await storage.logImageSearch({
+          needsId: needsId || null,
+          artifactId,
+          query,
+          provider,
+          resultCount: count,
+          durationMs,
+          grade: grade || null,
+          week: week || null,
+          sectionId: sectionId || null,
+        });
+      }
+
+      res.json({ ok: true, setId: set.id, totalCount: candidates.length, candidates });
+    } catch (err: unknown) {
+      res.status(500).json({ error: err instanceof Error ? err.message : "Search error" });
+    }
+  });
+
+  // GET /api/rwi/images/candidates/:artifactId — get candidate sets for an artifact
+  app.get("/api/rwi/images/candidates/:artifactId", async (req, res) => {
+    try {
+      const sets = await storage.getCandidateSets(req.params.artifactId);
+      res.json(sets);
+    } catch (err: unknown) {
+      res.status(500).json({ error: err instanceof Error ? err.message : "List candidates error" });
+    }
+  });
+
+  // POST /api/rwi/images/approve — record a review decision, write rwi_image_approvals + media_assets
+  app.post("/api/rwi/images/approve", async (req, res) => {
+    try {
+      const {
+        needsId, artifactId, imageUrl, title, sourceUrl, license, author,
+        reviewDecision, sourceType, accuracyStatus,
+        grade, week, sectionId, lessonId, payload
+      } = req.body;
+
+      if (!artifactId || !imageUrl || !reviewDecision) {
+        return res.status(400).json({ error: "artifactId, imageUrl, and reviewDecision required" });
+      }
+
+      const validDecisions = ["approve_reference", "reject", "needs_ai_generation", "needs_overlay", "needs_crop_or_resize", "needs_better_source"];
+      if (!validDecisions.includes(reviewDecision)) {
+        return res.status(400).json({ error: `reviewDecision must be one of: ${validDecisions.join(", ")}` });
+      }
+
+      // Persist approval record
+      const approval = await storage.createApproval({
+        needsId: needsId || null,
+        artifactId,
+        imageUrl,
+        title: title || null,
+        sourceUrl: sourceUrl || null,
+        license: license || null,
+        author: author || null,
+        reviewDecision,
+        sourceType: sourceType || "open_web",
+        accuracyStatus: accuracyStatus || "plausible",
+        grade: grade || null,
+        week: week || null,
+        sectionId: sectionId || null,
+        lessonId: lessonId || null,
+        payload: payload || null,
+      });
+
+      // If approved as reference, also write to media_assets
+      let mediaAsset = null;
+      if (reviewDecision === "approve_reference") {
+        mediaAsset = await storage.createMediaAsset({
+          needsId: needsId || null,
+          approvalId: approval.id,
+          url: imageUrl,
+          title: title || null,
+          source: sourceUrl || null,
+          sourceUrl: sourceUrl || null,
+          license: license || null,
+          author: author || null,
+          curationMethod: "human_selected",
+          confidence: "high",
+          sourceType: sourceType || "open_web",
+          accuracyStatus: accuracyStatus || "historically_grounded",
+          grade: grade || null,
+          week: week || null,
+          sectionId: sectionId || null,
+          lessonId: lessonId || null,
+          artifactId,
+          metadata: payload || null,
+        });
+
+        // Update needs record if provided
+        if (needsId) {
+          await storage.updateRwiNeed(needsId, {
+            status: "fulfilled",
+            mediaAssetId: mediaAsset.id,
+          });
+        }
+      }
+
+      res.json({ ok: true, approval, mediaAsset });
+    } catch (err: unknown) {
+      res.status(500).json({ error: err instanceof Error ? err.message : "Approval error" });
+    }
+  });
+
+  // POST /api/vision/spec-and-graph — write a graph node packet
+  app.post("/api/vision/spec-and-graph", async (req, res) => {
+    try {
+      const { nodeId, nodeType, label, description, payload, tags, grade, week, sectionId, mediaAssetId, contentItemId } = req.body;
+      if (!nodeId || !nodeType || !label) return res.status(400).json({ error: "nodeId, nodeType, label required" });
+
+      const node = await storage.upsertGraphNode({
+        nodeId,
+        nodeType,
+        label,
+        description: description || null,
+        payload: payload || null,
+        tags: tags || null,
+        grade: grade || null,
+        week: week || null,
+        sectionId: sectionId || null,
+        mediaAssetId: mediaAssetId || null,
+        contentItemId: contentItemId || null,
+      });
+
+      res.json({ ok: true, node });
+    } catch (err: unknown) {
+      res.status(500).json({ error: err instanceof Error ? err.message : "Graph node error" });
+    }
+  });
+
+  // POST /api/images/validate — fidelity check, persist quality score
+  app.post("/api/images/validate", async (req, res) => {
+    try {
+      const { needsId, candidateUrl, score, fidelityLabel, reasons, observations, reviewDecision } = req.body;
+      if (!candidateUrl) return res.status(400).json({ error: "candidateUrl required" });
+
+      const qs = await storage.createQualityScore({
+        needsId: needsId || null,
+        candidateUrl,
+        score: score ?? null,
+        fidelityLabel: fidelityLabel || null,
+        reasons: reasons || null,
+        observations: observations || null,
+        reviewDecision: reviewDecision || null,
+        reviewedBy: "system",
+      });
+
+      res.json({ ok: true, qualityScore: qs });
+    } catch (err: unknown) {
+      res.status(500).json({ error: err instanceof Error ? err.message : "Validate error" });
+    }
+  });
+
+  // GET /api/rwi/review-queue — list pending review items
+  app.get("/api/rwi/review-queue", async (req, res) => {
+    try {
+      const queue = await storage.getReviewQueue();
+      res.json(queue);
+    } catch (err: unknown) {
+      res.status(500).json({ error: err instanceof Error ? err.message : "Queue error" });
+    }
+  });
+
+  // GET /api/media-assets — list media assets with optional filters
+  app.get("/api/media-assets", async (req, res) => {
+    try {
+      const { artifactId, sectionId, grade } = req.query;
+      const assets = await storage.getMediaAssets({
+        artifactId: artifactId as string | undefined,
+        sectionId: sectionId as string | undefined,
+        grade: grade ? parseInt(grade as string) : undefined,
+      });
+      res.json(assets);
+    } catch (err: unknown) {
+      res.status(500).json({ error: err instanceof Error ? err.message : "Media assets error" });
+    }
+  });
+
   return httpServer;
 }

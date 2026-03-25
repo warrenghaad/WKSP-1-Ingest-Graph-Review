@@ -220,6 +220,208 @@ export const docAssetLinks = pgTable("doc_asset_links", {
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
+// ── Storage Contract Tables ───────────────────────────────────────────────────
+
+export const rwiNeeds = pgTable("rwi_needs", {
+  id: serial("id").primaryKey(),
+  artifactId: text("artifact_id").notNull(),
+  artifactKey: text("artifact_key"),
+  label: text("label").notNull(),
+  description: text("description"),
+  visualType: text("visual_type").default("artifact").notNull(),
+  grade: integer("grade"),
+  week: integer("week"),
+  sectionId: text("section_id"),
+  lessonId: text("lesson_id"),
+  lessonFile: text("lesson_file"),
+  sourceRowIndex: integer("source_row_index"),
+  rowKey: text("row_key"),
+  sourceType: text("source_type").default("open_web").notNull(),
+  accuracyStatus: text("accuracy_status").default("unreviewed").notNull(),
+  needsOverlay: boolean("needs_overlay").default(false).notNull(),
+  needsDiagram: boolean("needs_diagram").default(false).notNull(),
+  aiPrompts: text("ai_prompts").array(),
+  diagramPrompt: text("diagram_prompt"),
+  overlaySpec: jsonb("overlay_spec"),
+  status: text("status").default("open").notNull(),
+  contentItemId: integer("content_item_id"),
+  mediaAssetId: integer("media_asset_id"),
+  graphNodeId: text("graph_node_id"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export const rwiImageCandidateSets = pgTable("rwi_image_candidate_sets", {
+  id: serial("id").primaryKey(),
+  needsId: integer("needs_id"),
+  artifactId: text("artifact_id").notNull(),
+  query: text("query").notNull(),
+  sourceMode: text("source_mode").default("open_web_fast").notNull(),
+  providers: text("providers").array(),
+  candidates: jsonb("candidates").notNull(),
+  totalCount: integer("total_count").default(0).notNull(),
+  grade: integer("grade"),
+  week: integer("week"),
+  sectionId: text("section_id"),
+  lessonId: text("lesson_id"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export const imageProviderCache = pgTable("image_provider_cache", {
+  id: serial("id").primaryKey(),
+  cacheKey: text("cache_key").notNull().unique(),
+  provider: text("provider").notNull(),
+  query: text("query").notNull(),
+  results: jsonb("results").notNull(),
+  hitCount: integer("hit_count").default(1).notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export const imageSearchLog = pgTable("image_search_log", {
+  id: serial("id").primaryKey(),
+  needsId: integer("needs_id"),
+  artifactId: text("artifact_id"),
+  query: text("query").notNull(),
+  provider: text("provider").notNull(),
+  resultCount: integer("result_count").default(0).notNull(),
+  selectedUrl: text("selected_url"),
+  durationMs: integer("duration_ms"),
+  error: text("error"),
+  grade: integer("grade"),
+  week: integer("week"),
+  sectionId: text("section_id"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export const imageQualityScores = pgTable("image_quality_scores", {
+  id: serial("id").primaryKey(),
+  needsId: integer("needs_id"),
+  candidateUrl: text("candidate_url").notNull(),
+  score: real("score"),
+  fidelityLabel: text("fidelity_label"),
+  reasons: text("reasons").array(),
+  observations: jsonb("observations"),
+  reviewDecision: text("review_decision"),
+  reviewedBy: text("reviewed_by"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export const imageReviewQueue = pgTable("image_review_queue", {
+  id: serial("id").primaryKey(),
+  needsId: integer("needs_id"),
+  artifactId: text("artifact_id").notNull(),
+  candidateUrl: text("candidate_url").notNull(),
+  candidateTitle: text("candidate_title"),
+  candidateSource: text("candidate_source"),
+  reviewDecision: text("review_decision").default("pending").notNull(),
+  reviewNotes: text("review_notes"),
+  sourceType: text("source_type"),
+  accuracyStatus: text("accuracy_status").default("unreviewed").notNull(),
+  grade: integer("grade"),
+  week: integer("week"),
+  sectionId: text("section_id"),
+  lessonId: text("lesson_id"),
+  resolvedAt: timestamp("resolved_at"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export const rwiImageApprovals = pgTable("rwi_image_approvals", {
+  id: serial("id").primaryKey(),
+  needsId: integer("needs_id"),
+  artifactId: text("artifact_id").notNull(),
+  imageUrl: text("image_url").notNull(),
+  title: text("title"),
+  sourceUrl: text("source_url"),
+  license: text("license"),
+  author: text("author"),
+  reviewDecision: text("review_decision").notNull(),
+  sourceType: text("source_type").default("open_web").notNull(),
+  accuracyStatus: text("accuracy_status").default("plausible").notNull(),
+  grade: integer("grade"),
+  week: integer("week"),
+  sectionId: text("section_id"),
+  lessonId: text("lesson_id"),
+  payload: jsonb("payload"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export const mediaAssets = pgTable("media_assets", {
+  id: serial("id").primaryKey(),
+  needsId: integer("needs_id"),
+  approvalId: integer("approval_id"),
+  url: text("url").notNull(),
+  thumbnailUrl: text("thumbnail_url"),
+  title: text("title"),
+  source: text("source"),
+  sourceUrl: text("source_url"),
+  license: text("license"),
+  author: text("author"),
+  curationMethod: text("curation_method").default("human_selected").notNull(),
+  confidence: text("confidence").default("medium").notNull(),
+  reviewer: text("reviewer"),
+  sourceType: text("source_type").default("open_web").notNull(),
+  accuracyStatus: text("accuracy_status").default("plausible").notNull(),
+  grade: integer("grade"),
+  week: integer("week"),
+  sectionId: text("section_id"),
+  lessonId: text("lesson_id"),
+  artifactId: text("artifact_id"),
+  contentItemId: integer("content_item_id"),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export const graphNodes = pgTable("graph_nodes", {
+  id: serial("id").primaryKey(),
+  nodeId: text("node_id").notNull().unique(),
+  nodeType: text("node_type").notNull(),
+  label: text("label").notNull(),
+  description: text("description"),
+  sourceDocumentId: integer("source_document_id"),
+  contentItemId: integer("content_item_id"),
+  mediaAssetId: integer("media_asset_id"),
+  payload: jsonb("payload"),
+  tags: text("tags").array(),
+  grade: integer("grade"),
+  week: integer("week"),
+  sectionId: text("section_id"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+// ── Insert schemas ────────────────────────────────────────────────────────────
+
+export const insertRwiNeedsSchema = createInsertSchema(rwiNeeds).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertRwiCandidateSetSchema = createInsertSchema(rwiImageCandidateSets).omit({ id: true, createdAt: true });
+export const insertImageProviderCacheSchema = createInsertSchema(imageProviderCache).omit({ id: true, createdAt: true });
+export const insertImageSearchLogSchema = createInsertSchema(imageSearchLog).omit({ id: true, createdAt: true });
+export const insertImageQualityScoreSchema = createInsertSchema(imageQualityScores).omit({ id: true, createdAt: true });
+export const insertImageReviewQueueSchema = createInsertSchema(imageReviewQueue).omit({ id: true, createdAt: true });
+export const insertRwiImageApprovalSchema = createInsertSchema(rwiImageApprovals).omit({ id: true, createdAt: true });
+export const insertMediaAssetSchema = createInsertSchema(mediaAssets).omit({ id: true, createdAt: true });
+export const insertGraphNodeSchema = createInsertSchema(graphNodes).omit({ id: true, createdAt: true });
+
+// ── Select types ──────────────────────────────────────────────────────────────
+
+export type RwiNeed = typeof rwiNeeds.$inferSelect;
+export type InsertRwiNeed = z.infer<typeof insertRwiNeedsSchema>;
+export type RwiImageCandidateSet = typeof rwiImageCandidateSets.$inferSelect;
+export type InsertRwiImageCandidateSet = z.infer<typeof insertRwiCandidateSetSchema>;
+export type ImageProviderCache = typeof imageProviderCache.$inferSelect;
+export type InsertImageProviderCache = z.infer<typeof insertImageProviderCacheSchema>;
+export type ImageSearchLog = typeof imageSearchLog.$inferSelect;
+export type InsertImageSearchLog = z.infer<typeof insertImageSearchLogSchema>;
+export type ImageQualityScore = typeof imageQualityScores.$inferSelect;
+export type InsertImageQualityScore = z.infer<typeof insertImageQualityScoreSchema>;
+export type ImageReviewQueue = typeof imageReviewQueue.$inferSelect;
+export type InsertImageReviewQueue = z.infer<typeof insertImageReviewQueueSchema>;
+export type RwiImageApproval = typeof rwiImageApprovals.$inferSelect;
+export type InsertRwiImageApproval = z.infer<typeof insertRwiImageApprovalSchema>;
+export type MediaAsset = typeof mediaAssets.$inferSelect;
+export type InsertMediaAsset = z.infer<typeof insertMediaAssetSchema>;
+export type GraphNode = typeof graphNodes.$inferSelect;
+export type InsertGraphNode = z.infer<typeof insertGraphNodeSchema>;
+
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
