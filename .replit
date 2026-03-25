@@ -39,12 +39,13 @@ name = "Start application"
 author = "agent"
 mode = "parallel"
 
-[[workflows.workflow.tasks]]
-task = "packager.installForLanguage"
-args = "nodejs"
-
 [workflows.workflow.metadata]
 outputType = "webview"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run dev"
+waitForPort = 5000
 
 [agent]
 stack = "MOCKUP_JS"

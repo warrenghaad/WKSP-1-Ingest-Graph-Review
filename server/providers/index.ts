@@ -201,3 +201,6 @@ export async function searchAllProviders(query: string): Promise<ProviderResult[
   if (openverse.status === "fulfilled") results.push(...openverse.value);
   return results;
 }
+
+export { generateGeminiImage, searchGeminiForArtifact } from "./gemini";
+export { searchPerplexityForArtifact, extractArticleText } from "./perplexity";

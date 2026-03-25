@@ -11,7 +11,14 @@ import {
 import { extractConcepts, generateQueryPack } from "./conceptExtractor";
 import { checkBackendStatus, sendResearchIngest, buildHandoffPacket } from "./backendAdapter";
 import { extractEntitiesFromText } from "./entityExtractor";
+import { seedTimelineArtifacts, TIMELINE_NODES, CONVERGENCE_LINKS } from "./artifactSeeder";
+import { generateGeminiImage, searchGeminiForArtifact } from "./providers/gemini";
+import { searchPerplexityForArtifact } from "./providers/perplexity";
+import { exec } from "child_process";
+import { promisify } from "util";
 import OpenAI from "openai";
+
+const execAsync = promisify(exec);
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -1373,6 +1380,162 @@ Return JSON with:
       res.json({ document: doc, mentions: mentionsList });
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch document" });
+    }
+  });
+
+  // ====== TOOLKIT — TIMELINE ARTIFACTS ======
+
+  app.get("/api/toolkit/timeline-nodes", (_req, res) => {
+    res.json({ nodes: TIMELINE_NODES, convergences: CONVERGENCE_LINKS });
+  });
+
+  app.post("/api/toolkit/seed-artifacts", async (_req, res) => {
+    try {
+      const result = await seedTimelineArtifacts();
+      res.json(result);
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : "Seed failed";
+      res.status(500).json({ error: msg });
+    }
+  });
+
+  app.get("/api/toolkit/timeline-entities", async (_req, res) => {
+    try {
+      const allEntities = await storage.getAllEntities(200);
+      const timelineEntities = allEntities.filter(
+        (e) => e.metadata && typeof e.metadata === "object" && "timelineId" in (e.metadata as Record<string, unknown>)
+      );
+      const enriched = await Promise.all(
+        timelineEntities.map(async (entity) => {
+          const assets = await storage.getAssetsByEntity(entity.id);
+          const requirements = await storage.getVisualRequirementsByEntity(entity.id);
+          return { entity, assets: assets.slice(0, 3), requirementStatus: requirements[0]?.status ?? "MISSING" };
+        })
+      );
+      res.json(enriched);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch timeline entities" });
+    }
+  });
+
+  // ====== TOOLKIT — AI IMAGE GENERATION ======
+
+  app.post("/api/toolkit/generate-image", async (req, res) => {
+    try {
+      const { prompt, style = "museum_photograph", entityId } = req.body as {
+        prompt: string;
+        style?: "museum_photograph" | "reconstruction" | "diagram" | "illustration";
+        entityId?: number;
+      };
+      if (!prompt) return res.status(400).json({ error: "prompt is required" });
+
+      const result = await generateGeminiImage(prompt, style);
+      if (!result) return res.status(502).json({ error: "Image generation failed — check Google_AI key" });
+
+      if (entityId && result.url.startsWith("data:")) {
+        await storage.createImagePrompt({
+          entityId,
+          prompt,
+          style,
+          generatedUrl: result.url,
+          status: "generated",
+          metadata: { model: result.model, mimeType: result.mimeType },
+        });
+      }
+
+      res.json({ url: result.url, prompt: result.prompt, model: result.model });
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : "Generation error";
+      res.status(500).json({ error: msg });
+    }
+  });
+
+  app.post("/api/toolkit/artifact-description", async (req, res) => {
+    try {
+      const { title, museumId } = req.body as { title: string; museumId?: string };
+      if (!title) return res.status(400).json({ error: "title is required" });
+      const description = await searchGeminiForArtifact(title, museumId);
+      res.json({ description });
+    } catch (error) {
+      res.status(500).json({ error: "Description generation failed" });
+    }
+  });
+
+  // ====== TOOLKIT — ARTICLE DISCOVERY ======
+
+  app.post("/api/toolkit/discover-articles", async (req, res) => {
+    try {
+      const { title, context, entityId } = req.body as {
+        title: string;
+        context?: string;
+        entityId?: number;
+      };
+      if (!title) return res.status(400).json({ error: "title is required" });
+
+      const result = await searchPerplexityForArtifact(title, context);
+      if (!result) return res.status(502).json({ error: "Article discovery failed — check perplexity key" });
+
+      if (entityId && result.answer) {
+        const doc = await storage.createDocument({
+          title: `Research: ${title}`,
+          rawText: result.answer,
+          sourceUrl: result.citations[0]?.url,
+          citation: result.citations.map((c) => c.url).join("; "),
+          processed: false,
+        });
+        await storage.createMention({
+          entityId,
+          documentId: doc.id,
+          snippet: result.answer.slice(0, 300),
+        });
+      }
+
+      res.json(result);
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : "Discovery error";
+      res.status(500).json({ error: msg });
+    }
+  });
+
+  // ====== TOOLKIT — HARVEST RUNNER ======
+
+  app.post("/api/toolkit/run-harvest", async (req, res) => {
+    try {
+      const { source = "met", query, maxItems = 20 } = req.body as {
+        source?: string;
+        query?: string;
+        maxItems?: number;
+      };
+      const validSources = ["met", "smithsonian", "wikimedia", "archive", "all"];
+      if (!validSources.includes(source)) {
+        return res.status(400).json({ error: `source must be one of: ${validSources.join(", ")}` });
+      }
+
+      const harvestDir = `${process.cwd()}/tools/image-harvest`;
+      const outputDir = `${process.cwd()}/downloads`;
+      const queryArg = query ? `--query "${query.replace(/"/g, '\\"')}"` : "";
+      const cmd = `cd "${harvestDir}" && python3 run.py --source ${source} --max ${maxItems} --output "${outputDir}" ${queryArg} 2>&1`;
+
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+
+      res.write(`data: ${JSON.stringify({ type: "start", source, maxItems })}\n\n`);
+
+      execAsync(cmd, { timeout: 120000 })
+        .then(({ stdout }) => {
+          const lines = stdout.split("\n").filter(Boolean);
+          res.write(`data: ${JSON.stringify({ type: "complete", lines, source })}\n\n`);
+          res.end();
+        })
+        .catch((err: unknown) => {
+          const msg = err instanceof Error ? err.message : String(err);
+          res.write(`data: ${JSON.stringify({ type: "error", error: msg.slice(0, 500) })}\n\n`);
+          res.end();
+        });
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : "Harvest error";
+      if (!res.headersSent) res.status(500).json({ error: msg });
     }
   });
 

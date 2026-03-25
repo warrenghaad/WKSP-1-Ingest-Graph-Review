@@ -50,6 +50,7 @@ export interface IStorage {
 
   createEntity(entity: InsertEntity): Promise<Entity>;
   getEntity(id: number): Promise<Entity | undefined>;
+  getAllEntities(limit?: number): Promise<Entity[]>;
   findEntitiesByLabel(query: string): Promise<Entity[]>;
   updateEntity(id: number, updates: Partial<InsertEntity>): Promise<Entity | undefined>;
 
@@ -226,6 +227,10 @@ export class DatabaseStorage implements IStorage {
   async getEntity(id: number): Promise<Entity | undefined> {
     const [entity] = await db.select().from(entities).where(eq(entities.id, id));
     return entity;
+  }
+
+  async getAllEntities(limit = 200): Promise<Entity[]> {
+    return db.select().from(entities).orderBy(entities.label).limit(limit);
   }
 
   async findEntitiesByLabel(query: string): Promise<Entity[]> {

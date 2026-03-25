@@ -9,6 +9,7 @@ import Reader from "@/pages/Reader";
 import Lab from "@/pages/Lab";
 import Braid from "@/pages/Braid";
 import Textreader from "@/pages/Textreader";
+import Timeline from "@/pages/Timeline";
 
 function Router() {
   return (
@@ -18,6 +19,7 @@ function Router() {
       <Route path="/lab" component={Lab}/>
       <Route path="/braid" component={Braid}/>
       <Route path="/textreader" component={Textreader}/>
+      <Route path="/timeline" component={Timeline}/>
       <Route component={NotFound} />
     </Switch>
   );

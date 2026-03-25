@@ -204,6 +204,16 @@ export default function Home() {
             Textreader
           </Button>
           <Button
+            data-testid="button-nav-timeline"
+            variant="outline"
+            size="sm"
+            className="rounded-full border-white/10 bg-black/40 backdrop-blur-md text-white hover:bg-white/10 h-9"
+            onClick={() => navigate("/timeline")}
+          >
+            <Layers className="w-3.5 h-3.5 mr-1.5" />
+            Timeline
+          </Button>
+          <Button
             data-testid="button-toggle-filters"
             variant="outline"
             size="sm"
