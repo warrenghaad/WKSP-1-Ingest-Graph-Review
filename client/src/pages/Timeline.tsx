@@ -4,6 +4,7 @@ import { OrbitControls, Html, Line, Text } from "@react-three/drei";
 import * as THREE from "three";
 import { create } from "zustand";
 import { Link } from "wouter";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 
 // ── Element palette ───────────────────────────────────────────────────────────
@@ -260,6 +261,7 @@ interface Store {
   // actions
   setNodes: (n: GECDNodeData[]) => void;
   addNode: (n: GECDNodeData) => void;
+  addNodes: (incoming: GECDNodeData[]) => void;
   select: (id: string | null) => void;
   hover: (id: string | null) => void;
   setElems: (e: string[]) => void;
@@ -283,6 +285,11 @@ const useStore = create<Store>((set, get) => ({
   camPreset: "default",
   setNodes: (nodes) => set({ nodes }),
   addNode: (n) => set(s => ({ nodes: [...s.nodes, n] })),
+  addNodes: (incoming) => set(s => {
+    const existing = new Set(s.nodes.map(n => n.id));
+    const fresh = incoming.filter(n => !existing.has(n.id));
+    return fresh.length ? { nodes: [...s.nodes, ...fresh] } : {};
+  }),
   select: (id) => set({ selectedId: id }),
   hover: (id) => set({ hoveredId: id }),
   setElems: (elements) => set(s => ({ filters: { ...s.filters, elements } })),
@@ -792,7 +799,171 @@ function Legend() {
   );
 }
 
-function HUD() {
+// ── Ingest Modal ─────────────────────────────────────────────────────────────
+
+function IngestModal({ onClose }: { onClose: () => void }) {
+  const addNodes  = useStore(s => s.addNodes);
+  const qc        = useQueryClient();
+  const [text, setText]       = useState("");
+  const [ctx,  setCtx]        = useState("");
+  const [grade, setGrade]     = useState("");
+  const [week,  setWeek]      = useState("");
+  const [status, setStatus]   = useState<"idle"|"loading"|"done"|"error">("idle");
+  const [result, setResult]   = useState<{ extracted: number; nodes: any[] } | null>(null);
+  const [errMsg, setErrMsg]   = useState("");
+
+  async function submit() {
+    if (!text.trim()) return;
+    setStatus("loading");
+    setErrMsg("");
+    try {
+      const r = await apiRequest("POST", "/api/gecd/ingest", {
+        text, context: ctx || undefined,
+        grade: grade || undefined, week: week || undefined,
+      });
+      const data = await r.json();
+      if (!r.ok) { setErrMsg(data.error || "Ingest failed"); setStatus("error"); return; }
+      setResult(data);
+      // Merge new nodes into the 3D timeline immediately
+      if (Array.isArray(data.nodes)) addNodes(data.nodes as GECDNodeData[]);
+      // Refresh cached node list
+      qc.invalidateQueries({ queryKey: ["/api/gecd/nodes"] });
+      setStatus("done");
+    } catch (e: any) {
+      setErrMsg(e.message ?? "Network error");
+      setStatus("error");
+    }
+  }
+
+  const overlay: React.CSSProperties = {
+    position:"fixed", inset:0, background:"rgba(4,6,14,0.88)",
+    display:"flex", alignItems:"center", justifyContent:"center",
+    zIndex:100,
+  };
+  const box: React.CSSProperties = {
+    background:"#080d1a", border:"1px solid #1a2a3a", borderRadius:10,
+    padding:24, width:540, maxWidth:"90vw", maxHeight:"85vh",
+    overflowY:"auto", display:"flex", flexDirection:"column", gap:12,
+    color:"#8ab0c8", fontFamily:"monospace", fontSize:12,
+  };
+
+  return (
+    <div style={overlay} onClick={e => { if (e.target===e.currentTarget) onClose(); }}>
+      <div style={box}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+          <span style={{ color:"#3a6a9a", fontWeight:700, fontSize:13, letterSpacing:2 }}>
+            GECD NODE INGEST
+          </span>
+          <button onClick={onClose} style={{ background:"none", border:"none", color:"#3a5a7a", cursor:"pointer", fontSize:16 }}>✕</button>
+        </div>
+
+        <div style={{ fontSize:10, color:"#2a4a5a", lineHeight:1.6 }}>
+          Paste any research text — Mesopotamian history, artifact descriptions, academic excerpts.
+          Claude will extract GECD nodes and queue image searches automatically.
+        </div>
+
+        <textarea
+          data-testid="ingest-text-input"
+          value={text}
+          onChange={e => setText(e.target.value)}
+          placeholder="Paste research text here…"
+          rows={8}
+          style={{
+            width:"100%", boxSizing:"border-box",
+            background:"#060b14", border:"1px solid #1a2a3a", borderRadius:6,
+            color:"#8ab0c8", fontFamily:"monospace", fontSize:11, padding:10,
+            resize:"vertical",
+          }}
+        />
+
+        <div style={{ display:"flex", gap:8 }}>
+          <input
+            data-testid="ingest-context-input"
+            value={ctx}
+            onChange={e => setCtx(e.target.value)}
+            placeholder="Context / source title (optional)"
+            style={{
+              flex:2, background:"#060b14", border:"1px solid #1a2a3a", borderRadius:6,
+              color:"#8ab0c8", fontFamily:"monospace", fontSize:11, padding:"6px 9px",
+            }}
+          />
+          <input
+            data-testid="ingest-grade-input"
+            value={grade}
+            onChange={e => setGrade(e.target.value)}
+            placeholder="Grade (opt)"
+            style={{
+              flex:1, background:"#060b14", border:"1px solid #1a2a3a", borderRadius:6,
+              color:"#8ab0c8", fontFamily:"monospace", fontSize:11, padding:"6px 9px",
+            }}
+          />
+          <input
+            data-testid="ingest-week-input"
+            value={week}
+            onChange={e => setWeek(e.target.value)}
+            placeholder="Week (opt)"
+            style={{
+              flex:1, background:"#060b14", border:"1px solid #1a2a3a", borderRadius:6,
+              color:"#8ab0c8", fontFamily:"monospace", fontSize:11, padding:"6px 9px",
+            }}
+          />
+        </div>
+
+        <button
+          data-testid="ingest-submit-btn"
+          onClick={submit}
+          disabled={status==="loading" || !text.trim()}
+          style={{
+            padding:"9px 0", borderRadius:7,
+            background: status==="loading" ? "#0a1020" : "#0d2040",
+            border:"1px solid #1a3a5a",
+            color: status==="loading" ? "#2a4a6a" : "#5a9aca",
+            fontFamily:"monospace", fontWeight:700, fontSize:12,
+            cursor: status==="loading" || !text.trim() ? "not-allowed" : "pointer",
+            letterSpacing:1,
+          }}
+        >
+          {status==="loading" ? "⏳ EXTRACTING NODES…" : "⬆ INGEST TEXT"}
+        </button>
+
+        {status==="error" && (
+          <div style={{ color:"#aa3333", fontSize:11, padding:"6px 10px", background:"#1a0808", borderRadius:6 }}>
+            ✕ {errMsg}
+          </div>
+        )}
+
+        {status==="done" && result && (
+          <div style={{ background:"#04100a", border:"1px solid #1a3a2a", borderRadius:6, padding:12 }}>
+            <div style={{ color:"#3a9a5a", fontWeight:700, marginBottom:8 }}>
+              ✓ {result.extracted} node{result.extracted!==1?"s":""} extracted → added to timeline
+            </div>
+            {result.nodes.map((n: any, i: number) => (
+              <div key={i} style={{
+                display:"flex", alignItems:"center", gap:8,
+                padding:"4px 0", borderBottom:"1px solid #0d2018", fontSize:11,
+              }}>
+                <span style={{ color: ELEMENT_COLORS[n.geometric_element] ?? "#667788", fontSize:8 }}>⬡</span>
+                <span style={{ color:"#8ab0a0", flex:1 }}>{n.name}</span>
+                <span style={{ color:"#2a5a3a", fontSize:10 }}>{n.date_display}</span>
+                <span style={{
+                  background:"#0d2018", borderRadius:4, padding:"1px 6px",
+                  color: ELEMENT_COLORS[n.geometric_element] ?? "#445566", fontSize:9,
+                }}>
+                  {n.geometric_element}
+                </span>
+              </div>
+            ))}
+            <div style={{ marginTop:10, fontSize:10, color:"#1a4a2a" }}>
+              Image searches fired in background. Check candidate sets in Textreader.
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function HUD({ onIngest }: { onIngest: () => void }) {
   const camPreset = useStore(s => s.camPreset);
   const setCam    = useStore(s => s.setCam);
   const nodeCount = useStore(s => s.filtered()).length;
@@ -814,6 +985,18 @@ function HUD() {
           </button>
         ))}
       </div>
+      <button
+        data-testid="hud-ingest-btn"
+        onClick={onIngest}
+        style={{
+          ...panel, padding:"4px 13px", border:"1px solid #1a3a5a",
+          background:"#0a1828", color:"#2a6a9a",
+          fontSize:10, cursor:"pointer", fontFamily:"monospace",
+          letterSpacing:1,
+        }}
+      >
+        ⬆ INGEST
+      </button>
     </div>
   );
 }
@@ -844,8 +1027,26 @@ export default function Timeline() {
   const selectedId   = useStore(s => s.selectedId);
   const nodes        = useStore(s => s.nodes);
   const select       = useStore(s => s.select);
+  const addNodes     = useStore(s => s.addNodes);
   const selectedNode = useMemo(() => nodes.find(n => n.id === selectedId) ?? null, [nodes, selectedId]);
+  const [showIngest, setShowIngest] = useState(false);
   useKeys();
+
+  // Load DB-persisted GECD nodes on mount and merge into store
+  const { data: dbNodes } = useQuery<GECDNodeData[]>({
+    queryKey: ["/api/gecd/nodes"],
+    queryFn: async () => {
+      const r = await fetch("/api/gecd/nodes");
+      if (!r.ok) return [];
+      return r.json();
+    },
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+
+  useEffect(() => {
+    if (dbNodes && dbNodes.length > 0) addNodes(dbNodes);
+  }, [dbNodes, addNodes]);
 
   return (
     <div style={{ width:"100vw", height:"100vh", background:"#04060e", position:"relative", overflow:"hidden" }}>
@@ -859,7 +1060,7 @@ export default function Timeline() {
       </div>
 
       {/* HUD */}
-      <HUD />
+      <HUD onIngest={() => setShowIngest(true)} />
 
       {/* 3-D canvas */}
       <Canvas
@@ -878,6 +1079,9 @@ export default function Timeline() {
       {selectedNode && <DetailPanel node={selectedNode} onClose={() => select(null)} />}
       <Legend />
 
+      {/* Ingest modal */}
+      {showIngest && <IngestModal onClose={() => setShowIngest(false)} />}
+
       {/* Key hint */}
       <div style={{
         position:"absolute", bottom:18, right:12, zIndex:10,
@@ -885,7 +1089,7 @@ export default function Timeline() {
         background:"rgba(6,9,20,0.75)", border:"1px solid #101820",
         borderRadius:6, padding:"5px 9px", lineHeight:1.75,
       }}>
-        R reset · T top · S side · C connections · ESC deselect
+        R reset · T top · S side · C connections · I ingest · ESC deselect
       </div>
     </div>
   );

@@ -1656,21 +1656,204 @@ Return JSON with:
 
   // ── Storage Contract Routes ───────────────────────────────────────────────────
 
-  // POST /api/research/ingest — ingest a text document, extract visual concepts, create rwi_needs rows
+  // POST /api/research/ingest — placeholder (use /api/gecd/ingest for full pipeline)
   app.post("/api/research/ingest", async (req, res) => {
     try {
-      const { text, title, artifactId, grade, week, sectionId, lessonId, lessonFile } = req.body;
+      const { text, title, artifactId } = req.body;
       if (!text || !artifactId) return res.status(400).json({ error: "text and artifactId required" });
-
-      // Create a session/document record
       const session = await storage.createSession({ name: title || artifactId, inputText: text });
-
-      // Extract concept cards and create rwi_needs for each
-      const needs: any[] = [];
-      // Placeholder: actual extraction happens via concept card creation; for now just return session
-      res.json({ ok: true, sessionId: session.id, artifactId, message: "Document ingested. Run concept extraction to generate rwi_needs." });
+      res.json({ ok: true, sessionId: session.id, artifactId, message: "Use /api/gecd/ingest for full GECD node extraction." });
     } catch (err: unknown) {
       res.status(500).json({ error: err instanceof Error ? err.message : "Ingest error" });
+    }
+  });
+
+  // ── GECD Ingest + Nodes ────────────────────────────────────────────────────
+
+  // POST /api/gecd/ingest — Claude extracts GECD nodes from text, stores in graph_nodes + rwi_needs
+  app.post("/api/gecd/ingest", async (req, res) => {
+    try {
+      const { text, context, grade, week, sectionId } = req.body;
+      if (!text || text.trim().length < 20) return res.status(400).json({ error: "text required (min 20 chars)" });
+
+      const apiKey = process.env.anthropic;
+      if (!apiKey) return res.status(500).json({ error: "No Anthropic API key configured" });
+
+      const SYSTEM = `You are a GECD (Geometric Element Civilization Development) research analyst specializing in ancient Mesopotamian history and the MAGIC framework (Math, Aesthetic, Geometry, Institutional, Comptroller).
+
+Extract GECD nodes from the provided text. Each node is a historical moment where a geometric element intersected with civilization development.
+
+Return a JSON array of GECD node objects. Each object must have:
+- id: string (snake_case slug, e.g. "node_cylinder_seal_001")
+- name: string (artifact or concept name)
+- date_bce: number (year BCE, positive integer, null if CE)
+- date_ce: number (year CE, null if BCE)
+- date_display: string (e.g. "c. 3500 BCE")
+- geometric_element: one of ["circle","star","triangle","square","spiral","arc","hexagon","pyramid"]
+- deity: string (Shamash/Ishtar/Enlil/Nabu/Tiamat/Anu/Nisaba/Marduk based on element)
+- magic_drivers: { math: 0-1, aesthetic: 0-1, institutional: 0-1, comptroller: 0-1 }
+  (math=mathematical significance, aesthetic=artistic, institutional=organizational, comptroller=economic/accounting)
+- description: string (1-2 sentences)
+- provenance: string (location)
+- civilization: string (e.g. "Sumerian / Uruk Period")
+- intensification_category: one of ["object_form","functional_assembly","composite_geometry","complex_designed_system","decoration","simple_token","standardized_token"]
+- connections: [] (empty — connections added later)
+- tags: string[] (3-6 keywords)
+- image_prompt: string (a vivid search/generation prompt for finding a photograph or illustration)
+- notes: string | null (important caveats or common misconceptions, or null)
+
+Only include nodes with clear geometric element evidence. Accuracy over quantity.
+Respond with ONLY a valid JSON array, no markdown, no explanation.`;
+
+      const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "claude-opus-4-5",
+          max_tokens: 4096,
+          system: SYSTEM,
+          messages: [{ role: "user", content: `${context ? `Context: ${context}\n\n` : ""}Text to analyze:\n\n${text}` }],
+        }),
+      });
+
+      if (!claudeRes.ok) {
+        const err = await claudeRes.text();
+        return res.status(502).json({ error: `Claude API error: ${err.slice(0, 300)}` });
+      }
+
+      const claudeData = await claudeRes.json() as any;
+      const raw = claudeData.content?.[0]?.text ?? "[]";
+
+      let extracted: any[];
+      try {
+        const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+        extracted = JSON.parse(cleaned);
+        if (!Array.isArray(extracted)) extracted = [];
+      } catch {
+        return res.status(422).json({ error: "Could not parse Claude response as JSON array", raw: raw.slice(0, 500) });
+      }
+
+      const stored: any[] = [];
+      for (const node of extracted) {
+        if (!node.id || !node.name || !node.geometric_element) continue;
+
+        // Ensure unique nodeId
+        const nodeId = `gecd:${node.id}`;
+
+        // Store in graph_nodes (upsert by nodeId)
+        const graphNode = await storage.upsertGraphNode({
+          nodeId,
+          nodeType: "gecd_node",
+          label: node.name,
+          description: node.description || null,
+          grade: grade || null,
+          week: week || null,
+          sectionId: sectionId || null,
+          payload: node,
+          tags: node.tags || null,
+        });
+
+        // Also create rwi_need for image sourcing
+        const needLabel = `${node.name} (${node.date_display || ""})`;
+        await storage.createRwiNeed({
+          artifactId: nodeId,
+          artifactKey: node.id,
+          label: needLabel,
+          description: node.description || null,
+          visualType: "artifact",
+          sourceType: "open_web",
+          accuracyStatus: "unreviewed",
+          needsOverlay: false,
+          needsDiagram: false,
+          status: "open",
+          grade: grade || null,
+          week: week || null,
+          sectionId: sectionId || null,
+          graphNodeId: nodeId,
+          aiPrompts: node.image_prompt ? [node.image_prompt] : null,
+        });
+
+        stored.push({ ...node, _graphNodeId: graphNode.id });
+      }
+
+      // Trigger background image searches for each node
+      const { searchAllSources } = await import("./museumSearch");
+      const searchPromises = stored.map(async (node) => {
+        if (!node.image_prompt) return;
+        try {
+          const results = await searchAllSources(node.image_prompt, "open_web_fast");
+          await storage.createCandidateSet({
+            needsId: null,
+            artifactId: `gecd:${node.id}`,
+            query: node.image_prompt,
+            sourceMode: "open_web_fast",
+            candidates: results.slice(0, 12),
+            totalCount: results.length,
+            grade: grade || null,
+            week: week || null,
+            sectionId: sectionId || null,
+            lessonId: null,
+          });
+          await storage.logImageSearch({
+            needsId: null,
+            artifactId: `gecd:${node.id}`,
+            query: node.image_prompt,
+            provider: "all_parallel",
+            resultCount: results.length,
+            grade: grade || null,
+            week: week || null,
+            sectionId: sectionId || null,
+          });
+        } catch { /* search failure is non-fatal */ }
+      });
+
+      // Fire and forget — don't block the response
+      Promise.allSettled(searchPromises);
+
+      res.json({
+        ok: true,
+        extracted: stored.length,
+        nodes: stored,
+        message: `Extracted ${stored.length} GECD node${stored.length !== 1 ? "s" : ""} and queued image searches.`,
+      });
+    } catch (err: unknown) {
+      res.status(500).json({ error: err instanceof Error ? err.message : "Ingest error" });
+    }
+  });
+
+  // GET /api/gecd/nodes — return all persisted GECD nodes from graph_nodes
+  app.get("/api/gecd/nodes", async (_req, res) => {
+    try {
+      const { db } = await import("./db");
+      const { graphNodes } = await import("../shared/schema");
+      const { eq } = await import("drizzle-orm");
+      const rows = await db.select().from(graphNodes).where(eq(graphNodes.nodeType, "gecd_node"));
+      const nodes = rows.map(r => ({
+        ...(r.payload as any),
+        _dbId: r.id,
+        _nodeId: r.nodeId,
+        createdAt: r.createdAt,
+      }));
+      res.json(nodes);
+    } catch (err: unknown) {
+      res.status(500).json({ error: err instanceof Error ? err.message : "Fetch nodes error" });
+    }
+  });
+
+  // GET /api/gecd/candidates?artifactId=... — image candidates for a GECD node
+  app.get("/api/gecd/candidates", async (req, res) => {
+    try {
+      const artifactId = req.query.artifactId as string;
+      if (!artifactId) return res.status(400).json({ error: "artifactId query param required" });
+      const sets = await storage.getCandidateSets(artifactId);
+      const candidates = sets.flatMap(s => (s.candidates as any[]).map(c => ({ ...c, setId: s.id, query: s.query })));
+      res.json({ sets: sets.length, candidates });
+    } catch (err: unknown) {
+      res.status(500).json({ error: err instanceof Error ? err.message : "Candidates error" });
     }
   });
 
