@@ -265,8 +265,87 @@ export async function searchCDLI(query: string, limit = 6): Promise<MuseumResult
   }
 }
 
+export async function searchViaClaudeWebSearch(query: string): Promise<MuseumResult[]> {
+  const apiKey = process.env.anthropic;
+  if (!apiKey) return [];
+
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: "claude-opus-4-5",
+        max_tokens: 4000,
+        tools: [{ type: "web_search_20250305", name: "web_search" }],
+        messages: [{
+          role: "user",
+          content: `You are a visual research assistant for EUCLID, an interdisciplinary K-8 geometry curriculum teaching math through ancient civilizations (Mesopotamia, Egypt, Greece, India, China, Mesoamerica).
+
+Find real, viewable images for this term: "${query}"
+
+First identify what this term IS (deity, artifact, geometric concept, material, place, architectural feature, technique, etc.), then generate 3-5 varied search queries and search the ENTIRE web — museum databases, archaeological sites, Wikimedia, university collections, journals, encyclopedias, ANYWHERE.
+
+Good sources include (but are NOT limited to): Met Museum, British Museum, Louvre, Pergamon, Penn Museum, Iraq Museum, Wikimedia Commons, Wikipedia, World History Encyclopedia, Smarthistory, Google Arts & Culture, JSTOR, Flickr heritage collections, Britannica, CDLI, university digital collections, archaeological reports.
+
+After searching, respond ONLY with a JSON array. Each item must have:
+- "title": what the image shows
+- "imageUrl": direct image URL (ending in .jpg/.png/.gif/.webp) or best available image URL
+- "pageUrl": the webpage where the image was found  
+- "source": museum/website/institution name
+- "description": one sentence about what is shown and why it is relevant
+- "type": "photograph|diagram|illustration|relief|artifact|map|reconstruction|other"
+- "date": approximate date of the depicted object if known
+- "culture": civilization or culture if known
+
+Find 8-15 images from diverse sources. Respond ONLY with the JSON array, no other text.
+
+JSON array:`,
+        }],
+      }),
+    });
+
+    if (!res.ok) {
+      console.error("Claude web search HTTP error:", res.status);
+      return [];
+    }
+
+    const data = await res.json();
+    let responseText = "";
+    if (data.content) {
+      for (const block of data.content) {
+        if (block.type === "text") responseText += block.text;
+      }
+    }
+
+    const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) return [];
+
+    const images = JSON.parse(jsonMatch[0]);
+    return images
+      .filter((img: any) => img.imageUrl || img.pageUrl)
+      .slice(0, 15)
+      .map((img: any) => ({
+        url: img.imageUrl || img.pageUrl,
+        title: img.title || "Untitled",
+        source: img.source || "Web Search",
+        objectUrl: img.pageUrl,
+        date: img.date,
+        culture: img.culture,
+        medium: img.type,
+        license: "See source",
+      } as MuseumResult));
+  } catch (err) {
+    console.error("Claude web search error:", err);
+    return [];
+  }
+}
+
 export async function searchAllMuseums(query: string): Promise<MuseumResult[]> {
-  const [met, smithsonian, wikimedia, rijksmuseum, europeana, archive, cdli] = await Promise.all([
+  const [met, smithsonian, wikimedia, rijksmuseum, europeana, archive, cdli, claudeWeb] = await Promise.all([
     searchMetMuseum(query, 6),
     searchSmithsonian(query, 5),
     searchWikimediaCommons(query, 5),
@@ -274,7 +353,8 @@ export async function searchAllMuseums(query: string): Promise<MuseumResult[]> {
     searchEuropeana(query, 5),
     searchInternetArchive(query, 4),
     searchCDLI(query, 4),
+    searchViaClaudeWebSearch(query),
   ]);
 
-  return [...met, ...smithsonian, ...wikimedia, ...rijksmuseum, ...europeana, ...archive, ...cdli];
+  return [...met, ...smithsonian, ...wikimedia, ...rijksmuseum, ...europeana, ...archive, ...cdli, ...claudeWeb];
 }
