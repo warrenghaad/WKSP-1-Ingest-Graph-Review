@@ -274,12 +274,21 @@ export async function registerRoutes(
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
-      const updates: Record<string, unknown> = {};
-      const allowed = ["title", "rawText", "citation", "sourceUrl", "grade", "week", "sectionId", "sourceMode"] as const;
-      for (const key of allowed) {
-        if (key in req.body) updates[key] = req.body[key];
+      const patchSchema = insertSessionSchema.partial().pick({
+        title: true,
+        rawText: true,
+        citation: true,
+        sourceUrl: true,
+        grade: true,
+        week: true,
+        sectionId: true,
+        sourceMode: true,
+      });
+      const parsed = patchSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Invalid session update", details: parsed.error.flatten() });
       }
-      const updated = await storage.updateSession(id, updates as any);
+      const updated = await storage.updateSession(id, parsed.data);
       if (!updated) return res.status(404).json({ error: "Session not found" });
       res.json(updated);
     } catch (error: unknown) {
