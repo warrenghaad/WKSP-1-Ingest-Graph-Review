@@ -1689,8 +1689,8 @@ Return a JSON array of GECD node objects. Each object must have:
 - date_bce: number (year BCE, positive integer, null if CE)
 - date_ce: number (year CE, null if BCE)
 - date_display: string (e.g. "c. 3500 BCE")
-- geometric_element: one of ["circle","star","triangle","square","spiral","arc","hexagon","pyramid"]
-- deity: string (Shamash/Ishtar/Enlil/Nabu/Tiamat/Anu/Nisaba/Marduk based on element)
+- geometric_element: one of ["circle","star","triangle","square","spiral","arc","hexagon","pyramid","dot","line","crescent","rectangle","cone","diamond","grid"]
+- deity: string (Shamash/Ishtar/Enlil/Nabu/Tiamat/Anu/Nisaba/Marduk/Nanna/Inanna based on element; Nanna for crescent/moon, Inanna for star/circle, Nisaba for dot/counting)
 - magic_drivers: { math: 0-1, aesthetic: 0-1, institutional: 0-1, comptroller: 0-1 }
   (math=mathematical significance, aesthetic=artistic, institutional=organizational, comptroller=economic/accounting)
 - description: string (1-2 sentences)
@@ -1725,16 +1725,30 @@ Respond with ONLY a valid JSON array, no markdown, no explanation.`;
       }
 
       const geminiData = await geminiRes.json() as any;
-      const raw = (geminiData.candidates?.[0]?.content?.parts?.[0]?.text ?? "[]")
-        .replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+      const rawGemini = geminiData.candidates?.[0]?.content?.parts?.[0]?.text ?? "[]";
+      console.log("[GECD ingest] Gemini raw (first 500):", rawGemini.slice(0, 500));
+      const raw = rawGemini.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
 
       let extracted: any[];
       try {
-        const cleaned = raw;
-        extracted = JSON.parse(cleaned);
-        if (!Array.isArray(extracted)) extracted = [];
+        // Try direct parse first
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          extracted = parsed;
+        } else if (parsed && Array.isArray(parsed.nodes)) {
+          extracted = parsed.nodes;
+        } else {
+          extracted = [];
+        }
       } catch {
-        return res.status(422).json({ error: "Could not parse Claude response as JSON array", raw: raw.slice(0, 500) });
+        // Try to extract a JSON array from anywhere in the text
+        const arrMatch = raw.match(/\[[\s\S]*\]/);
+        if (arrMatch) {
+          try { extracted = JSON.parse(arrMatch[0]); }
+          catch { extracted = []; }
+        } else {
+          extracted = [];
+        }
       }
 
       const stored: any[] = [];
