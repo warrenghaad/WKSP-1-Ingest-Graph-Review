@@ -10,28 +10,45 @@ import { apiRequest } from "@/lib/queryClient";
 // ── Element palette ───────────────────────────────────────────────────────────
 
 const ELEMENT_COLORS: Record<string, string> = {
-  circle:   "#F5A623",
-  star:     "#C62368",
-  triangle: "#2B6CC4",
-  square:   "#2D8659",
-  spiral:   "#3A8FBF",
-  arc:      "#7CB9E8",
-  hexagon:  "#DAA520",
-  pyramid:  "#6A0DAD",
+  circle:    "#F5A623",
+  star:      "#C62368",
+  triangle:  "#2B6CC4",
+  square:    "#2D8659",
+  spiral:    "#3A8FBF",
+  arc:       "#7CB9E8",
+  hexagon:   "#DAA520",
+  pyramid:   "#6A0DAD",
+  dot:       "#E8855A",
+  line:      "#5AB8E8",
+  rectangle: "#5AE87C",
+  cone:      "#B06AD4",
+  crescent:  "#D4A06A",
+  grid:      "#6AE8D4",
+  diamond:   "#E86A9A",
 };
 
 const ELEMENT_DEITIES: Record<string, string> = {
-  circle:   "Shamash",
-  star:     "Ishtar",
-  triangle: "Enlil",
-  square:   "Nabu",
-  spiral:   "Tiamat",
-  arc:      "Anu",
-  hexagon:  "Nisaba",
-  pyramid:  "Marduk",
+  circle:    "Shamash",
+  star:      "Ishtar",
+  triangle:  "Enlil",
+  square:    "Nabu",
+  spiral:    "Tiamat",
+  arc:       "Anu",
+  hexagon:   "Nisaba",
+  pyramid:   "Marduk",
+  dot:       "Enlil",
+  line:      "Anu",
+  rectangle: "Nabu",
+  cone:      "Marduk",
+  crescent:  "Nanna",
+  grid:      "Nisaba",
+  diamond:   "Ishtar",
 };
 
-const ALL_ELEMENTS = ["circle","star","triangle","square","spiral","arc","hexagon","pyramid"];
+const ALL_ELEMENTS = [
+  "circle","star","triangle","square","spiral","arc","hexagon","pyramid",
+  "dot","line","rectangle","cone","crescent","grid","diamond",
+];
 
 // ── Historical eras ───────────────────────────────────────────────────────────
 
@@ -269,10 +286,9 @@ interface Store {
   setMagic: (k: keyof Filters["magic"], v: number) => void;
   toggleConns: () => void;
   setCam: (p: "default" | "top" | "side") => void;
-  filtered: () => GECDNodeData[];
 }
 
-const useStore = create<Store>((set, get) => ({
+const useStore = create<Store>((set) => ({
   nodes: NODES,
   filters: {
     elements: [...ALL_ELEMENTS],
@@ -297,22 +313,25 @@ const useStore = create<Store>((set, get) => ({
   setMagic: (k, v) => set(s => ({ filters: { ...s.filters, magic: { ...s.filters.magic, [k]: v } } })),
   toggleConns: () => set(s => ({ showConns: !s.showConns })),
   setCam: (camPreset) => set({ camPreset }),
-  filtered: () => {
-    const { nodes, filters } = get();
-    return nodes.filter(n => {
-      if (!filters.elements.includes(n.geometric_element)) return false;
-      const yr = nodeYear(n);
-      if (yr < filters.timeRange[0] || yr > filters.timeRange[1]) return false;
-      const m = n.magic_drivers;
-      return (
-        m.math          >= filters.magic.math &&
-        m.aesthetic     >= filters.magic.aesthetic &&
-        m.institutional >= filters.magic.institutional &&
-        m.comptroller   >= filters.magic.comptroller
-      );
-    });
-  },
 }));
+
+function useFilteredNodes(): GECDNodeData[] {
+  const nodes   = useStore(s => s.nodes);
+  const filters = useStore(s => s.filters);
+  return useMemo(() => nodes.filter(n => {
+    if (!filters.elements.includes(n.geometric_element)) return false;
+    const yr = nodeYear(n);
+    if (yr < filters.timeRange[0] || yr > filters.timeRange[1]) return false;
+    const m = n.magic_drivers;
+    if (!m) return false;
+    return (
+      m.math          >= filters.magic.math &&
+      m.aesthetic     >= filters.magic.aesthetic &&
+      m.institutional >= filters.magic.institutional &&
+      m.comptroller   >= filters.magic.comptroller
+    );
+  }), [nodes, filters]);
+}
 
 // ── 3-D scene pieces ──────────────────────────────────────────────────────────
 
@@ -511,7 +530,7 @@ function Scene() {
   const hoveredId  = useStore(s => s.hoveredId);
   const camPreset  = useStore(s => s.camPreset);
   const select     = useStore(s => s.select);
-  const vis        = useStore(s => s.filtered());
+  const vis        = useFilteredNodes();
   const visIds     = useMemo(() => new Set(vis.map(n => n.id)), [vis]);
 
   return (
@@ -966,7 +985,7 @@ function IngestModal({ onClose }: { onClose: () => void }) {
 function HUD({ onIngest }: { onIngest: () => void }) {
   const camPreset = useStore(s => s.camPreset);
   const setCam    = useStore(s => s.setCam);
-  const nodeCount = useStore(s => s.filtered()).length;
+  const nodeCount = useFilteredNodes().length;
 
   return (
     <div style={{ position:"absolute", top:10, left:"50%", transform:"translateX(-50%)", display:"flex", alignItems:"center", gap:8, zIndex:20 }}>
