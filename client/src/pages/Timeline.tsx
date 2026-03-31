@@ -303,7 +303,9 @@ const useStore = create<Store>((set) => ({
   addNode: (n) => set(s => ({ nodes: [...s.nodes, n] })),
   addNodes: (incoming) => set(s => {
     const existing = new Set(s.nodes.map(n => n.id));
-    const fresh = incoming.filter(n => !existing.has(n.id));
+    const fresh = incoming
+      .filter(n => !existing.has(n.id))
+      .map(n => ({ ...n, connections: n.connections ?? [] }));
     return fresh.length ? { nodes: [...s.nodes, ...fresh] } : {};
   }),
   select: (id) => set({ selectedId: id }),
@@ -472,7 +474,7 @@ function Connections({ all, visibleIds }: { all: GECDNodeData[]; visibleIds: Set
     const out: { from: string; to: string }[] = [];
     all.forEach(n => {
       if (!visibleIds.has(n.id)) return;
-      n.connections.forEach(t => {
+      (n.connections ?? []).forEach(t => {
         if (!visibleIds.has(t)) return;
         const k = [n.id,t].sort().join("||");
         if (!seen.has(k)) { seen.add(k); out.push({ from: n.id, to: t }); }
@@ -589,7 +591,7 @@ function DetailPanel({ node, onClose }: { node: GECDNodeData; onClose: () => voi
   const col    = ELEMENT_COLORS[node.geometric_element] || "#ffffff";
   const [pipeSt, setPipeSt] = useState<"idle"|"loading"|"done">("idle");
 
-  const connected = useMemo(() => all.filter(n => node.connections.includes(n.id)), [all, node]);
+  const connected = useMemo(() => all.filter(n => (node.connections ?? []).includes(n.id)), [all, node]);
 
   const sendPipeline = async () => {
     if (!node.image_prompt) return;
