@@ -1,0 +1,110 @@
+Absolutely 💛 Here’s the **Mesopotamia-focused, non-museum image-source stack** I’d use first.
+
+## Best overall ranking for your workflow
+
+### 1) **CDLI**
+
+Use this first for **tablets, cones, seals, inscriptions, and object-level Mesopotamian records**. CDLI item pages are especially useful because they pair object identity with catalogue/export options and text/annotation layers, so they work well for both image sourcing and metadata structure. ([CDLI][1])
+
+### 2) **Wikimedia Commons**
+
+Use this as your fastest broad pass for **reusable images, old excavation plates, diagrams, maps, and public-domain-style reference visuals**. Commons explicitly points users to reuse guidance, and its category structure is a core discovery method, which makes it very efficient once you start building repeatable term trees. ([Wikimedia Commons][2])
+
+### 3) **Open Context**
+
+This is one of the strongest non-museum sources for **archaeological context** rather than just isolated artifact shots: images, maps, field notes, and 3D models. I’d use it whenever you want the object *inside* its excavation or research setting. ([Open Context][3])
+
+### 4) **Internet Archive + Google Books + HathiTrust**
+
+These are your best sources for **older archaeology books, excavation reports, foldout plates, line drawings, engravings, and scanned illustrations**. Internet Archive offers millions of downloadable texts, Google Books makes public-domain and otherwise free books readable and often downloadable in Full View, and HathiTrust provides access where rights permit. ([Internet Archive][4])
+
+### 5) **Library of Congress Digital Collections**
+
+Best for **historic maps, prints, photographs, and rights-friendlier visual sets**. LOC’s “Free to Use and Reuse” pages are just a sample of much larger digital collections spanning maps, photos, manuscripts, and more. ([The Library of Congress][5])
+
+### 6) **NYPL Digital Collections**
+
+Very strong for **historic maps, book illustrations, manuscripts, and prints**. NYPL describes the platform as a large, living database with over a million items, and it gives guidance for using public-domain items. ([NYPL Digital Collections][6])
+
+### 7) **Openverse**
+
+Best as a **license-first aggregator** when you want to search across many repositories at once. Openverse says it searches across more than 800 million openly licensed or public-domain works, but it also cautions users to verify the license of the specific item they choose. ([Openverse][7])
+
+### 8) **UNESCO World Heritage / Dive into Heritage**
+
+Use these for **site-level context, landscape identity, and place-based storytelling**, not for detailed artifact shots. They’re helpful when you want students to understand a site as a lived environment or heritage landscape. ([UNESCO][8])
+
+### 9) **USGS EarthExplorer + NASA Worldview / Earth Observatory**
+
+These are best for **rivers, settlement geography, environmental change, irrigation context, tell landscapes, and regional visuals**. EarthExplorer is built for satellite images, aerial photos, and cartographic products; NASA Worldview provides full-resolution daily satellite imagery; Earth Observatory adds explained image stories from NASA research. ([EarthExplorer][9])
+
+### 10) **tDAR**
+
+A good archaeology backstop for **documents, images, datasets, GIS, and project archives** when you want more research-grade excavation material. It is less visually polished than Commons, but often better structured for academic sourcing. ([Digital Archaeological Record][10])
+
+## Best by image type
+
+### For artifact/object images
+
+Start with:
+
+* **CDLI** ([CDLI][1])
+* **Wikimedia Commons** ([Wikimedia Commons][2])
+* **Openverse** ([Openverse][7])
+
+### For excavation / archaeological context
+
+Start with:
+
+* **Open Context** ([Open Context][3])
+* **tDAR** ([Digital Archaeological Record][10])
+* **ADS** for fieldwork-photo style archives and reports; it is especially rich in UK archaeology, so I’d treat it more as a contextual/reference source than a Mesopotamia-first source. ([Archaeology Data Service][11])
+
+### For maps, diagrams, and old public-domain plates
+
+Start with:
+
+* **Internet Archive** ([Internet Archive][4])
+* **Google Books** ([Google Books][12])
+* **HathiTrust** ([HathiTrust][13])
+* **Library of Congress** ([The Library of Congress][5])
+* **NYPL** ([NYPL Digital Collections][6])
+
+### For site / environment / geography visuals
+
+Start with:
+
+* **UNESCO** ([Dive Into Heritage][14])
+* **USGS EarthExplorer** ([EarthExplorer][9])
+* **NASA Worldview / Earth Observatory** ([Worldview][15])
+
+## The shortest working pipeline I’d recommend
+
+For your curriculum build, I’d make the default order:
+
+**CDLI → Wikimedia Commons → Open Context → Internet Archive / Google Books / HathiTrust → LOC / NYPL → UNESCO / USGS / NASA**. That order moves from **specific Mesopotamian objects** to **historical plates** to **site and environment context**. ([CDLI][16])
+
+## One caution worth keeping
+
+Even on strong repositories, **reuse rights still need record-level checking**. Openverse explicitly says license details should be verified on the specific work, and LOC/NYPL also point users back to item-level rights guidance. ([Openverse Documentation][17])
+
+I can turn this into a **reusable search sheet** next — for example:
+**artifact photos / tablets / cylinder seals / maps / diagrams / site context / aerials**, each with ready-to-paste search strings.
+
+[1]: https://cdli.ucla.edu/P343559?utm_source=chatgpt.com "CDLI Literary needed, ex. nn ? (P343559) - Cuneiform Digital Library ..."
+[2]: https://commons.wikimedia.org/wiki/Main_Page?utm_source=chatgpt.com "Wikimedia Commons"
+[3]: https://opencontext.org/?utm_source=chatgpt.com "Open Context: Publisher of Research Data"
+[4]: https://archive.org/details/texts?utm_source=chatgpt.com "Free Books : Download & Streaming : eBooks and Texts : Internet Archive"
+[5]: https://www.loc.gov/free-to-use/?utm_source=chatgpt.com "Free to Use and Reuse Sets - Library of Congress"
+[6]: https://digitalcollections.nypl.org/?utm_source=chatgpt.com "NYPL Digital Collections"
+[7]: https://openverse.org/about?utm_source=chatgpt.com "About Openverse"
+[8]: https://www.unesco.org/en/world-heritage?utm_source=chatgpt.com "World Heritage - UNESCO"
+[9]: https://earthexplorer.usgs.gov/?utm_source=chatgpt.com "USGS - EarthExplorer"
+[10]: https://core.tdar.org/?utm_source=chatgpt.com "Welcome to the Digital Archaeological Record"
+[11]: https://archaeologydataservice.ac.uk/?utm_source=chatgpt.com "Archaeology Data Service"
+[12]: https://books.google.com/googlebooks/about/free_books.html?utm_source=chatgpt.com "About Google Books – Free books in Google Books"
+[13]: https://www.hathitrust.org/the-collection/search-access/copyright-access/?utm_source=chatgpt.com "Copyright & Access – HathiTrust Digital Library"
+[14]: https://diveintoheritage.unesco.org/?utm_source=chatgpt.com "UNESCO Dive Into Heritage"
+[15]: https://worldview.earthdata.nasa.gov/?utm_source=chatgpt.com "NASA Worldview"
+[16]: https://cdli.ucla.edu/P348997?utm_source=chatgpt.com "OECT 11, 123 (P348997) - Cuneiform Digital Library Initiative"
+[17]: https://docs.openverse.org/api/reference/made_with_ov.html?utm_source=chatgpt.com "Made with Openverse - Openverse documentation"
