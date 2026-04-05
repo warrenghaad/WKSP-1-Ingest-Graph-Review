@@ -1,0 +1,173 @@
+# SESSION SAVE — March 24, 2026
+
+## Day B Analysis → Framework Breakthrough → Pilot Fix Plan
+
+-----
+
+## FRAMEWORK DECISIONS MADE TODAY
+
+### 1. GECD is the measurement instrument. MAGIC is the reading.
+
+- GECD describes any historical item: Element (GEA/GEM) + Carrier + Dimensional complexity
+- You don’t score MAGIC independently — you look at the GECD configuration and the MAGIC values fall out of it
+- GECD = the ruler. MAGIC = the height.
+
+### 2. MAGIC.G = center of radar chart (not a plotted variable)
+
+- M, A, I, C are four axes radiating from G at center
+- Each MAGIC instance produces a quadrilateral shape
+- G is instantiative — always present, makes measurement possible
+- The SHAPE of the quadrilateral = the networking pattern
+- Delta between two quadrilateral shapes = insight
+- Magnitude of shape-change = ingenuity
+- G’s theoretical meaning is DEFERRED — structural role is locked
+
+### 3. Exogenous variables: Creativity + Time
+
+- Creativity = the sole motive force. Why anything changes. Every GECD instantiation exists because someone made a choice.
+- Time = the sole axis.
+- Everything else (M, A, I, C, and the quadrilateral they form around G) is endogenous.
+
+### 4. Terminology locked
+
+- Creative act = choice (novelty, first-level)
+- Insight = any MAGIC change detected across ≥2 instantiations (delta between quadrilaterals)
+- Ingenuity = size of the insight (magnitude of the shape-change)
+- Discovery = insight (it can only be an idea)
+- Innovation = domain-specific delta
+- Invention = emergent ingenuity
+
+### 5. MAGIC scale: 0.0–2.0
+
+- 0.0–0.999 = accessory to near-codependence
+- 1.0+ = required
+- 1.0–1.3 = required + co-dependent (needs others at 1.0+ too)
+- 1.4–1.7 = required + partially independent
+- 1.8–2.0 = dominant driver
+- Near 1.0 with all variables near 1.0 = civilizational (everything needed)
+- Near 2.0 with few variables high = concentrated (one or two drivers)
+
+### 6. Day B progression expanded
+
+- Math → Geometric Principle → Science/Classical Mechanics → Function in Object → Invention
+- “Object” step added because GECD moments implicate multiple elements in multiple carriers
+
+### 7. No threshold for relevance
+
+- Any change in GECD is need-to-know
+- Missing them causes data issues
+
+### 8. GECD as analytical flowchart (not two-feature variable)
+
+- primitive + motion + vector + duration
+- Needed analysis: GEpHR, artistic skills, color theory, visual rhetoric AND geometric element-carrier-dimension
+
+-----
+
+## OUTPUTS CREATED TODAY
+
+### Files saved to /mnt/user-data/outputs/
+
+1. day_b_analysis.md — Week-by-week Day B analysis with grades, fixes, multi-element braiding
+1. mesopotamian_geometry_multi_spoke_timeline.html — Interactive 5-spoke timeline with 40+ nodes, hover tooltips, element filtering, convergence points
+1. gea_gem_composition_and_magic_weights.html — 4-tab HTML: GEA→GEM composition map, MAGIC weight table (20 inventions scored), weighting methodology, art analysis method
+
+### Research reports generated
+
+1. “Geometry before Euclid” — 6,000-year Mesopotamian timeline with 25+ dated artifacts, museum accession numbers, 5 sections
+1. “How to prove a cultural framework isn’t making things up” — 7 falsification tests for MAGIC
+1. “Compositional elements as geometric operations” — Full taxonomy of art elements/principles with historical origins, 3-category geometry classification (A: explicitly geometric, B: geometrically describable, C: geometry-resistant)
+
+### Diagrams generated
+
+1. Figma/Mermaid element-invention braid diagram
+1. Interactive multi-spoke timeline (canvas-based, filterable)
+1. GEA→GEM composition + MAGIC weight visualization
+
+-----
+
+## PILOT FIX PUNCH LIST (in priority order)
+
+### Week III — 8-Star (2-3 hours) — EASIEST
+
+- Add accession numbers and dates from research to B5
+- Add Halaf rosettes, Jemdet Nasr rosettes, Uruk cone mosaics
+- Verify Met seal 1999.325.21 details
+
+### Week IV — Triangle (half day)
+
+- Add Si.427, Plimpton 322, YBC 7289 to B5 (Pythagorean knowledge)
+- Add Sawwan buttresses (~5500 BCE) and Eridu buttresses (~5400 BCE) to B4
+- Confirm Ur-Nammu details in B6
+
+### Week I — Circle (half day)
+
+- Rewrite B5 as “shape as protagonist” (model on Week III)
+- Full timeline from Halaf ~6200 BCE through Jupiter trapezoid ~350 BCE
+- Add Uruk cone mosaics to B4
+
+### Week II — Crescent (full day) — HARDEST
+
+- Decide: Option A (reground in crescent geometry) or Option B (reframe as circle-derivative)
+- Rewrite B2, B3, B4, B5 accordingly
+- Keep B1 sickle bridge and B6 calendar invention
+
+### Final pass (2 hours)
+
+- SRQ cross-check: B2 property → B6 invention
+- A2↔B2 isomorphism check
+
+-----
+
+## RESEARCH TO LAUNCH (queued — tool was unavailable)
+
+### Prerequisite Graph / Dependency Network Research
+
+Full brief written and ready to launch. Covers:
+
+1. Prerequisite graphs in knowledge systems
+1. Dependency networks in innovation history (Brian Arthur, TRIZ, patent networks)
+1. Network analysis applied to art history (Schich 2014, Lincoln)
+1. Necessary Condition Analysis (Jan Dul’s NCA)
+1. DAGs in causal inference for historical analysis (Pearl)
+1. Documented prerequisite chains in art/architecture
+1. Falsification of prerequisite claims
+1. Software tools (Neo4j, Gephi, NetworkX, D3)
+
+### Key concept from today:
+
+The prerequisite graph of geometric problem-solving moments IS the theory. Each node = a MAGIC instance. Each edge = a necessary condition. Topology reveals keystones, dead ends, ingenuity lineages, and convergence points. Every edge is a testable claim.
+
+-----
+
+## PROJECT NOTES
+
+### “Object” addition to Day B
+
+Sami identified that Day B progression needs an intermediate step between mechanics and invention. Currently B4 does this implicitly (especially Week III’s three-object structure). Needs formalization.
+
+### Crescent is the weakest spoke
+
+- Doesn’t appear as distinct symbol until ~2900 BCE (youngest by far)
+- B2 “proof” (12°/night) is astronomy, not crescent geometry
+- Sickle is the one genuine geometric-function node
+- Calendar function depends on circle’s angular division, not crescent properties
+
+### Week III is the model
+
+- “Shape as protagonist” B5 approach
+- Three-object B4 structure
+- All other weeks should aspire to this standard
+
+### Brunelleschi insight
+
+Sami’s observation: perspective work caused a sudden emergence of skill iterable in perpetuity → schematics for 3D objects → commerce → political capability. “The paper on which the Declaration of Independence was written.” This is the prerequisite graph in action — one geometric problem-solving moment enabling cascading downstream capability.
+
+-----
+
+## NEXT SESSION PRIORITIES
+
+1. Launch prerequisite graph research (brief is written, ready to go)
+1. Create project knowledge docs for the new Claude methodology project
+1. Begin pilot fixes starting with Week III
+1. Set up Notion resource database with 3-axis structure (chronological, MAGIC-variable, analytical-layer)
