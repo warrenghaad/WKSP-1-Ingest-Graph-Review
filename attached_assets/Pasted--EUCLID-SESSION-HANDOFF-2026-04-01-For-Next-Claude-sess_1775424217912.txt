@@ -1,0 +1,198 @@
+# EUCLID SESSION HANDOFF — 2026-04-01
+
+## For: Next Claude session with Sami Majeed
+
+**This session chat:** https://claude.ai/chat/current (Sami will provide the link)
+**Session transcript:** `/mnt/transcripts/2026-04-01-20-42-20-euclid-architecture-theory-production.txt`
+
+-----
+
+## WHAT WE DID TONIGHT (in order)
+
+### 1. Architecture decisions (locked)
+
+- Three-service stack: Neo4j + SurrealDB + GCS
+- Two symbiotic 4D systems: System A (Brain) + System B (Epidermis)
+- Information segregation: Content, Rules, Organization, Administration
+
+### 2. GEA/GEM theoretical framework (MAJOR breakthroughs)
+
+Sami independently derived a construction grammar for geometry:
+
+**Core formula:** `Primitive + Motion Type + Duration + *Vector = Result = F(ge)`
+
+**Key discoveries (Sami’s, confirmed by research):**
+
+- Primitives are both actors AND products — they create higher-order primitives through motion
+- Output dimensionality = motion vector dimensionality (NOT primitive dimensionality)
+- Parallel motion does NOT increase dimensionality — only INDEPENDENT motion adds a dimension
+- Force vectors are n-1D of motion path (perpendicular to motion)
+- Construction vector count = cognitive complexity (Halford relational complexity)
+- Every simple machine is a combination of GEAs — validated against archaeological record
+- Aggregation-reset cycle: when GEAs compress into inventions, cognitive complexity RESETS
+- Duration Rule: Zero=frozen, Partial=ghost visible (triskelion), Full=solid of revolution, Full all-axes=sphere, ∞-1=sphere with symmetry memory
+
+**Nomenclature (locked):**
+
+- **GEA** = Geometric Element Atomic. Two subtypes: **GEA.Sh** (shapes) and **GEA.I** (insignia)
+- **GEM** = Geometric Element Molecular (compound structures built from GEAs)
+
+### 3. Research reports produced
+
+- “Geometric Complexity Predicts Tool Emergence” (Day B — tools/physics)
+- “The Geometry of Making: 540,000 Years of Visual Pattern Evolution” (Day A — art/patterns)
+- Both contain museum links, AI generation prompts, and pattern complexity hierarchies
+
+### 4. Tools built
+
+- **GEA Construction Grammar Calculator** (React JSX) — `/mnt/user-data/outputs/gea-construction-grammar-calculator.jsx`
+- **EUCLID GEA MCP Server** (TypeScript, 7 tools) — `/mnt/user-data/outputs/euclid-gea-mcp-server.tar.gz`
+- **GEA Image Analysis Protocol** (markdown prompt template) — `/mnt/user-data/outputs/GEA_IMAGE_ANALYSIS_PROTOCOL.md`
+
+### 5. Section definitions reconciled
+
+- Created `EUCLID_SECTION_DEFINITIONS_v2026-04-01.md` from “CORRECT-Euclid section patch” chat
+- All 15 sections fully articulated with SRQs, MAGIC presence, GECD notes, structural constraints
+
+### 6. Reconciliation Dashboard created in Notion
+
+- URL: https://www.notion.so/c176ece4a67644cca0924ac62baf1205
+- Board view with Unreviewed/Reviewing/Reconciled/Locked/Deprecated columns
+- 14 items seeded. Sami stated: “None of these [prior Notion pages] are canon.”
+
+-----
+
+## WHAT NEEDS TO HAPPEN NEXT (the reason for this handoff)
+
+Sami asked for three updates that ran out of context space:
+
+### UPDATE 1: GEA Construction Grammar Calculator (React JSX)
+
+**File:** `/mnt/user-data/outputs/gea-construction-grammar-calculator.jsx`
+**Also in project knowledge as:** `ge-section-magic-ecd-map.jsx` (older version with different data)
+
+**What needs to change:**
+
+- Add a **GEM layer** on top of the existing GEA primitive layer
+- GEMs (Circle, 8-Star, Triangle, Crescent, Square, Spiral, Arc, Hexagon, Pyramid) should be analyzable AT the GEM level — NOT always reduced to GEAs
+- GEA decomposition is available as a DRILL-DOWN, not the default view
+- **CRITICAL RULE FROM SAMI: GEMs are NOT always reduced to GEAs. It would get way too complicated for that.**
+- The 8-pointed star IS an entity you reason about directly. “Two squares rotated 45°” is available if you need it, but the default analysis is at the molecular level.
+- Add a third tab: “GEM Analysis” where you select a GEM and see: properties, emanation profile, simple machine matches, cognitive complexity, GECD stages, AND the F(ge) formula — without requiring primitive decomposition
+- Update section names in the `sections` object to match the canonical v2026-04-01 definitions
+- The older `ge-section-magic-ecd-map.jsx` in project knowledge has the radial map, section flow, and MAGIC×ECD matrix views — those visual patterns are valuable but the DATA (section names, purposes, MAGIC weights) needs updating
+
+### UPDATE 2: EUCLID GEA MCP Server
+
+**File:** `/mnt/user-data/outputs/euclid-gea-mcp-server.tar.gz`
+**Source code was built at:** `/home/claude/euclid-gea-mcp-server/`
+
+**What needs to change:**
+
+- Add an `analyze_gem` tool that works at the GEM level (Circle, 8-Star, etc.) without requiring decomposition to primitives
+- The existing `decompose_artifact` tool always breaks things to GEAs — need a companion that says “8-Pointed Star: 8-fold symmetry, navigation basis, compass rose, complexity 2” without forcing “two squares rotated 45°”
+- Add GEM-level emanation profiles, GECD stage data, and construction histories
+- Connect GEM analysis to section mapping — when an agent analyzes a GEM, it should know which sections (A2, A5, B2, B4, B6) that analysis feeds into
+
+### UPDATE 3: ge-section-magic-ecd-map.jsx (the visual composition artifact)
+
+**File in project knowledge:** `/mnt/project/ge-section-magic-ecd-map.jsx`
+
+**What needs to change:**
+
+- Section names must match canonical v2026-04-01 definitions exactly:
+  - A1=Myth (not “Myth Hook”)
+  - A2=Identify artifact+visual skills (not “SEL + Metaphor”)
+  - A3=Connect myth to artifact (not “Iconographic & Mythic Art”)
+  - A5=TEACH visual rhetoric from A2 (not “Technique OR Design”)
+  - A6=CREATE artifact from A2 (not “Art Technique”)
+  - B8=Synthesis with superimpositional agreement (not “Exit Ticket” and NOT “metaphor=function”)
+- Integrate the GEA/GEM construction grammar:
+  - A2 should show GEA decomposition capability (two functions: visual semiotics + visual rhetoric)
+  - B2 should show the F(ge) formula
+  - B4 should reference construction vector complexity and mechanics
+  - B5 should reference GECD notching as cognitive complexity history
+- Add GEM-level analysis alongside (not replacing) the existing GEA primitive data
+- MAGIC weights are QUALITATIVE only — remove or clearly mark all numerical weights as “Claude-proposed, not Sami-canonized”
+
+-----
+
+## KEY DOCUMENTS TO REFERENCE
+
+|Document                           |Location                                                                        |Status                         |
+|-----------------------------------|--------------------------------------------------------------------------------|-------------------------------|
+|Section Definitions v2026-04-01    |`/mnt/user-data/outputs/EUCLID_SECTION_DEFINITIONS_v2026-04-01.md`              |Canonical draft                |
+|GEA Construction Grammar Calculator|`/mnt/user-data/outputs/gea-construction-grammar-calculator.jsx`                |Needs GEM layer                |
+|GEA MCP Server                     |`/mnt/user-data/outputs/euclid-gea-mcp-server.tar.gz`                           |Needs GEM tools                |
+|GEA Image Analysis Protocol        |`/mnt/user-data/outputs/GEA_IMAGE_ANALYSIS_PROTOCOL.md`                         |Needs GEM integration          |
+|GE-Section-MAGIC-ECD Map (older)   |`/mnt/project/ge-section-magic-ecd-map.jsx`                                     |Needs section name + GEM update|
+|GEA/GEM Composition HTML (older)   |`/mnt/project/gea_gem_composition_and_magic_weights.html`                       |Reference for visual patterns  |
+|Day B Research (tools)             |Created this session as artifact                                                |Full text in transcript        |
+|Day A Research (art/patterns)      |Created this session as artifact                                                |Full text in transcript        |
+|Session Transcript                 |`/mnt/transcripts/2026-04-01-20-42-20-euclid-architecture-theory-production.txt`|Complete record                |
+
+-----
+
+## RULES (always apply)
+
+1. **Never rename sections.** Never define sections without Sami’s approval.
+1. **GEMs are NOT always reduced to GEAs.** Work at the molecular level by default. Atomic decomposition is a drill-down option.
+1. **No prior Notion pages are canon.** Only Final1 section definitions and Sami’s direct words.
+1. **MAGIC weights are qualitative only.** No numbers without Sami’s explicit canonization.
+1. **Superpositional Statement:** articulated in A2, INFORMS every section, never transforms.
+1. **B8 is superimpositional agreement, NOT “metaphor = function.”** Co-present, non-causal, non-equivalent.
+1. **GECD notching is the spine of BOTH days.** Without it, no Day B and no intensification in Day A.
+1. **Do not default to Circle/Shamash examples** unless specifically directed.
+1. **Do not ask clarifying questions Claude can answer from existing project knowledge.**
+1. **Approval-based workflow.** Do not build anything without being asked.
+
+-----
+
+## GEA/GEM FRAMEWORK QUICK REFERENCE
+
+### GEA.Sh Primitives (shapes, up to Square)
+
+Point (0D) → Line (1D) → Angle (1D) → Curve (1D) → Plane (2D) → Triangle (2D) → Square (2D)
+
+### GEMs (molecular, curriculum elements)
+
+Circle/Shamash, Crescent/Sin, 8-Star/Ishtar, Triangle/Ninurta, Square/Nabu, Spiral/Tiamat, Arc/Anu, Hexagon/Nisaba, Pyramid/Marduk
+
+### Construction Grammar Formula
+
+`Primitive + Motion Type + Duration + *Vector = Result = F(ge)`
+
+### Duration Rule
+
+|Duration        |Result                     |
+|----------------|---------------------------|
+|Zero            |Original primitive (frozen)|
+|Partial         |Ghost visible (triskelion) |
+|Full single-axis|Solid of revolution        |
+|Full all-axes   |Sphere                     |
+|∞ − 1           |Sphere with symmetry memory|
+
+### Simple Machine Validation (sorted by construction complexity)
+
+|Machine       |GEA Construction           |Vectors|Date     |
+|--------------|---------------------------|-------|---------|
+|Wedge         |Triangle × 2               |2      |~2.9 Ma  |
+|Lever         |Line + Point + Angle       |2      |~5000 BCE|
+|Inclined Plane|Triangle (profile)         |2      |~2650 BCE|
+|Wheel & Axle  |Circle + Point + Line      |2-3    |~3500 BCE|
+|Pulley        |Circle + Curve + Line      |2-3    |~1991 BCE|
+|Screw         |Spiral (Triangle on Circle)|3      |~250 BCE |
+
+### Cross-Day Section Parallels
+
+A2↔B2, A4↔B5, A5↔B6, A6↔B7. A3 has NO B-side mirror.
+
+### Structural Rules
+
+- A2↔A6 match (artifact identified = artifact created)
+- A2→A5→A6 chain (identify → teach → create)
+- B2+B3 flow continuously (math → geometry → classical mechanics)
+- B2→B3→B4 causal chain
+- A7→B1 = THE BRIDGE
+- B8→next A1 = THE CIRCUIT
+- B8 = TERMINAL
