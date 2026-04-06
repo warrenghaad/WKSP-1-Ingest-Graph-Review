@@ -1,0 +1,574 @@
+import { useState, useCallback, useMemo } from “react”;
+
+// ═══════════════════════════════════════════════════════
+// GEA CONSTRUCTION GRAMMAR CALCULATOR
+// Primitive + Motion + Duration + Vector = Result = F(ge)
+// ═══════════════════════════════════════════════════════
+
+// ── KNOWLEDGE BASE ──────────────────────────────────────
+
+const PRIMITIVES = {
+point: {
+name: “Point”, dim: 0, type: “GEA.Sh”, symbol: “•”,
+physics: “Center of mass. Where force converges.”,
+canDo: [“Locate position”, “Balance forces”, “Anchor rotation”],
+cannotDo: [“Extend”, “Enclose”, “Distribute”],
+},
+line: {
+name: “Line”, dim: 1, type: “GEA.Sh”, symbol: “─”,
+physics: “Force vector. Direction + magnitude.”,
+canDo: [“Transmit force”, “Define direction”, “Connect two points”, “Measure distance”],
+cannotDo: [“Enclose area”, “Distribute pressure”, “Rotate without anchor”],
+},
+angle: {
+name: “Angle”, dim: 1, type: “GEA.Sh”, symbol: “∠”,
+physics: “Force resolution. Where directions meet.”,
+canDo: [“Split force into components”, “Determine mechanical advantage”, “Create rigidity when closed”],
+cannotDo: [“Enclose without closure”, “Roll”, “Distribute evenly”],
+},
+curve: {
+name: “Curve”, dim: 1, type: “GEA.Sh”, symbol: “⌢”,
+physics: “Continuous force. Force that doesn’t stop acting.”,
+canDo: [“Redirect force smoothly”, “Contain pressure evenly”, “Enable rotation”, “Create periodic motion”],
+cannotDo: [“Create straight-line translation alone”, “Grip or hold (no edges)”, “Tile a plane”],
+},
+plane: {
+name: “Plane”, dim: 2, type: “GEA.Sh”, symbol: “▱”,
+physics: “Field. A value at every point in flat space.”,
+canDo: [“Distribute pressure”, “Constrain motion to 2 directions”, “Tile space”, “Map positions”],
+cannotDo: [“Enclose volume alone”, “Create rigidity”, “Focus force”],
+},
+triangle: {
+name: “Triangle”, dim: 2, type: “GEA.Sh”, symbol: “△”,
+physics: “Load distribution. Only rigid polygon.”,
+canDo: [“Resist deformation”, “Decompose force”, “Create structural stability”, “Reduce required force (as ramp)”],
+cannotDo: [“Roll”, “Distribute evenly (concentrates at vertices)”, “Contain pressure evenly”],
+},
+square: {
+name: “Square”, dim: 2, type: “GEA.Sh”, symbol: “□”,
+physics: “Tessellation + measurement. Perfect tiling.”,
+canDo: [“Tile plane with zero gaps”, “Create orthogonal channels”, “Measure area”, “Distribute to 4 neighbors”],
+cannotDo: [“Resist shear”, “Roll”, “Contain pressure efficiently (corner stress)”],
+},
+};
+
+const OPERATIONS = {
+sweep: { name: “Sweep”, desc: “Translate along a path”, icon: “→” },
+rotate: { name: “Rotate”, desc: “Spin around an axis”, icon: “↻” },
+extrude: { name: “Extrude”, desc: “Push perpendicular to surface”, icon: “⬆” },
+close: { name: “Close”, desc: “Connect end to start”, icon: “○” },
+tile: { name: “Tile”, desc: “Repeat to fill space”, icon: “▦” },
+fold: { name: “Fold”, desc: “Bend along a line”, icon: “⌐” },
+overlay: { name: “Overlay”, desc: “Stack with rotation offset”, icon: “⊕” },
+intersect: { name: “Intersect”, desc: “Cut with another form”, icon: “✕” },
+project: { name: “Project”, desc: “Flatten to lower dimension”, icon: “⤓” },
+};
+
+const DURATIONS = {
+zero: { name: “Zero / Instant”, desc: “Frozen. No motion.”, factor: 0 },
+partial: { name: “Partial”, desc: “Ghost visible. Incomplete form.”, factor: 0.5 },
+full: { name: “Full (single axis)”, desc: “Complete revolution or closure.”, factor: 1 },
+full_all: { name: “Full (all axes)”, desc: “Every orientation visited.”, factor: 2 },
+infinite_minus: { name: “∞ − 1”, desc: “Sphere with symmetry memory.”, factor: 3 },
+};
+
+const VECTOR_DIMS = {
+“0d”: { name: “0D (stationary)”, dim: 0 },
+“1d_straight”: { name: “1D straight”, dim: 1 },
+“1d_curved”: { name: “1D curved”, dim: 1 },
+“2d”: { name: “2D (surface)”, dim: 2 },
+“3d”: { name: “3D (volume)”, dim: 3 },
+screw: { name: “Screw (translate + rotate)”, dim: 2 },
+};
+
+// ── COMPUTATION ENGINE ──────────────────────────────────
+
+function computeResult(primitive, operation, duration, vectorDim) {
+if (!primitive || !operation || !duration || !vectorDim) return null;
+
+const p = PRIMITIVES[primitive];
+const op = OPERATIONS[operation];
+const dur = DURATIONS[duration];
+const vec = VECTOR_DIMS[vectorDim];
+
+// Core dimensional rule
+const isParallel = (p.dim === 1 && vectorDim === “1d_straight”) ||
+(p.dim === 0 && vectorDim === “0d”);
+const outputDim = isParallel ? p.dim : Math.min(3, p.dim + vec.dim);
+
+// Force vector dimensionality = motion dim - 1 (perpendicular to motion)
+const forceVecDim = Math.max(0, vec.dim - 1);
+
+// Construction vector count (independent motions)
+let constructionVectors = 0;
+if (vec.dim > 0) constructionVectors++;
+if (operation === “rotate” || operation === “overlay”) constructionVectors++;
+if (vectorDim === “screw”) constructionVectors = 3;
+if (duration === “full_all”) constructionVectors = Math.max(constructionVectors, 3);
+
+// Cognitive complexity (Halford)
+const cogLevel = Math.min(5, 1 + constructionVectors);
+const cogLabels = [””, “Unary (recognition)”, “Binary (shape + property)”, “Ternary (shape + property + application)”, “Quaternary (shape + property + material + mechanism)”, “Quinary (full integration)”];
+
+// ── RESULT GEOMETRY ──
+const results = [];
+const functionalities = [];
+const simpleMachines = [];
+const emanations = [];
+
+// Point transformations
+if (primitive === “point”) {
+if (operation === “sweep” && vectorDim === “1d_straight”) {
+results.push(“Line”);
+functionalities.push(“Creates direction and distance”);
+}
+if (operation === “sweep” && vectorDim === “1d_curved”) {
+results.push(“Arc / Curve”);
+functionalities.push(“Creates trajectory path”);
+}
+if (operation === “rotate” && duration !== “zero”) {
+results.push(“Circle”);
+functionalities.push(“Creates boundary of equal radius”);
+simpleMachines.push(“Wheel (if + axle line)”);
+}
+if (vectorDim === “2d”) {
+results.push(“Disc / Surface”);
+functionalities.push(“Creates area for distribution”);
+}
+if (vectorDim === “3d”) {
+results.push(“Sphere / Volume”);
+functionalities.push(“Creates containment in all directions”);
+}
+}
+
+// Line transformations
+if (primitive === “line”) {
+if (operation === “sweep” && vectorDim === “1d_straight”) {
+if (isParallel) {
+results.push(“Longer Line (no dimension gain)”);
+functionalities.push(“Extends reach but adds no new capability — parallel motion doesn’t add dimension”);
+} else {
+results.push(“Rectangle / Plane”);
+functionalities.push(“Creates surface area for pressure distribution”);
+}
+}
+if (operation === “rotate”) {
+results.push(duration === “full” || duration === “full_all” ? “Circle / Cylinder” : “Arc / Partial sweep”);
+functionalities.push(“Converts linear force to rotational sweep”);
+if (duration === “full” || duration === “full_all”) {
+simpleMachines.push(“Wheel and Axle”);
+}
+}
+if (operation === “extrude”) {
+results.push(“Plane / Rectangle”);
+functionalities.push(“Creates flat surface for load bearing”);
+}
+}
+
+// Angle transformations
+if (primitive === “angle”) {
+if (operation === “close”) {
+if (duration === “partial”) {
+results.push(“Triangle (3 closures)”);
+functionalities.push(“Minimum rigid structure — resists deformation”);
+simpleMachines.push(“Inclined Plane (in profile)”);
+simpleMachines.push(“Wedge (doubled)”);
+}
+if (duration === “full”) {
+results.push(“Regular Polygon (n closures)”);
+functionalities.push(“Distributes force to n neighbors at equal angles”);
+}
+}
+if (operation === “rotate”) {
+results.push(“Cone”);
+functionalities.push(“Concentrates/disperses force from point to circle or vice versa”);
+}
+if (operation === “tile”) {
+results.push(“Tessellation (angle-dependent)”);
+functionalities.push(“Fills plane — valid only if angles sum to 360° at vertex”);
+}
+}
+
+// Curve transformations
+if (primitive === “curve”) {
+if (operation === “close”) {
+results.push(duration === “full” ? “Circle / Ellipse” : “Arc (open curve)”);
+functionalities.push(duration === “full” ? “Equal-radius containment. Isotropic in-plane emanation” : “Partial containment. Force redirection along arc”);
+if (duration === “full”) {
+simpleMachines.push(“Wheel and Axle (if + point center + line axle)”);
+simpleMachines.push(“Pulley (if + rope curve)”);
+}
+}
+if (operation === “sweep” && vectorDim === “1d_straight”) {
+results.push(“Spiral (if radius expanding) or Helix (if constant radius + translation)”);
+functionalities.push(“Converts rotation to linear advance (screw principle)”);
+simpleMachines.push(“Screw (if wrapped around cylinder)”);
+}
+if (operation === “rotate” && (duration === “full” || duration === “full_all”)) {
+results.push(“Sphere / Torus”);
+functionalities.push(“3D containment. Uniform pressure distribution in all directions”);
+}
+}
+
+// Plane transformations
+if (primitive === “plane”) {
+if (operation === “extrude”) {
+results.push(“Prism / Volume”);
+functionalities.push(“Creates enclosed 3D space”);
+}
+if (operation === “fold”) {
+results.push(duration === “partial” ? “Dihedral angle” : “Polyhedron”);
+functionalities.push(duration === “partial” ? “Creates rigid edge where two surfaces meet” : “Creates enclosed 3D structure from flat material”);
+}
+if (operation === “tile”) {
+results.push(“Infinite Grid / Lattice”);
+functionalities.push(“Fills space uniformly. Basis of all measurement systems”);
+}
+}
+
+// Triangle transformations
+if (primitive === “triangle”) {
+if (operation === “extrude”) {
+results.push(“Triangular Prism”);
+functionalities.push(“Rigid 3D structure — Toblerone shape. Structural beam”);
+}
+if (operation === “rotate”) {
+results.push(duration === “full_all” ? “Sphere with tetrahedral symmetry memory” : “Cone”);
+if (duration === “partial”) {
+results.push(“Triskelion / Triskele”);
+functionalities.push(“Partial rotation ghost — rotational symbol with triangular heritage”);
+}
+if (duration === “full”) {
+functionalities.push(“Force concentration from base to apex (funnel)”);
+}
+if (duration === “full_all”) {
+functionalities.push(“Maximum stability sphere — still carries triangle’s symmetry fingerprint”);
+}
+}
+if (operation === “tile”) {
+results.push(“Triangular Grid”);
+functionalities.push(“Strongest possible 2D lattice — every vertex is structurally locked”);
+}
+if (operation === “fold”) {
+results.push(“Tetrahedron (4 triangles) → Icosahedron (20)”);
+functionalities.push(“Minimum 3D enclosure (tetra) → maximum spherical approx (icosa)”);
+}
+emanations.push(“Force along sides (decomposition)”);
+emanations.push(“Cannot: uniform distribution, rolling, pressure containment”);
+simpleMachines.push(“Inclined Plane (profile IS the ramp)”);
+simpleMachines.push(“Wedge (two triangles back-to-back)”);
+}
+
+// Square transformations
+if (primitive === “square”) {
+if (operation === “extrude”) {
+results.push(“Cube”);
+functionalities.push(“Tiles 3D space perfectly. Every brick, room, shipping container”);
+}
+if (operation === “rotate”) {
+results.push(“Cylinder (around edge)”);
+functionalities.push(“Smooth containment from flat faces”);
+}
+if (operation === “overlay”) {
+results.push(“8-Pointed Star (two squares at 45°)”);
+functionalities.push(“8-fold directional partition. Compass rose. Navigation basis”);
+emanations.push(“8 discrete radial directions at 45° intervals”);
+}
+if (operation === “tile”) {
+results.push(“Infinite Square Grid”);
+functionalities.push(“Orthogonal coordinate system. Graph paper. City grids. Pixel grids”);
+}
+if (operation === “fold”) {
+results.push(“Cube (6 folds)”);
+functionalities.push(“6 faces = complete rectilinear enclosure”);
+}
+emanations.push(“Orthogonal force channels (horizontal + vertical)”);
+emanations.push(“Cannot: resist shear, roll, contain pressure efficiently”);
+}
+
+// Combination detection
+if (results.length === 0) {
+results.push(`${p.name} + ${op.name} (${dur.name})`);
+functionalities.push(“Custom combination — analyze by decomposing into known patterns”);
+}
+
+// Emanation profile from primitive
+if (emanations.length === 0) {
+if (primitive === “point”) emanations.push(“Omnidirectional from center (radiates equally)”);
+if (primitive === “line”) emanations.push(“Along the line (axial). Cannot: perpendicular force alone”);
+if (primitive === “angle”) emanations.push(“Resolves into two component directions along sides”);
+if (primitive === “curve”) emanations.push(“Tangential + centripetal at every point. Continuously varying”);
+if (primitive === “plane”) emanations.push(“Uniform pressure across surface. Constrains to 2D motion”);
+}
+
+return {
+inputPrimitive: p,
+operation: op,
+duration: dur,
+vector: vec,
+outputDim,
+forceVecDim,
+constructionVectors,
+cogLevel,
+cogLabel: cogLabels[cogLevel],
+results,
+functionalities,
+simpleMachines,
+emanations,
+isParallel,
+};
+}
+
+// ── COMBINATION ENGINE ──────────────────────────────────
+
+const KNOWN_COMBINATIONS = [
+{ a: “curve”, aOp: “close”, b: “line”, name: “Wheel & Axle”, desc: “Circle rotation → linear translation. Locomotion.”, complexity: 2, machine: “Wheel and Axle” },
+{ a: “curve”, aOp: “close”, b: “curve”, name: “Pulley”, desc: “Circle + rope curve. Force redirection.”, complexity: 2, machine: “Pulley” },
+{ a: “triangle”, aOp: “close”, b: “triangle”, name: “Wedge”, desc: “Two inclined planes back-to-back. Material splitting.”, complexity: 2, machine: “Wedge” },
+{ a: “line”, aOp: “sweep”, b: “point”, name: “Lever”, desc: “Line pivoting at point. Force multiplication.”, complexity: 2, machine: “Lever” },
+{ a: “curve”, aOp: “close”, b: “triangle”, name: “Screw”, desc: “Triangle wrapped around circle. Rotation → linear advance.”, complexity: 3, machine: “Screw” },
+{ a: “square”, aOp: “overlay”, b: “square”, name: “8-Pointed Star”, desc: “Two squares rotated 45°. 8-fold directional symmetry.”, complexity: 2, machine: “Compass Rose (navigational)” },
+{ a: “triangle”, aOp: “tile”, b: “triangle”, name: “Hexagon”, desc: “6 triangles sharing a vertex. Maximum efficient tiling.”, complexity: 3, machine: “Honeycomb / Gear teeth” },
+{ a: “curve”, aOp: “close”, b: “angle”, name: “Cam / Gear”, desc: “Circle with angular teeth. Converts smooth rotation to stepped output.”, complexity: 3, machine: “Gear train” },
+{ a: “plane”, aOp: “fold”, b: “triangle”, name: “Pyramid”, desc: “4 triangular planes meeting at apex. Maximum gravitational stability.”, complexity: 4, machine: “Buttressed structure” },
+];
+
+// ── UI COMPONENTS ───────────────────────────────────────
+
+const sty = {
+page: { fontFamily: “‘Cormorant Garamond’, ‘Georgia’, serif”, background: “#0a0a0f”, color: “#e8e4d9”, minHeight: “100vh”, padding: “2rem”, maxWidth: 900, margin: “0 auto” },
+h1: { fontFamily: “‘Cinzel’, serif”, fontSize: “1.8rem”, fontWeight: 700, letterSpacing: “0.15em”, textTransform: “uppercase”, color: “#c9a84c”, marginBottom: “0.3rem”, textAlign: “center” },
+subtitle: { textAlign: “center”, color: “#8a8370”, fontSize: “0.85rem”, letterSpacing: “0.3em”, marginBottom: “2rem”, fontFamily: “monospace” },
+section: { background: “#13131a”, border: “1px solid #2a2a35”, borderRadius: 8, padding: “1.5rem”, marginBottom: “1.2rem” },
+sectionTitle: { fontFamily: “‘Cinzel’, serif”, fontSize: “0.9rem”, color: “#c9a84c”, letterSpacing: “0.1em”, marginBottom: “1rem”, textTransform: “uppercase” },
+grid: { display: “grid”, gridTemplateColumns: “repeat(auto-fill, minmax(120px, 1fr))”, gap: 8 },
+btn: (active) => ({
+background: active ? “#c9a84c22” : “transparent”,
+border: `1px solid ${active ? "#c9a84c" : "#2a2a35"}`,
+borderRadius: 6, padding: “0.6rem 0.4rem”, cursor: “pointer”, color: active ? “#c9a84c” : “#8a8370”,
+fontSize: “0.75rem”, textAlign: “center”, transition: “all 0.2s”,
+fontFamily: “‘Cormorant Garamond’, serif”,
+}),
+symbol: { fontSize: “1.5rem”, display: “block”, marginBottom: 4, lineHeight: 1 },
+label: { display: “block”, fontSize: “0.7rem”, opacity: 0.7 },
+resultBox: { background: “#0d1117”, border: “1px solid #c9a84c55”, borderRadius: 8, padding: “1.5rem”, marginTop: “1.5rem” },
+resultTitle: { fontFamily: “‘Cinzel’, serif”, fontSize: “1.1rem”, color: “#c9a84c”, marginBottom: “1rem” },
+tag: (color) => ({
+display: “inline-block”, background: `${color}22`, border: `1px solid ${color}55`,
+borderRadius: 4, padding: “2px 8px”, margin: “2px 4px 2px 0”, fontSize: “0.72rem”, color,
+}),
+formula: { fontFamily: “monospace”, fontSize: “0.85rem”, color: “#7dc4e4”, padding: “0.8rem”, background: “#0a0e14”, borderRadius: 6, marginBottom: “1rem”, textAlign: “center”, border: “1px solid #1e2d3d” },
+row: { display: “flex”, gap: “1rem”, alignItems: “flex-start”, marginBottom: “0.8rem”, flexWrap: “wrap” },
+col: { flex: 1, minWidth: 200 },
+dim: (n) => ({ display: “inline-block”, background: [”#555”, “#4a90d9”, “#48b685”, “#a67bd5”][n] + “33”, border: `1px solid ${["#555", "#4a90d9", "#48b685", "#a67bd5"][n]}`, borderRadius: 4, padding: “1px 6px”, fontSize: “0.7rem”, color: [”#999”, “#4a90d9”, “#48b685”, “#a67bd5”][n], marginLeft: 4 }),
+machineTag: { display: “inline-block”, background: “#c9a84c11”, border: “1px solid #c9a84c44”, borderRadius: 4, padding: “3px 10px”, margin: “3px 4px 3px 0”, fontSize: “0.72rem”, color: “#c9a84c” },
+combCard: (active) => ({ background: active ? “#c9a84c11” : “#0d1117”, border: `1px solid ${active ? "#c9a84c55" : "#1e1e28"}`, borderRadius: 8, padding: “0.8rem”, marginBottom: 8, cursor: “pointer”, transition: “all 0.2s” }),
+cogBar: (level) => ({ height: 6, borderRadius: 3, background: `linear-gradient(90deg, #48b685, #c9a84c, #d35f5f)`, width: `${(level / 5) * 100}%`, transition: “width 0.5s ease” }),
+};
+
+export default function GEACalculator() {
+const [prim, setPrim] = useState(null);
+const [op, setOp] = useState(null);
+const [dur, setDur] = useState(null);
+const [vec, setVec] = useState(null);
+const [tab, setTab] = useState(“calc”); // calc | combine
+
+const result = useMemo(() => computeResult(prim, op, dur, vec), [prim, op, dur, vec]);
+
+const reset = useCallback(() => { setPrim(null); setOp(null); setDur(null); setVec(null); }, []);
+
+return (
+<div style={sty.page}>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet" />
+
+```
+  <h1 style={sty.h1}>GEA Construction Grammar</h1>
+  <div style={sty.subtitle}>PRIMITIVE + MOTION + DURATION + VECTOR = F(ge)</div>
+
+  {/* Tab switcher */}
+  <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: "1.5rem" }}>
+    {[["calc", "Single Primitive"], ["combine", "Combinations"]].map(([k, l]) => (
+      <button key={k} onClick={() => setTab(k)} style={{ ...sty.btn(tab === k), padding: "0.5rem 1.5rem", fontSize: "0.8rem" }}>{l}</button>
+    ))}
+  </div>
+
+  {tab === "calc" ? (
+    <>
+      {/* STEP 1: Primitive */}
+      <div style={sty.section}>
+        <div style={sty.sectionTitle}>1. Select Primitive (GEA)</div>
+        <div style={sty.grid}>
+          {Object.entries(PRIMITIVES).map(([k, v]) => (
+            <button key={k} onClick={() => setPrim(k)} style={sty.btn(prim === k)}>
+              <span style={sty.symbol}>{v.symbol}</span>
+              {v.name}
+              <span style={sty.dim(v.dim)}>{v.dim}D</span>
+              <span style={sty.label}>{v.type}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* STEP 2: Operation */}
+      <div style={sty.section}>
+        <div style={sty.sectionTitle}>2. Select Operation</div>
+        <div style={sty.grid}>
+          {Object.entries(OPERATIONS).map(([k, v]) => (
+            <button key={k} onClick={() => setOp(k)} style={sty.btn(op === k)}>
+              <span style={sty.symbol}>{v.icon}</span>
+              {v.name}
+              <span style={sty.label}>{v.desc}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* STEP 3: Duration */}
+      <div style={sty.section}>
+        <div style={sty.sectionTitle}>3. Select Duration</div>
+        <div style={sty.grid}>
+          {Object.entries(DURATIONS).map(([k, v]) => (
+            <button key={k} onClick={() => setDur(k)} style={sty.btn(dur === k)}>
+              {v.name}
+              <span style={sty.label}>{v.desc}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* STEP 4: Motion Vector */}
+      <div style={sty.section}>
+        <div style={sty.sectionTitle}>4. Select Motion Vector Dimensionality</div>
+        <div style={sty.grid}>
+          {Object.entries(VECTOR_DIMS).map(([k, v]) => (
+            <button key={k} onClick={() => setVec(k)} style={sty.btn(vec === k)}>
+              {v.name}
+              <span style={sty.dim(v.dim)}>{v.dim}D motion</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* RESULT */}
+      {result && (
+        <div style={sty.resultBox}>
+          <div style={sty.formula}>
+            {result.inputPrimitive.symbol} {result.inputPrimitive.name} ({result.inputPrimitive.dim}D)
+            &nbsp;+&nbsp;{result.operation.icon} {result.operation.name}
+            &nbsp;+&nbsp;{result.duration.name}
+            &nbsp;+&nbsp;{result.vector.name}
+            &nbsp;=&nbsp;<strong>F(ge)</strong>
+          </div>
+
+          <div style={sty.resultTitle}>Result Geometry</div>
+          {result.results.map((r, i) => (
+            <div key={i} style={{ marginBottom: 8 }}>
+              <span style={{ fontSize: "1rem", color: "#e8e4d9" }}>→ {r}</span>
+              <span style={sty.dim(result.outputDim)}>{result.outputDim}D output</span>
+            </div>
+          ))}
+
+          {result.isParallel && (
+            <div style={{ ...sty.tag("#d35f5f"), marginBottom: 12, display: "block", maxWidth: 400 }}>
+              ⚠ Parallel motion detected — does NOT increase dimensionality. Only independent motion adds a dimension.
+            </div>
+          )}
+
+          <div style={{ ...sty.sectionTitle, marginTop: "1.2rem" }}>F(ge) — Functionality</div>
+          {result.functionalities.map((f, i) => (
+            <div key={i} style={{ padding: "4px 0", fontSize: "0.85rem", color: "#b8b0a0" }}>• {f}</div>
+          ))}
+
+          <div style={sty.row}>
+            <div style={sty.col}>
+              <div style={{ ...sty.sectionTitle, marginTop: "1rem" }}>Emanation Profile</div>
+              {result.emanations.map((e, i) => (
+                <div key={i} style={sty.tag("#7dc4e4")}>{e}</div>
+              ))}
+            </div>
+            <div style={sty.col}>
+              <div style={{ ...sty.sectionTitle, marginTop: "1rem" }}>Force Vectors</div>
+              <span style={sty.tag("#48b685")}>Output: {result.outputDim}D geometry</span>
+              <span style={sty.tag("#a67bd5")}>Force vectors: {result.forceVecDim}D (perpendicular to motion)</span>
+            </div>
+          </div>
+
+          {result.simpleMachines.length > 0 && (
+            <>
+              <div style={{ ...sty.sectionTitle, marginTop: "1rem" }}>Simple Machine Matches</div>
+              {result.simpleMachines.map((m, i) => (
+                <span key={i} style={sty.machineTag}>⚙ {m}</span>
+              ))}
+            </>
+          )}
+
+          <div style={{ ...sty.sectionTitle, marginTop: "1.2rem" }}>Cognitive Complexity</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
+            <div style={{ width: 200, height: 6, background: "#1e1e28", borderRadius: 3 }}>
+              <div style={sty.cogBar(result.cogLevel)} />
+            </div>
+            <span style={{ fontSize: "0.8rem", color: "#c9a84c" }}>Level {result.cogLevel}</span>
+          </div>
+          <div style={{ fontSize: "0.75rem", color: "#8a8370" }}>{result.cogLabel}</div>
+          <div style={{ fontSize: "0.72rem", color: "#555", marginTop: 4 }}>
+            Construction vectors: {result.constructionVectors} independent motions
+          </div>
+
+          <button onClick={reset} style={{ ...sty.btn(false), marginTop: "1.5rem", padding: "0.5rem 2rem", borderColor: "#c9a84c55", color: "#c9a84c" }}>
+            Reset
+          </button>
+        </div>
+      )}
+    </>
+  ) : (
+    /* COMBINATIONS TAB */
+    <div style={sty.section}>
+      <div style={sty.sectionTitle}>Known GEA Combinations → Simple Machines & GEMs</div>
+      <p style={{ fontSize: "0.8rem", color: "#8a8370", marginBottom: "1rem" }}>
+        These are the validated combinations where GEA construction grammar produces standard engineering elements.
+        Construction vector complexity predicts archaeological emergence order.
+      </p>
+      {KNOWN_COMBINATIONS.sort((a, b) => a.complexity - b.complexity).map((c, i) => (
+        <div key={i} style={sty.combCard(false)}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+            <div>
+              <span style={{ color: "#c9a84c", fontFamily: "'Cinzel', serif", fontSize: "0.9rem" }}>
+                {PRIMITIVES[c.a]?.symbol} + {PRIMITIVES[c.b]?.symbol} → {c.name}
+              </span>
+              <div style={{ fontSize: "0.78rem", color: "#8a8370", marginTop: 4 }}>{c.desc}</div>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <span style={sty.machineTag}>⚙ {c.machine}</span>
+              <div style={{ fontSize: "0.68rem", color: "#555", marginTop: 4 }}>
+                {c.complexity} construction vectors
+              </div>
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+            <span style={sty.tag("#4a90d9")}>{PRIMITIVES[c.a]?.name} ({OPERATIONS[c.aOp]?.name})</span>
+            <span style={{ color: "#555" }}>+</span>
+            <span style={sty.tag("#48b685")}>{PRIMITIVES[c.b]?.name}</span>
+          </div>
+          <div style={{ width: 200, height: 4, background: "#1e1e28", borderRadius: 2, marginTop: 8 }}>
+            <div style={{ ...sty.cogBar(c.complexity), height: 4 }} />
+          </div>
+        </div>
+      ))}
+
+      <div style={{ marginTop: "1.5rem", padding: "1rem", background: "#0a0e14", borderRadius: 8, border: "1px solid #1e2d3d" }}>
+        <div style={{ ...sty.sectionTitle, marginBottom: "0.5rem" }}>Validation</div>
+        <div style={{ fontSize: "0.78rem", color: "#8a8370", lineHeight: 1.6 }}>
+          Every simple machine is a combination of GEAs. The six classical simple machines emerge from 
+          combinations of five GEA.Sh primitives using exactly the operations this grammar defines.
+          Construction vector count tracks cognitive complexity tracks archaeological emergence order.
+          <br /><br />
+          <strong style={{ color: "#c9a84c" }}>Wedge (2 vectors) → Lever (2) → Inclined Plane (2) → Wheel (2-3) → Pulley (2-3) → Screw (3)</strong>
+        </div>
+      </div>
+    </div>
+  )}
+</div>
+```
+
+);
+}

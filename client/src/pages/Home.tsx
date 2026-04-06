@@ -214,6 +214,16 @@ export default function Home() {
             Timeline
           </Button>
           <Button
+            data-testid="button-nav-gea"
+            variant="outline"
+            size="sm"
+            className="rounded-full border-white/10 bg-black/40 backdrop-blur-md text-white hover:bg-white/10 h-9"
+            onClick={() => navigate("/gea")}
+          >
+            <Hexagon className="w-3.5 h-3.5 mr-1.5" />
+            GEA
+          </Button>
+          <Button
             data-testid="button-toggle-filters"
             variant="outline"
             size="sm"

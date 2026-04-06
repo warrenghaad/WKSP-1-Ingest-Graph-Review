@@ -10,6 +10,7 @@ import Lab from "@/pages/Lab";
 import Braid from "@/pages/Braid";
 import Textreader from "@/pages/Textreader";
 import Timeline from "@/pages/Timeline";
+import GEACalculator from "@/pages/GEACalculator";
 
 function Router() {
   return (
@@ -20,6 +21,7 @@ function Router() {
       <Route path="/braid" component={Braid}/>
       <Route path="/textreader" component={Textreader}/>
       <Route path="/timeline" component={Timeline}/>
+      <Route path="/gea" component={GEACalculator}/>
       <Route component={NotFound} />
     </Switch>
   );

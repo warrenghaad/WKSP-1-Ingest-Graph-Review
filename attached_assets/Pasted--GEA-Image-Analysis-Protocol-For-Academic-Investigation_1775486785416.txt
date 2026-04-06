@@ -1,0 +1,204 @@
+# GEA Image Analysis Protocol
+
+## For Academic Investigation of Artifacts, Patterns, and Material Culture
+
+-----
+
+## HOW TO USE
+
+### Quick Method (Claude Desktop with GEA MCP server installed)
+
+1. Upload an image of an artifact to Claude
+1. Paste the analysis prompt below
+1. Claude describes the image, then calls the MCP tools automatically
+
+### Without MCP Server
+
+1. Upload an image to Claude
+1. Paste the analysis prompt below
+1. Claude performs the analysis using the embedded knowledge base
+
+-----
+
+## ANALYSIS PROMPT — Copy and paste this with any artifact image:
+
+```
+Analyze this artifact image using the GEA Construction Grammar framework.
+
+For this image, provide:
+
+## 1. VISUAL DESCRIPTION
+Describe exactly what you see. Be precise about:
+- Overall form (shape, dimensions, medium)
+- Geometric elements visible (circles, lines, angles, curves, triangles, squares, spirals)
+- Patterns (repetition, symmetry type, complexity)
+- Construction technique evidence (tool marks, precision level, layering)
+- Cultural markers (deity symbols, insignia, decorative conventions)
+
+## 2. GEA DECOMPOSITION
+For each geometric element identified:
+- Which GEA primitive(s) compose it? (Point, Line, Angle, Curve, Plane, Triangle, Square)
+- What operations were used to create it? (sweep, rotate, extrude, close, tile, fold, overlay)
+- How many independent construction vectors are required?
+- What is the cognitive complexity level? (Halford: Unary through Quinary)
+
+## 3. PATTERN COMPLEXITY ANALYSIS (if patterns present)
+- Symmetry type: none / bilateral / rotational / translational / wallpaper / fractal / aperiodic
+- Nesting depth: how many levels of embedded geometric construction?
+- Medium complexity: stamped(1) / incised(2) / carved(3) / painted(4) / assembled(5) / mosaic(6) / woven(7)
+- Total complexity score and corresponding GECD stage
+
+## 4. EMANATION PROFILE
+For the primary geometric element:
+- What physics can this shape produce? (force, motion, energy, state)
+- What can it NOT produce? (the constraint that defines it)
+- What is its emanation axis?
+
+## 5. CONSTRUCTION TIMELINE ANALYSIS
+- Estimated GECD stage based on construction complexity
+- Predicted earliest possible date of creation
+- What tools were required to produce this artifact?
+- Are there predicted missing intermediate stages between this artifact and simpler known examples?
+
+## 6. DAY A SECTION MAPPING (for curriculum use)
+- A1 (Myth): What deity/cultural origin does this connect to?
+- A2 (Artifact): What visual rhetoric skills does this artifact demonstrate?
+- A3 (Bridge): Where does metaphor = function in this artifact?
+- A4 (Patterns): How does this artifact's pattern complexity fit in the intensification timeline?
+- A5 (Skill): What construction technique could students learn from this?
+- A6 (Create): What grade-appropriate version of this artifact could students produce?
+
+## 7. DAY B SECTION MAPPING (for curriculum use)
+- B2 (Math): What mathematical properties does this artifact embody?
+- B4 (Mechanics): What classical mechanics principle does this artifact demonstrate?
+- B5 (STEM History): Where does this sit in the DII timeline for its geometric element?
+- B6 (Invention): What invention did this geometric application eventually enable?
+
+## 8. SIMPLE MACHINE VALIDATION (if applicable)
+- Does this artifact contain or relate to any of the six simple machines?
+- What GEA combination produces that machine?
+- Does the construction vector count match the expected complexity?
+
+## 9. CROSS-CIVILIZATION COMPARISON
+- Do similar geometric patterns appear in other civilizations?
+- If so, does the construction complexity suggest independent invention or cultural contact?
+- What does the convergence/divergence tell us about the universality of this geometric form?
+
+Format the output as a structured academic analysis suitable for research documentation.
+```
+
+-----
+
+## KNOWLEDGE BASE REFERENCE (for analysis without MCP server)
+
+### GEA Primitives
+
+|Primitive|Dim|Physics Role     |Emanation                   |
+|---------|---|-----------------|----------------------------|
+|Point    |0D |Center of mass   |Omnidirectional             |
+|Line     |1D |Force vector     |Axial only                  |
+|Angle    |1D |Force resolution |Two component directions    |
+|Curve    |1D |Continuous force |Tangential + centripetal    |
+|Plane    |2D |Field/pressure   |Uniform surface distribution|
+|Triangle |2D |Load distribution|Directional, along sides    |
+|Square   |2D |Tessellation     |Orthogonal channels         |
+
+### Construction Rules
+
+- **Primitive + Motion + Duration + *Vector = Result = F(ge)**
+- Output dimensionality = motion vector dimensionality (NOT primitive dim)
+- Parallel motion does NOT increase dimensionality
+- Force vectors are n-1D of motion path (perpendicular)
+- Construction vector count = cognitive complexity (Halford)
+
+### Simple Machine Validation
+
+|Machine       |GEA Construction                     |Vectors|
+|--------------|-------------------------------------|-------|
+|Wedge         |Triangle × 2                         |2      |
+|Lever         |Line + Point + Angle                 |2      |
+|Inclined Plane|Triangle (profile)                   |2      |
+|Wheel & Axle  |Circle + Point + Line                |2-3    |
+|Pulley        |Circle + Curve + Line                |2-3    |
+|Screw         |Spiral (= Triangle wrapped on Circle)|3      |
+
+### Cognitive Complexity Levels (Halford)
+
+|Level|Name      |What it means                                                        |
+|-----|----------|---------------------------------------------------------------------|
+|1    |Unary     |Shape recognition (“that is round”)                                  |
+|2    |Binary    |Shape + property (“round things roll”)                               |
+|3    |Ternary   |Shape + property + application (“round granary distributes pressure”)|
+|4    |Quaternary|Shape + property + material + mechanism (“potter’s wheel”)           |
+|5    |Quinary   |Full integration (“fast wheel with flywheel momentum”)               |
+
+### Pattern Complexity Hierarchy
+
+|Level|Type                             |Earliest Example                  |
+|-----|---------------------------------|----------------------------------|
+|1    |Simple repetition (translation)  |Cord-impressed pottery ~16,000 BCE|
+|2    |Mirror symmetry (reflection)     |Acheulean handaxe ~500,000 BP     |
+|3    |Rotational symmetry (n-fold)     |Halaf rosettes ~6,000 BCE         |
+|4    |Combined symmetry (frieze groups)|Göbekli Tepe ~9,600 BCE           |
+|5    |Wallpaper groups (17 types)      |Alhambra ~1300 CE                 |
+|6    |Topological interlace            |Celtic knotwork ~700 CE           |
+|7    |Quasi-crystalline tiling         |Darb-i Imam 1453 CE               |
+|8    |Fractal / self-similar           |Ba-ila settlement, pre-colonial   |
+
+### Medium Complexity Scoring
+
+|Score|Medium   |Cognitive requirement                |
+|-----|---------|-------------------------------------|
+|1    |Stamped  |Basic mark-making                    |
+|2    |Incised  |Controlled line cutting              |
+|3    |Carved   |3D material removal                  |
+|4    |Painted  |Multi-step color application         |
+|5    |Assembled|Multi-material composition           |
+|6    |Mosaic   |Pre-planned spatial arrangement      |
+|7    |Woven    |Binary/modular arithmetic in material|
+
+### Aggregation States
+
+|State           |Meaning                                    |
+|----------------|-------------------------------------------|
+|Visible         |User can see the primitive in the artifact |
+|Partially Hidden|User sees effect but not the primitive     |
+|Encapsulated    |Structurally present, cognitively invisible|
+|Black Box       |Even the builder forgot why it works       |
+
+-----
+
+## EXAMPLE OUTPUT
+
+### Artifact: Shamash Tablet (BM 91000, ~870 BCE)
+
+**GEA Decomposition:**
+
+- Circle (sun disc on altar): Curve + close = circle. 2 construction vectors.
+- Lines (rays from shoulders): 8 radial lines from center point. Line + angular repetition = star pattern. 2 vectors.
+- Rectangle (altar): Square variant. 4 lines + 4 right angles. 3 vectors.
+- Anthropomorphic figure: Compound GEM requiring 5+ construction vectors for representation.
+
+**Pattern Complexity:** Level 5+ (compound symmetry + representational + compositional hierarchy across multiple registers)
+
+**Cognitive Complexity:** Quinary (5) — the artifact simultaneously manages geometric symbolism, representational art, narrative composition, material execution, and cultural semiotic convention.
+
+**GECD Stage:** 5 (full integration) — this artifact could not exist without millennia of prior geometric development from simple disc → rayed disc → anthropomorphic figure + geometric symbol coexisting.
+
+**Simple Machine Connection:** The sun disc IS a circle. The circle IS the wheel. The Shamash Tablet simultaneously depicts the deity who governs cosmic order AND the geometric element that produced the most transformative simple machine in human history. Day A metaphor (divine sun) = Day B function (rotational mechanics).
+
+-----
+
+## NOTES FOR ACADEMIC USE
+
+This protocol can be cited as:
+
+> Majeed, S. (2026). GEA Construction Grammar: A framework for analyzing geometric cognition in material culture. Unpublished manuscript, Project Euclid / Trivius.
+
+The framework draws on:
+
+- Halford, G.S. (1998). Processing capacity defined by relational complexity. *Behavioral and Brain Sciences*.
+- Stout, D. (2011). Stone toolmaking and the evolution of human culture and cognition. *Phil. Trans. Royal Society B*.
+- Coolidge, F.L. & Wynn, T. (2016). An introduction to cognitive archaeology. *Current Directions in Psychological Science*.
+- Eglash, R. (1999). *African Fractals: Modern Computing and Indigenous Design*. Rutgers University Press.
+- Von Petzinger, G. (2016). *The First Signs: Unlocking the Mysteries of the World’s Oldest Symbols*. Atria Books.
