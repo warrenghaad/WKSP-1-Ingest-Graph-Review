@@ -15,11 +15,15 @@ const APPROACH = 160;    // px on each side of knot where thread gently bows
 const KNOT_R   = 22;
 const COMPRESS = 0.22;   // threads bow only 22% toward knot centroid (not crash)
 
-// MAIC scale: 0.0–1.0
-// G is the GEOMETRIC OUTPUT/PRODUCT of MAIC convergence — it is what the knot produces.
-// M, A, I, C are the four driver axes whose convergence creates G.
-// GECD = the ruler. MAGIC = the reading the ruler produces.
-const MAGIC_MAX = 1.0;
+// NOTCH_REGISTRY_ENTRY — per engine research output specification (output-format.md)
+// Each DII knot (instantiation) carries a full NOTCH matrix:
+//   g_t_baseline   — geometric knowledge complexity at this moment in the period
+//   deviation_vector — Δ per MAGIC line from the period baseline (what this knot ADVANCES)
+//   formalization_state — what M knows vs. where G outpaces it
+//   power_context  — who holds authority and how knowledge is restricted
+// G in the deviation vector is a FULL axis measuring geometric knowledge advance.
+// NOTE: values are historically-informed estimates — proper values require engine analysis.
+const DEV_MAX = Math.sqrt(5); // max deviation magnitude (all 5 axes at 1.0)
 
 const toX = (yr: number) => PL + ((yr - T0) / TSPAN) * PW;
 const toY = (lane: number) => PT + (lane / (N_LANES - 1)) * PH;
@@ -34,24 +38,63 @@ interface Strand {
 interface KnotInput  { threadId: string; weight: number }
 interface KnotOutput { threadId: string }
 
-// MAIC: four DRIVER axes whose convergence produces G (geometric complexity).
-// G is NOT an input — it is what MAIC produces at each knot.
-// "Singles produce definitions. Doubles produce discoveries. Triples produce innovations. Full MAIC = inventions."
-// Scale 0.0–1.0 per axis.
-interface MagicReading { M: number; A: number; I: number; C: number }
+// ── NOTCH_REGISTRY_ENTRY types (matching output-format.md spec) ─────────────────
+
+/** g_t_baseline: geometric knowledge complexity at the period of this knot */
+interface GtBaseline {
+  geaRange:        number;                                    // count of GEA primitives in active use
+  gemComplexity:   "low" | "moderate" | "high" | "very_high"; // molecular composition complexity
+  gektTierMax:     1 | 2 | 3;                                // highest GEK-T transformation tier active
+  dimensionalRange: string;                                  // e.g. "1D–2D" or "2D–3D"
+  carrierDiversity: number;                                  // count of distinct carrier types in use
+}
+
+/** deviation_vector: how much each MAGIC line advances at this knot (Δ from period baseline) */
+interface DeviationVector {
+  M: number;        // Δ Mathematics: formalization / explicit proof advance
+  A: number;        // Δ Aesthetics: visual rhetoric / iconographic sophistication advance
+  G: number;        // Δ Geometry: geometric knowledge advance (G IS the output, measured as delta)
+  I: number;        // Δ Institutionalization: bureaucratic / ideological embedding advance
+  C: number;        // Δ Control/Power: political monopoly / restriction advance
+  magnitude: number; // |Δ| = sqrt(M²+A²+G²+I²+C²)
+  direction: string; // dominant driver signature, e.g. "A dominant, G secondary"
+}
+
+/** formalization_state: what M knows vs. where G (craft) already exceeds it */
+interface FormalizationState {
+  knownMath:         string[];  // explicit mathematical knowledge at this notch
+  formalizationGaps: string[];  // where geometric craft outpaces written formalism
+  combinationGaps:   string[];  // potential combinations not yet realized
+}
+
+/** power_context: who controls knowledge and how */
+interface PowerContext {
+  politicalStructure:    string;
+  rulingAuthority:       string;
+  knowledgeRestrictions: string;
+}
+
+/** Full NOTCH_REGISTRY_ENTRY per instantiation */
+interface NotchEntry {
+  baseline:      GtBaseline;
+  deviation:     DeviationVector;
+  formalization: FormalizationState;
+  power:         PowerContext;
+  evidenceType:  "textual" | "material" | "architectural" | "iconographic" | "mathematical";
+  confidence:    "high" | "medium" | "low" | "speculative";
+}
 
 interface Knot {
   id: string; year: number; name: string; gem: string; icon: string;
   inputs:  KnotInput[];
   outputs: KnotOutput[];
   spawns?: Strand;
-  // GECD config → produces the MAGIC reading
   gecd: {
-    element:     string;   // GEA.Sh or GEM
-    carrier:     string;   // what it's instantiated in
-    dimension:   string;   // dimensional complexity
-    complexity:  number;   // task complexity 0–1
-    potential:   string;
+    element:    string;   // GEA.Sh or GEM code
+    carrier:    string;   // instantiation carrier
+    dimension:  string;   // dimensional complexity
+    complexity: number;   // task complexity 0–1
+    potential:  string;
   };
   toolUse: {
     ideology:         string;
@@ -64,17 +107,18 @@ interface Knot {
     duration:  string; vector: string; fGe: string;
   };
   contribution: string;
-  magic: MagicReading;  // 0.0–1.0 per axis; G is the geometric OUTPUT this convergence produces
-  geLabel: string;      // human-readable G description (the geometric element this knot produces)
+  notch:   NotchEntry;   // NOTCH_REGISTRY_ENTRY — full engine research matrix
+  geLabel: string;       // human-readable G description (what this knot geometrically produces)
 }
 
 // ── Terminology (locked) ───────────────────────────────────────────────────────
 // Creative Act   = choice / novel instantiation (first-level)
-// Insight        = MAGIC change detected across ≥2 instantiations (delta between quads)
-// Ingenuity      = magnitude of that insight (Euclidean distance of MAGIC delta / MAGIC_MAX)
-// Discovery      = insight (it can only be an idea)
-// Innovation     = domain-specific delta
-// Invention      = emergent ingenuity
+// Insight        = MAGIC change detected across ≥2 instantiations
+// Ingenuity      = deviation_vector.magnitude / sqrt(5) — how much this notch advances its era's baseline
+// Discovery      = insight (geometric idea)
+// Innovation     = domain-level delta (across periods)
+// Invention      = emergent ingenuity (new thread spawned)
+// Singles → definitions. Doubles → discoveries. Triples → innovations. Full MAGIC → inventions.
 
 // ── Strands ────────────────────────────────────────────────────────────────────
 const BASE_STRANDS: Strand[] = [
@@ -122,8 +166,29 @@ const KNOTS: Knot[] = [
       fGe:       "Curve + Rotation + Full(1-axis) → Vessel. A solid of revolution that is simultaneously an aesthetic argument.",
     },
     contribution: "Geometry (40%) supplies the spiral template from natural observation. Matter (30%) is the clay medium that retains form after firing. Craft (30%) is the hand-skill to execute radial motion at ceramic scale.",
-    // Halaf: A dominant (aesthetic-cosmic world-model). I and C nascent, M only practical rotation.
-    magic: { M:0.15, A:0.85, I:0.35, C:0.20 },
+    notch: {
+      baseline: {
+        geaRange: 3, gemComplexity: "low", gektTierMax: 1,
+        dimensionalRange: "1D–2D", carrierDiversity: 2,
+      },
+      deviation: {
+        M: 0.00, A: 0.65, G: 0.35, I: 0.20, C: 0.05,
+        magnitude: 0.77,
+        direction: "A dominant, G secondary",
+      },
+      formalization: {
+        knownMath: ["radial rotation by hand", "approximate symmetry by eye", "basic counting of coil layers"],
+        formalizationGaps: ["spiral has no formula — produced by continuous hand pressure", "radial axis not named or theorized"],
+        combinationGaps: ["spiral + cylinder → vessel rotation not yet explicit as geometric operation"],
+      },
+      power: {
+        politicalStructure: "Village confederation; ritual specialists",
+        rulingAuthority: "Ceramic specialists; religious practitioners (no written authority)",
+        knowledgeRestrictions: "Minimal — pottery techniques communally transmitted",
+      },
+      evidenceType: "material",
+      confidence: "high",
+    },
     geLabel: "G → Spiral (rotation of curve around vertical axis; organic growth encoded in clay)",
   },
   {
@@ -153,8 +218,29 @@ const KNOTS: Knot[] = [
       fGe:       "Circle + Linear-Translation + Full(1-axis) → Continuous Frieze. The circle's revolution maps one-to-one onto a linear authority record.",
     },
     contribution: "Geometry (35%) defines the cylinder-circle relationship. Power (35%) is the institutional need demanding authentication. Craft (20%) executes miniature carving. Aesthetic Code (10%) encodes mythological narrative.",
-    // Cylinder Seal: I and C dominant (administrative monopoly, divine auth). A strong (iconography). M partial.
-    magic: { M:0.30, A:0.65, I:0.80, C:0.85 },
+    notch: {
+      baseline: {
+        geaRange: 6, gemComplexity: "moderate", gektTierMax: 2,
+        dimensionalRange: "2D–3D", carrierDiversity: 5,
+      },
+      deviation: {
+        M: 0.20, A: 0.45, G: 0.55, I: 0.65, C: 0.70,
+        magnitude: 1.21,
+        direction: "C+I dominant, G strong",
+      },
+      formalization: {
+        knownMath: ["circle as cylinder cross-section", "continuous rolling = 2.5D projection mapping", "miniature carving proportions by eye"],
+        formalizationGaps: ["cylinder-circle mapping not written — empirical craft only", "iconographic canon transmitted orally not in text"],
+        combinationGaps: ["cylinder + ink + paper → printing 5,000 years away", "gear geometry from cylinder not yet abstracted"],
+      },
+      power: {
+        politicalStructure: "Temple-palace complex; early urban state; Uruk expansion",
+        rulingAuthority: "Lugal (king); Inanna/Ishtar temple administration; ensi (governor)",
+        knowledgeRestrictions: "High — seal production restricted to palace/temple workshops; private seals forbidden under penalty",
+      },
+      evidenceType: "material",
+      confidence: "high",
+    },
     geLabel: "G → Circle/Frieze (cylinder cross-section rolling through translation; first cryptographic signature)",
   },
   {
@@ -184,8 +270,29 @@ const KNOTS: Knot[] = [
       fGe:       "Triangle + Puncture + Zero-duration → Wedge Mark. A sign is a triangle arrested at the moment of maximum force.",
     },
     contribution: "Number (40%) is the accounting need that motivates the invention. Matter (30%) supplies clay — cuneiform is impossible without wet alluvial silt. Geometry (30%) provides the triangular wedge logic that enables systematic replication.",
-    // Cuneiform: I and C dominant (scribal monopoly, legal binding). M growing (numeracy). A minimal (functional).
-    magic: { M:0.35, A:0.15, I:0.90, C:0.85 },
+    notch: {
+      baseline: {
+        geaRange: 6, gemComplexity: "moderate", gektTierMax: 2,
+        dimensionalRange: "1D–3D", carrierDiversity: 6,
+      },
+      deviation: {
+        M: 0.35, A: 0.05, G: 0.45, I: 0.75, C: 0.65,
+        magnitude: 1.15,
+        direction: "I+C dominant, G significant",
+      },
+      formalization: {
+        knownMath: ["wedge angle from reed cut", "basic numeracy (tokens → notation)", "positional notation beginning"],
+        formalizationGaps: ["why wedge works not theorized — material discovery by experiment", "no analysis of why triangular marks are optimal"],
+        combinationGaps: ["cuneiform + phonetic system → complete writing 200 years away", "mathematical proof writing not yet"],
+      },
+      power: {
+        politicalStructure: "Early city-state; temple-palace economy",
+        rulingAuthority: "Chief scribe; Lugal; Inanna temple administration",
+        knowledgeRestrictions: "Very high — scribal literacy monopolized; edubba (scribal school) is the only path; literacy is class marker",
+      },
+      evidenceType: "material",
+      confidence: "high",
+    },
     geLabel: "G → Triangle/Wedge (frozen angle of reed under pressure; thought made permanent)",
   },
   {
@@ -215,8 +322,29 @@ const KNOTS: Knot[] = [
       fGe:       "Circle × 6-Triangle + Radial-Rotation + Full-all-axes → Rosette → 360° → Base-60. Geometry precedes arithmetic.",
     },
     contribution: "Geometry (45%) discovers that 6 equilateral triangles tile a circle exactly — the mathematical fact. Cosmos (35%) supplies the astronomical need (year/month/day cycles) demanding a highly divisible base. Number (20%) is the formal system that adopts and propagates it.",
-    // Sexagesimal: M dominant (geometric discovery of 6-fold completion). I strong (astronomy/calendar). A/C accessory.
-    magic: { M:0.90, A:0.15, I:0.55, C:0.40 },
+    notch: {
+      baseline: {
+        geaRange: 7, gemComplexity: "moderate", gektTierMax: 2,
+        dimensionalRange: "2D", carrierDiversity: 5,
+      },
+      deviation: {
+        M: 0.85, A: 0.05, G: 0.75, I: 0.45, C: 0.25,
+        magnitude: 1.25,
+        direction: "M dominant, G strong",
+      },
+      formalization: {
+        knownMath: ["6 equilateral triangles tile circle exactly", "360° from 6×60°", "60 divisible by 12 factors", "sexagesimal positional notation"],
+        formalizationGaps: ["why 60 exactly — the geometric proof not written down", "π not yet formally approximated"],
+        combinationGaps: ["sexagesimal + naked-eye astronomy → predictive astronomy 500 years away", "coordinate geometry not yet"],
+      },
+      power: {
+        politicalStructure: "Early Dynastic city-states; interurban competition",
+        rulingAuthority: "Astronomical priests; temple authorities controlling the calendar",
+        knowledgeRestrictions: "Moderate — astronomical knowledge held by priestly scribal class; calendar control = political power",
+      },
+      evidenceType: "mathematical",
+      confidence: "medium",
+    },
     geLabel: "G → Rosette (6 equilateral triangles tiling a circle exactly; 360° and base-60 are geometric inevitabilities)",
   },
   {
@@ -244,8 +372,29 @@ const KNOTS: Knot[] = [
       fGe:       "Rectangle(brick) × Z-Stacking + Full(1-axis) → Stepped Pyramid. A discrete solid of revolution built from modular standardized units.",
     },
     contribution: "Power (35%) provides institutional will and mobilizes labor. Geometry (30%) provides pyramid profile and brick layout calculations. Matter (25%) is standardized fired brick enabling modular large-scale construction. Base-60 (10%) supplies the proportioning mathematics for terrace ratios.",
-    // Ziggurat: I dominant (cosmic mountain, divine legitimacy). C and A very strong. M required (construction).
-    magic: { M:0.65, A:0.80, I:0.90, C:0.85 },
+    notch: {
+      baseline: {
+        geaRange: 8, gemComplexity: "high", gektTierMax: 3,
+        dimensionalRange: "2D–3D", carrierDiversity: 8,
+      },
+      deviation: {
+        M: 0.50, A: 0.70, G: 0.60, I: 0.80, C: 0.75,
+        magnitude: 1.52,
+        direction: "I+C dominant, A strong, G significant",
+      },
+      formalization: {
+        knownMath: ["standardized plano-convex brick dimensions", "base-60 proportioning for terrace ratios", "surveying with rope-and-peg", "plumb-bob vertical"],
+        formalizationGaps: ["optimal brick-to-mortar ratio not written — empirical", "angle of terrace setback not formalized in text"],
+        combinationGaps: ["ziggurat geometry + dome → not yet", "terrace proportions + true arch → not until later periods"],
+      },
+      power: {
+        politicalStructure: "Ur III imperial state; highly centralized bureaucracy",
+        rulingAuthority: "Ur-Nammu (founder), Shulgi (administrator); temple as state bank and grain store",
+        knowledgeRestrictions: "High — construction knowledge held by master builders under royal commission; brick mold dimensions standardized nationally",
+      },
+      evidenceType: "architectural",
+      confidence: "high",
+    },
     geLabel: "G → Stepped Pyramid (Z-axis stacking of rectangles; hierarchy made architectural; power visible across flat land)",
   },
   {
@@ -275,8 +424,29 @@ const KNOTS: Knot[] = [
       fGe:       "Right-Triangle + No-motion + Zero-duration → Pythagorean Triples. The triangle is a ratio extractor, not a motion generator.",
     },
     contribution: "Base-60 (50%) is the number system making the ratios expressible as clean sexagesimal fractions. Geometry (35%) identifies the right-triangle constraint that generates the triples. Number (15%) supplies the systematic tabular format — this IS a generated sequence.",
-    // Plimpton 322: M dominant (systematic Pythagorean triples). I supporting (scribal culture). A/C accessory.
-    magic: { M:0.95, A:0.10, I:0.40, C:0.30 },
+    notch: {
+      baseline: {
+        geaRange: 8, gemComplexity: "high", gektTierMax: 3,
+        dimensionalRange: "2D", carrierDiversity: 6,
+      },
+      deviation: {
+        M: 0.90, A: 0.05, G: 0.85, I: 0.20, C: 0.15,
+        magnitude: 1.26,
+        direction: "M dominant, G strong",
+      },
+      formalization: {
+        knownMath: ["Pythagorean theorem (systematic, 1,800 years before Pythagoras)", "integer-ratio right triangles generated from reduced fractions", "sexagesimal algebra", "cut-and-paste geometric proof method"],
+        formalizationGaps: ["general proof for ALL right triangles not written — only worked examples", "irrational numbers not recognized or theorized"],
+        combinationGaps: ["algebra + coordinate geometry → not until Descartes 3,400 years later", "formal logical proof chain not yet constructed"],
+      },
+      power: {
+        politicalStructure: "Old Babylonian city-states; Hammurabi's expanding empire",
+        rulingAuthority: "Palace scribal schools (edubba); mathematical tablets for palace accounting and surveying",
+        knowledgeRestrictions: "Moderate — mathematical knowledge within scribal guild; surveyors hold specialized applications",
+      },
+      evidenceType: "mathematical",
+      confidence: "high",
+    },
     geLabel: "G → Right Triangle (static ratio extraction; Pythagorean triples 1,800 years before Pythagoras)",
   },
   {
@@ -304,8 +474,29 @@ const KNOTS: Knot[] = [
       fGe:       "Stele(Triangle+Rectangle) + Linear-Inscription + Full → Permanent Legal Text. Authority frozen in the hardest available stone.",
     },
     contribution: "Inscription (40%) is the writing system that makes 282 laws expressible and reproducible. Power (40%) is Babylonian imperial authority commissioning and enforcing. Identity-Token (20%) — the cylinder seal system pre-established the logic of authenticated geometric identity.",
-    // Hammurabi: I and C dominant (divine legal codification, state monopoly on justice). A supporting. M accessory.
-    magic: { M:0.20, A:0.55, I:0.95, C:0.90 },
+    notch: {
+      baseline: {
+        geaRange: 8, gemComplexity: "high", gektTierMax: 3,
+        dimensionalRange: "2D–3D", carrierDiversity: 7,
+      },
+      deviation: {
+        M: 0.05, A: 0.55, G: 0.50, I: 0.90, C: 0.85,
+        magnitude: 1.45,
+        direction: "I+C dominant, A+G supporting",
+      },
+      formalization: {
+        knownMath: ["stele geometric proportioning by sculptor", "triangular apex angle", "column layout for 282 laws in cuneiform register"],
+        formalizationGaps: ["no mathematical principle in the laws — lex talionis is ratio thinking but never formalized", "stele geometry empirical not derived"],
+        combinationGaps: ["legal code + enforcement machinery → gap between law-as-text and law-as-operational-system", "code + census → not until later"],
+      },
+      power: {
+        politicalStructure: "Old Babylonian Empire under Hammurabi's centralized state",
+        rulingAuthority: "Hammurabi himself; Shamash (divine authority); local governors enforcing via stele copies",
+        knowledgeRestrictions: "Total — Hammurabi IS the only source; stele copies in public squares make law legible but not challengeable",
+      },
+      evidenceType: "material",
+      confidence: "high",
+    },
     geLabel: "G → Stele composite (Triangle apex → Rectangle body; divine authority radiating into human law)",
   },
   {
@@ -333,8 +524,29 @@ const KNOTS: Knot[] = [
       fGe:       "Circle(A) × Circle(B) + Interlocked-Rotation + ∞-1 → Ratio Machine. Two touching circles IS the computation; their circumference ratio IS the answer.",
     },
     contribution: "Cosmos (35%) provides the astronomical periods the mechanism must encode. Base-60 (30%) supplies the number system making periods expressible as gear ratios. Algebraic Geometry (20%) provides right-triangle ratio mathematics for gear tooth engineering. Craft (15%) executes miniature bronze work at precision not re-achieved for 1,400 years.",
-    // Antikythera: M dominant (gear ratio = astronomical ratio). A craftsmanship supporting. I/C weaker (private trade commission).
-    magic: { M:0.90, A:0.40, I:0.45, C:0.35 },
+    notch: {
+      baseline: {
+        geaRange: 9, gemComplexity: "very_high", gektTierMax: 3,
+        dimensionalRange: "2D–3D", carrierDiversity: 10,
+      },
+      deviation: {
+        M: 0.90, A: 0.40, G: 0.95, I: 0.35, C: 0.30,
+        magnitude: 1.44,
+        direction: "M+G dominant, A supporting",
+      },
+      formalization: {
+        knownMath: ["Hipparchus lunar anomaly theory", "Saros cycle (223 months)", "Metonic cycle (235 months)", "gear tooth ratio = astronomical period ratio", "Archimedean mechanics"],
+        formalizationGaps: ["how gear tooth count was precisely determined — no surviving workshop records", "miniaturization technique unknown; not re-achieved for 1,400 years"],
+        combinationGaps: ["gear train + escapement → mechanical clock 1,100 years away", "gear train + steam engine → not until 18th century"],
+      },
+      power: {
+        politicalStructure: "Hellenistic trade civilization; Rhodes as maritime power center",
+        rulingAuthority: "Wealthy Greek merchant/patron (unnamed); Rhodian astronomical tradition",
+        knowledgeRestrictions: "Low — Greek mathematical knowledge relatively open; no record of this technology being strategically restricted",
+      },
+      evidenceType: "material",
+      confidence: "high",
+    },
     geLabel: "G → Circle/Gear train (interlocked rotation; circumference ratio IS the astronomical computation)",
   },
 ];
@@ -453,37 +665,62 @@ function buildSegments(allStrands: Strand[], knotMap: Map<string,number>): Segme
   return segs;
 }
 
-// ── Ingenuity = magnitude of MAIC delta between two knots ──────────────────────
-function ingenuity(a: MagicReading, b: MagicReading): number {
-  // Euclidean distance in 4D MAIC driver space, normalized to [0,1]
-  // Max possible distance: all 4 axes change by 1.0 → sqrt(4 × 1²) = 2.0
-  const d = Math.sqrt((a.M-b.M)**2 + (a.A-b.A)**2 + (a.I-b.I)**2 + (a.C-b.C)**2);
-  return d / 2.0;
+// ── Ingenuity = deviation vector magnitude of this notch, normalized ────────────
+// Each knot carries its own deviation magnitude (how much it advances its era's baseline).
+// The magnitude IS the ingenuity score — no delta between two knots needed.
+// Normalized: DEV_MAX = sqrt(5) ≈ 2.236 (all 5 axes at 1.0)
+function ingenuity(notch: NotchEntry): number {
+  return notch.deviation.magnitude / DEV_MAX;
 }
 
-// ── MAIC Driver Quadrilateral (0–1 scale; G is the geometric OUTPUT, shown as label not axis) ──
-function MagicQuad({
-  magic, prev, size = 90,
+// ── Deviation Vector constants (MAGIC line labels and canonical colors) ─────────
+const DEV_KEYS   = ["M","A","G","I","C"] as const;
+const DEV_LABELS: Record<string,string> = {
+  M: "Mathematics",         // Δ M-line: formalization advance
+  A: "Aesthetics",          // Δ A-line: visual rhetoric advance
+  G: "Geometry (output)",   // Δ G-line: geometric knowledge advance — G IS the output
+  I: "Institutionalization", // Δ I-line: institutional embedding advance
+  C: "Control / Power",     // Δ C-line: political restriction advance
+};
+const DEV_COLORS: Record<string,string> = {
+  M: "#3b82f6",   // blue
+  A: "#a855f7",   // purple
+  G: "#22c55e",   // green — G is the geometric knowledge/output
+  I: "#eab308",   // yellow
+  C: "#ef4444",   // red
+};
+
+function devLabel(v: number): string {
+  if (v < 0.15) return "no advance";
+  if (v < 0.35) return "minor advance";
+  if (v < 0.55) return "moderate advance";
+  if (v < 0.75) return "strong advance";
+  return "dominant advance";
+}
+
+// ── Deviation Pentagon — 5-axis radar (M, A, G, I, C as Δ values) ──────────────
+// G is a FULL axis here: it measures how much geometric knowledge advanced at this knot.
+function DeviationPentagon({
+  dev, prevDev, size = 92,
 }: {
-  magic: MagicReading; prev?: MagicReading; size?: number;
+  dev: DeviationVector; prevDev?: DeviationVector; size?: number;
 }) {
-  const cx = size / 2, cy = size / 2, r = size / 2 - 10;
-  // Canonical colors from magicFramework.ts
-  const axes = [
-    { k: "M" as const, angle: -Math.PI / 2, color: "#3b82f6" },  // Mathematics — blue
-    { k: "A" as const, angle: 0,            color: "#a855f7" },  // Aesthetics — purple
-    { k: "I" as const, angle: Math.PI / 2,  color: "#eab308" },  // Institutionalization — yellow
-    { k: "C" as const, angle: Math.PI,      color: "#ef4444" },  // Control/Power — red
-  ];
+  const cx = size / 2, cy = size / 2, r = size / 2 - 12;
+  // Pentagon: 5 axes at 72° intervals, M at top (-90°)
+  const axes = DEV_KEYS.map((k, i) => ({
+    k,
+    angle: -Math.PI / 2 + i * (2 * Math.PI / 5),
+    color: DEV_COLORS[k],
+  }));
   const pt = (val: number, angle: number): [number,number] => [
-    cx + (val / MAGIC_MAX) * r * Math.cos(angle),
-    cy + (val / MAGIC_MAX) * r * Math.sin(angle),
+    cx + val * r * Math.cos(angle),
+    cy + val * r * Math.sin(angle),
   ];
-  const poly = (m: MagicReading) =>
-    axes.map(a => pt(m[a.k], a.angle).join(",")).join(" ");
+  const poly = (d: DeviationVector) =>
+    axes.map(a => pt(d[a.k as keyof DeviationVector] as number, a.angle).join(",")).join(" ");
 
   return (
-    <svg width={size} height={size} style={{ display:"block" }}>
+    <svg width={size} height={size} style={{ display:"block", overflow:"visible" }}>
       {/* Grid rings at 0.25, 0.50, 0.75, 1.0 */}
       {[0.25, 0.50, 0.75, 1.0].map(v => {
         const pts2 = axes.map(a => pt(v, a.angle).join(",")).join(" ");
@@ -492,44 +729,30 @@ function MagicQuad({
       })}
       {/* Axis spokes */}
       {axes.map(a => {
-        const [x2, y2] = pt(MAGIC_MAX, a.angle);
+        const [x2, y2] = pt(1.0, a.angle);
         return <line key={a.k} x1={cx} y1={cy} x2={x2} y2={y2} stroke="#1a2540" strokeWidth={0.5}/>;
       })}
-      {/* Previous quadrilateral (dashed — shows MAIC delta = ingenuity) */}
-      {prev && <polygon points={poly(prev)} fill="none" stroke="#334155"
-                        strokeWidth={0.7} strokeDasharray="2,2" opacity={0.5}/>}
-      {/* Current quadrilateral */}
-      <polygon points={poly(magic)} fill="#f5c51815" stroke="#f5c518" strokeWidth={1.3} opacity={0.9}/>
+      {/* Previous deviation pentagon (dashed) */}
+      {prevDev && (
+        <polygon points={poly(prevDev)} fill="none" stroke="#334155"
+                 strokeWidth={0.7} strokeDasharray="2,2" opacity={0.5}/>
+      )}
+      {/* Current deviation pentagon */}
+      <polygon points={poly(dev)} fill="#f5c51815" stroke="#f5c518" strokeWidth={1.3} opacity={0.9}/>
       {/* Axis endpoint markers */}
       {axes.map(a => {
-        const [x2, y2] = pt(magic[a.k], a.angle);
+        const val = dev[a.k as keyof DeviationVector] as number;
+        const [x2, y2] = pt(val, a.angle);
         return <circle key={a.k} cx={x2} cy={y2} r={2.5} fill={a.color}/>;
       })}
-      {/* G = output product — shown at center as the geometric element this convergence produces */}
-      <circle cx={cx} cy={cy} r={3} fill="#22c55e" opacity={0.7}/>
-      {/* Axis labels — placed 15% outside the max ring */}
+      {/* Axis labels */}
       {axes.map(a => {
-        const [x2, y2] = pt(1.15, a.angle);
+        const [x2, y2] = pt(1.18, a.angle);
         return <text key={a.k} x={x2} y={y2 + 3.5} textAnchor="middle"
-                     fill={a.color} fontSize={8} fontWeight="bold">{a.k}</text>;
+                     fill={a.color} fontSize={7.5} fontWeight="bold">{a.k}</text>;
       })}
-      {/* G output label */}
-      <text x={cx + 5} y={cy - 4} fill="#22c55e" fontSize={7} opacity={0.8}>G↑</text>
     </svg>
   );
-}
-
-// ── MAIC constants (canonical labels and colors from magicFramework.ts) ────────
-const MAGIC_KEYS   = ["M","A","I","C"] as const;
-const MAGIC_LABELS = { M:"Mathematics", A:"Aesthetics", I:"Institutionalization", C:"Control/Power" };
-const MAGIC_COLORS = { M:"#3b82f6", A:"#a855f7", I:"#eab308", C:"#ef4444" };
-
-function magicLabel(v: number): string {
-  if (v < 0.25) return "accessory";
-  if (v < 0.50) return "supporting";
-  if (v < 0.70) return "required + co-dependent";
-  if (v < 0.85) return "required + partial indep.";
-  return "dominant driver";
 }
 
 // ── Component ──────────────────────────────────────────────────────────────────
@@ -552,7 +775,7 @@ export default function Braid() {
   const segments = useMemo(() => buildSegments(allStrands, knotMap), [allStrands, knotMap]);
 
   const sortedKnots = useMemo(() =>
-    [...KNOTS].sort((a, b) => a.magic.C - b.magic.C), []);
+    [...KNOTS].sort((a, b) => a.notch.deviation.magnitude - b.notch.deviation.magnitude), []);
 
   // Chronological order for "previous knot" (insight computation)
   const chronoKnots = useMemo(() =>
@@ -565,9 +788,9 @@ export default function Braid() {
   }, [activeKnot, chronoKnots]);
 
   const ingenuityScore = useMemo(() => {
-    if (!activeKnot || !prevKnot) return null;
-    return ingenuity(prevKnot.magic, activeKnot.magic);
-  }, [activeKnot, prevKnot]);
+    if (!activeKnot) return null;
+    return ingenuity(activeKnot.notch);
+  }, [activeKnot]);
 
   return (
     <div style={{ background:"#04060f", minHeight:"100vh", color:"#e2e8f0",
@@ -779,20 +1002,21 @@ export default function Braid() {
             <span style={{ color:"#475569", fontSize:10 }}>
               {Math.abs(activeKnot.year)} BCE · Creative Act
             </span>
-            {ingenuityScore !== null && prevKnot && (
+            {ingenuityScore !== null && (
               <>
                 <span style={{ color:"#334155", fontSize:10 }}>·</span>
                 <span style={{ color:"#94a3b8", fontSize:10 }}>
-                  Insight ↑ from {prevKnot.name.split(" ")[0]}:&nbsp;
-                  <span style={{ color:ingenuityScore > 0.5 ? "#f5c518" : "#64748b" }}>
-                    Ingenuity = {(ingenuityScore * 100).toFixed(0)}
+                  Ingenuity&nbsp;
+                  <span style={{ color: ingenuityScore > 0.6 ? "#f5c518" : "#64748b" }}>
+                    {(ingenuityScore * 100).toFixed(0)}
                   </span>
                   <span style={{ color:"#334155" }}>/100</span>
+                  &nbsp;· {activeKnot.notch.deviation.direction}
                 </span>
               </>
             )}
             <span style={{ flex:1 }}/>
-            <span style={{ fontSize:9, color:"#1e2a40" }}>GECD = ruler · MAGIC = reading</span>
+            <span style={{ fontSize:9, color:"#1e2a40" }}>GECD = ruler · NOTCH = deviation from baseline</span>
           </div>
 
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:0 }}>
@@ -885,76 +1109,154 @@ export default function Braid() {
               </div>
             </div>
 
-            {/* Col 4: MAIC Driver Quadrilateral + Ingenuity */}
-            <div style={{ padding:"14px 18px" }}>
+            {/* Col 4: NOTCH_REGISTRY_ENTRY — deviation vector + baseline + formalization + power */}
+            <div style={{ padding:"14px 18px", overflowY:"auto", maxHeight:480 }}>
               <div style={{ fontSize:9, color:"#1e2a40", letterSpacing:3, marginBottom:6 }}>
-                MAIC DRIVER ANALYSIS · G = geometric output ↑
+                NOTCH REGISTRY · DEVIATION VECTOR
               </div>
 
-              {/* Radar + Ingenuity */}
-              <div style={{ display:"flex", gap:12, alignItems:"flex-start", marginBottom:10 }}>
-                <MagicQuad magic={activeKnot.magic} prev={prevKnot?.magic} size={92}/>
+              {/* Pentagon + Ingenuity */}
+              <div style={{ display:"flex", gap:10, alignItems:"flex-start", marginBottom:10 }}>
+                <DeviationPentagon
+                  dev={activeKnot.notch.deviation}
+                  prevDev={prevKnot?.notch.deviation}
+                  size={92}
+                />
                 <div style={{ flex:1 }}>
-                  {ingenuityScore !== null && prevKnot ? (
-                    <div style={{ marginBottom:8 }}>
-                      <div style={{ fontSize:8, color:"#334155", letterSpacing:2, marginBottom:3 }}>
-                        INGENUITY (ΔMAGIC magnitude)
-                      </div>
-                      <div style={{ height:4, background:"#080f1e", borderRadius:2, overflow:"hidden", marginBottom:3 }}>
-                        <div style={{
-                          width:`${ingenuityScore * 100}%`, height:"100%",
-                          background:`linear-gradient(90deg, #3b82f6, #f5c518)`,
-                          borderRadius:2,
-                        }}/>
-                      </div>
-                      <div style={{ fontSize:10, color:"#f5c518" }}>
-                        {(ingenuityScore * 100).toFixed(0)}<span style={{ color:"#334155", fontSize:8 }}>/100</span>
-                      </div>
-                      <div style={{ fontSize:8, color:"#1e2a40", marginTop:2 }}>
-                        vs {prevKnot.name.split(" ").slice(0,2).join(" ")}
-                      </div>
-                    </div>
-                  ) : (
-                    <div style={{ fontSize:8, color:"#1e2a40", marginTop:4 }}>
-                      First creative act — no prior reading to delta
-                    </div>
-                  )}
-                  <div style={{ fontSize:8, color:"#0d1428", marginTop:4 }}>
-                    dashed = prior MAIC quad<br/>solid = this knot's drivers<br/>G↑ = geometric output (produced)
+                  <div style={{ fontSize:8, color:"#334155", letterSpacing:2, marginBottom:3 }}>
+                    INGENUITY (|Δ| / √5)
+                  </div>
+                  <div style={{ height:4, background:"#080f1e", borderRadius:2, overflow:"hidden", marginBottom:3 }}>
+                    <div style={{
+                      width:`${(ingenuityScore ?? 0) * 100}%`, height:"100%",
+                      background:"linear-gradient(90deg, #3b82f6, #22c55e, #f5c518)",
+                      borderRadius:2,
+                    }}/>
+                  </div>
+                  <div style={{ fontSize:10, color:"#f5c518" }}>
+                    {((ingenuityScore ?? 0) * 100).toFixed(0)}
+                    <span style={{ color:"#334155", fontSize:8 }}>/100</span>
+                  </div>
+                  <div style={{ fontSize:8, color:"#475569", marginTop:3, lineHeight:1.5 }}>
+                    |Δ|={activeKnot.notch.deviation.magnitude.toFixed(2)}<br/>
+                    {activeKnot.notch.deviation.direction}
+                  </div>
+                  <div style={{ fontSize:7, color:"#1e2a40", marginTop:4 }}>
+                    dashed = prior knot · solid = this notch
                   </div>
                 </div>
               </div>
 
-              {/* MAIC axis values */}
-              {MAGIC_KEYS.map(k => (
-                <div key={k} style={{ marginBottom:5 }}>
-                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline" }}>
-                    <span style={{ fontSize:9, color: MAGIC_COLORS[k] }}>
-                      {MAGIC_LABELS[k]}
-                    </span>
-                    <span style={{ fontSize:9, color: MAGIC_COLORS[k] }}>
-                      {activeKnot.magic[k].toFixed(2)}
-                    </span>
-                  </div>
-                  <div style={{ height:2.5, background:"#06101e", borderRadius:1, overflow:"hidden", marginBottom:1 }}>
-                    <div style={{ width:`${(activeKnot.magic[k] / MAGIC_MAX) * 100}%`, height:"100%",
-                                  background: MAGIC_COLORS[k], borderRadius:1, opacity:0.9 }}/>
-                  </div>
-                  <div style={{ fontSize:7, color:"#1e2a40" }}>
-                    {magicLabel(activeKnot.magic[k])}
-                  </div>
+              {/* Deviation Δ bars — all 5 MAGIC axes */}
+              <div style={{ marginBottom:10 }}>
+                <div style={{ fontSize:8, color:"#1e2a40", letterSpacing:2, marginBottom:4 }}>
+                  Δ PER MAGIC LINE
                 </div>
-              ))}
+                {DEV_KEYS.map(k => (
+                  <div key={k} style={{ marginBottom:4 }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline" }}>
+                      <span style={{ fontSize:8, color: DEV_COLORS[k] }}>{DEV_LABELS[k]}</span>
+                      <span style={{ fontSize:8, color: DEV_COLORS[k] }}>
+                        {(activeKnot.notch.deviation[k as keyof DeviationVector] as number).toFixed(2)}
+                      </span>
+                    </div>
+                    <div style={{ height:2.5, background:"#06101e", borderRadius:1, overflow:"hidden", marginBottom:1 }}>
+                      <div style={{
+                        width:`${(activeKnot.notch.deviation[k as keyof DeviationVector] as number) * 100}%`,
+                        height:"100%", background: DEV_COLORS[k], borderRadius:1, opacity:0.9,
+                      }}/>
+                    </div>
+                    <div style={{ fontSize:7, color:"#1e2a40" }}>
+                      {devLabel(activeKnot.notch.deviation[k as keyof DeviationVector] as number)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* G(t) Baseline */}
+              <div style={{ marginBottom:8, padding:"6px 8px", background:"#040b1c",
+                            border:"1px solid #0b1830", borderRadius:3 }}>
+                <div style={{ fontSize:8, color:"#1e2a40", letterSpacing:2, marginBottom:4 }}>
+                  G(t) BASELINE · period geometric complexity
+                </div>
+                {[
+                  { label:"GEA range",      val: `${activeKnot.notch.baseline.geaRange} primitives` },
+                  { label:"GEM complexity", val: activeKnot.notch.baseline.gemComplexity },
+                  { label:"GEK-T tier max", val: `tier ${activeKnot.notch.baseline.gektTierMax}` },
+                  { label:"Dim. range",     val: activeKnot.notch.baseline.dimensionalRange },
+                  { label:"Carrier types",  val: `${activeKnot.notch.baseline.carrierDiversity}` },
+                ].map(row => (
+                  <div key={row.label} style={{ display:"flex", justifyContent:"space-between",
+                                                marginBottom:2 }}>
+                    <span style={{ fontSize:7, color:"#1e2a40" }}>{row.label}</span>
+                    <span style={{ fontSize:7, color:"#334155" }}>{row.val}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Formalization state */}
+              <div style={{ marginBottom:8 }}>
+                <div style={{ fontSize:8, color:"#1e2a40", letterSpacing:2, marginBottom:3 }}>
+                  FORMALIZATION STATE
+                </div>
+                <div style={{ fontSize:7, color:"#334155", marginBottom:2 }}>Known math:</div>
+                {activeKnot.notch.formalization.knownMath.map((m, i) => (
+                  <div key={i} style={{ fontSize:7, color:"#3b82f6", paddingLeft:6, lineHeight:1.5 }}>· {m}</div>
+                ))}
+                <div style={{ fontSize:7, color:"#334155", marginTop:4, marginBottom:2 }}>G exceeds M (gaps):</div>
+                {activeKnot.notch.formalization.formalizationGaps.map((g, i) => (
+                  <div key={i} style={{ fontSize:7, color:"#475569", paddingLeft:6, lineHeight:1.5 }}>· {g}</div>
+                ))}
+                {activeKnot.notch.formalization.combinationGaps.length > 0 && (
+                  <>
+                    <div style={{ fontSize:7, color:"#334155", marginTop:4, marginBottom:2 }}>Combination gaps:</div>
+                    {activeKnot.notch.formalization.combinationGaps.map((g, i) => (
+                      <div key={i} style={{ fontSize:7, color:"#1e3060", paddingLeft:6, lineHeight:1.5 }}>· {g}</div>
+                    ))}
+                  </>
+                )}
+              </div>
+
+              {/* Power context */}
+              <div style={{ marginBottom:8, padding:"6px 8px", background:"#040b1c",
+                            border:"1px solid #1a0b10", borderRadius:3 }}>
+                <div style={{ fontSize:8, color:"#1e2a40", letterSpacing:2, marginBottom:4 }}>
+                  POWER CONTEXT
+                </div>
+                <div style={{ fontSize:7, color:"#ef4444", marginBottom:1 }}>
+                  {activeKnot.notch.power.politicalStructure}
+                </div>
+                <div style={{ fontSize:7, color:"#475569", marginBottom:1 }}>
+                  Authority: {activeKnot.notch.power.rulingAuthority}
+                </div>
+                <div style={{ fontSize:7, color:"#334155", lineHeight:1.5 }}>
+                  K-restrict: {activeKnot.notch.power.knowledgeRestrictions}
+                </div>
+              </div>
+
+              {/* Evidence + Confidence */}
+              <div style={{ display:"flex", gap:6, marginBottom:8 }}>
+                <div style={{ padding:"3px 6px", background:"#050d20", border:"1px solid #0b1830",
+                              borderRadius:3, fontSize:7, color:"#334155" }}>
+                  evidence: {activeKnot.notch.evidenceType}
+                </div>
+                <div style={{ padding:"3px 6px", background:"#050d20",
+                              border:`1px solid ${activeKnot.notch.confidence === "high" ? "#22c55e" : activeKnot.notch.confidence === "medium" ? "#eab308" : "#ef4444"}40`,
+                              borderRadius:3, fontSize:7,
+                              color: activeKnot.notch.confidence === "high" ? "#22c55e" : activeKnot.notch.confidence === "medium" ? "#eab308" : "#ef4444" }}>
+                  conf: {activeKnot.notch.confidence}
+                </div>
+              </div>
 
               {/* Spawned thread */}
               {activeKnot.spawns && (
-                <div style={{ marginTop:8, padding:"6px 8px", background:"#050d1c",
+                <div style={{ padding:"6px 8px", background:"#050d1c",
                               border:`1px solid ${activeKnot.spawns.color}40`, borderRadius:3 }}>
                   <div style={{ fontSize:8, color:activeKnot.spawns.color }}>
                     ✦ spawns: {activeKnot.spawns.name}
                   </div>
                   <div style={{ fontSize:7, color:"#1e2a40", marginTop:2, lineHeight:1.4 }}>
-                    A new thread that cannot be reduced to its inputs. Emergent ingenuity.
+                    New thread — emergent ingenuity. Cannot be reduced to inputs.
                   </div>
                 </div>
               )}
