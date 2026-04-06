@@ -843,6 +843,57 @@ function ProtocolTab({ copyPrompt, copied }: { copyPrompt: () => void; copied: b
   const mono = "'JetBrains Mono','Courier New',monospace";
   const serif = "'Georgia',serif";
 
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageData,    setImageData]    = useState<string | null>(null);
+  const [imageMime,    setImageMime]    = useState<string>("image/jpeg");
+  const [analyzing,   setAnalyzing]    = useState(false);
+  const [analysis,    setAnalysis]     = useState<string | null>(null);
+  const [analyzeErr,  setAnalyzeErr]   = useState<string | null>(null);
+  const [dragging,    setDragging]     = useState(false);
+
+  const handleFile = (file: File) => {
+    if (!file.type.startsWith("image/")) return;
+    setImageMime(file.type);
+    setAnalysis(null);
+    setAnalyzeErr(null);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target?.result as string;
+      setImagePreview(dataUrl);
+      const base64 = dataUrl.split(",")[1];
+      setImageData(base64);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) handleFile(file);
+  };
+
+  const runAnalysis = async () => {
+    if (!imageData) return;
+    setAnalyzing(true);
+    setAnalysis(null);
+    setAnalyzeErr(null);
+    try {
+      const res = await fetch("/api/gea/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageData, mimeType: imageMime, prompt: ANALYSIS_PROMPT }),
+      });
+      const json = await res.json() as { analysis?: string; error?: string };
+      if (!res.ok || json.error) throw new Error(json.error ?? "Analysis failed");
+      setAnalysis(json.analysis ?? "");
+    } catch (err: unknown) {
+      setAnalyzeErr(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
   return (
     <div>
       {/* Header */}
@@ -857,7 +908,8 @@ function ProtocolTab({ copyPrompt, copied }: { copyPrompt: () => void; copied: b
             </div>
             <div style={{ fontSize:9, color:"#334155", lineHeight:1.7 }}>
               For academic investigation of artifacts, patterns, and material culture.<br/>
-              Upload an artifact image to any LLM and paste this prompt to get a full GEA decomposition.
+              Upload an artifact image below to run live GEA analysis via Gemini, or copy
+              the prompt to use with any external LLM.
             </div>
           </div>
           <button onClick={copyPrompt}
@@ -882,6 +934,123 @@ function ProtocolTab({ copyPrompt, copied }: { copyPrompt: () => void; copied: b
           Citation: Majeed, S. (2026). GEA Construction Grammar: A framework for analyzing geometric cognition in material culture.
           Unpublished manuscript, Project Euclid / Trivius.
         </div>
+      </div>
+
+      {/* Live image analysis */}
+      <div style={{ padding:"14px 16px", background:"#060c1e",
+                    border:"1px solid #0b1428", borderRadius:5, marginBottom:12 }}>
+        <div style={{ fontSize:9, color:"#1e2a40", letterSpacing:3, marginBottom:10 }}>
+          LIVE ARTIFACT ANALYSIS — GEMINI 2.5 FLASH
+        </div>
+
+        {/* Drop zone */}
+        <div
+          onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={handleDrop}
+          style={{ position:"relative", border:`2px dashed ${dragging ? "#f5c518" : imagePreview ? "#f5c51840" : "#0b2040"}`,
+                   borderRadius:6, padding: imagePreview ? "0" : "28px 0",
+                   textAlign:"center", background: dragging ? "#f5c51808" : "#040810",
+                   transition:"all 0.2s", cursor:"pointer", marginBottom:10, overflow:"hidden" }}
+          onClick={() => document.getElementById("gea-file-input")?.click()}
+          data-testid="drop-zone-artifact">
+          <input
+            id="gea-file-input"
+            type="file"
+            accept="image/*"
+            style={{ display:"none" }}
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
+            data-testid="input-artifact-image"
+          />
+
+          {imagePreview ? (
+            <div style={{ position:"relative" }}>
+              <img src={imagePreview} alt="Artifact preview"
+                style={{ width:"100%", maxHeight:320, objectFit:"contain",
+                         display:"block", background:"#020408" }}/>
+              <div style={{ position:"absolute", top:6, right:6,
+                            background:"#040810cc", border:"1px solid #0b2040",
+                            borderRadius:3, padding:"3px 8px",
+                            fontSize:8, color:"#334155", cursor:"pointer" }}>
+                click to change
+              </div>
+            </div>
+          ) : (
+            <div style={{ pointerEvents:"none" }}>
+              <div style={{ fontSize:24, marginBottom:6, color:"#1e2a40" }}>⬆</div>
+              <div style={{ fontSize:10, color:"#334155" }}>
+                Drop artifact image here or click to upload
+              </div>
+              <div style={{ fontSize:8, color:"#1e2a40", marginTop:4 }}>
+                JPG · PNG · WEBP · GIF · BMP
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Analyze button */}
+        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+          <button
+            onClick={runAnalysis}
+            disabled={!imageData || analyzing}
+            style={{ padding:"8px 20px", background: imageData && !analyzing ? "#f5c51820" : "#0b1428",
+                     border:`1px solid ${imageData && !analyzing ? "#f5c51860" : "#0b1428"}`,
+                     borderRadius:4, color: imageData && !analyzing ? "#f5c518" : "#334155",
+                     fontSize:10, cursor: imageData && !analyzing ? "pointer" : "not-allowed",
+                     fontFamily:mono, letterSpacing:2, transition:"all 0.2s" }}
+            data-testid="button-run-analysis">
+            {analyzing ? "ANALYZING…" : "RUN GEA ANALYSIS"}
+          </button>
+          {analyzing && (
+            <div style={{ fontSize:9, color:"#334155" }}>
+              Gemini 2.5 Flash reading the artifact…
+            </div>
+          )}
+        </div>
+
+        {/* Error */}
+        {analyzeErr && (
+          <div style={{ marginTop:10, padding:"8px 12px", background:"#1a0808",
+                        border:"1px solid #ef444440", borderRadius:4,
+                        fontSize:9, color:"#ef4444" }}>
+            ⚠ {analyzeErr}
+          </div>
+        )}
+
+        {/* Analysis result */}
+        {analysis && (
+          <div style={{ marginTop:14 }}>
+            <div style={{ fontSize:8, color:"#f5c518", letterSpacing:2, marginBottom:8 }}>
+              GEA ANALYSIS RESULT
+              <span style={{ color:"#1e2a40", marginLeft:12 }}>
+                gemini-2.5-flash · {new Date().toLocaleTimeString()}
+              </span>
+            </div>
+            <div style={{ background:"#040810", border:"1px solid #0b2040",
+                          borderRadius:4, padding:"14px 16px",
+                          fontFamily:mono, fontSize:9, color:"#94a3b8",
+                          lineHeight:1.85, whiteSpace:"pre-wrap",
+                          maxHeight:600, overflowY:"auto" }}>
+              {analysis.split("\n").map((line, i) => {
+                const isSection = /^#{1,3}\s/.test(line);
+                const isBold    = /^\*\*/.test(line);
+                const isListItem = /^[-•]\s/.test(line);
+                return (
+                  <div key={i} style={{
+                    color: isSection ? "#f5c518" : isBold ? "#e2e8f0" : isListItem ? "#64748b" : "#94a3b8",
+                    fontWeight: isSection ? 600 : 400,
+                    fontSize: isSection ? 10 : 9,
+                    marginBottom: isSection ? 6 : 2,
+                    letterSpacing: isSection ? 1 : 0,
+                    paddingLeft: isListItem ? 8 : 0,
+                  }}>
+                    {line.replace(/^#{1,3}\s/, "").replace(/\*\*/g, "")}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Knowledge base tables */}

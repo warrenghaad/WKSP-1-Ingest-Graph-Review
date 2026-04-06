@@ -2111,5 +2111,77 @@ Respond with ONLY a valid JSON array, no markdown, no explanation.`;
     }
   });
 
+  // ── GEA Image Analysis ────────────────────────────────────────────
+  app.post("/api/gea/analyze", async (req, res) => {
+    const apiKey = process.env.Google_AI;
+    if (!apiKey) {
+      return res.status(503).json({ error: "Google_AI key not configured" });
+    }
+
+    const { imageData, mimeType, prompt } = req.body as {
+      imageData?: string;
+      mimeType?: string;
+      prompt?: string;
+    };
+
+    if (!imageData || !mimeType) {
+      return res.status(400).json({ error: "imageData and mimeType are required" });
+    }
+
+    const analysisPrompt = prompt ?? `Analyze this artifact image using the GEA Construction Grammar framework.
+Provide a structured academic analysis covering:
+1. VISUAL DESCRIPTION — describe form, geometric elements, patterns, construction evidence, cultural markers
+2. GEA DECOMPOSITION — for each element: which primitive(s), operation(s), construction vectors, Halford level
+3. PATTERN COMPLEXITY — symmetry type, nesting depth, medium score, GECD stage
+4. EMANATION PROFILE — what physics this shape can/cannot produce, emanation axis
+5. CONSTRUCTION TIMELINE — estimated GECD stage, earliest possible date, required tools, missing stages
+6. SIMPLE MACHINE VALIDATION — if applicable: which machine, GEA combination that produces it, vector count match
+7. CROSS-CIVILIZATION COMPARISON — similar patterns elsewhere, independent invention or cultural contact
+
+Be precise and academic. Use GEA notation: Primitive + Operation + Duration + Vector = Result = F(ge).`;
+
+    try {
+      const geminiRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{
+              parts: [
+                { inlineData: { mimeType, data: imageData } },
+                { text: analysisPrompt },
+              ],
+            }],
+            generationConfig: { maxOutputTokens: 4000, temperature: 0.2 },
+          }),
+        }
+      );
+
+      if (!geminiRes.ok) {
+        const err = await geminiRes.text();
+        console.error("[GEA-analyze] Gemini error:", geminiRes.status, err.slice(0, 300));
+        return res.status(502).json({ error: `Gemini API error ${geminiRes.status}` });
+      }
+
+      const data = await geminiRes.json() as {
+        candidates?: Array<{
+          content?: { parts?: Array<{ text?: string }> };
+          finishReason?: string;
+        }>;
+      };
+
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!text) {
+        return res.status(502).json({ error: "No text in Gemini response" });
+      }
+
+      res.json({ analysis: text, model: "gemini-2.5-flash" });
+    } catch (err: unknown) {
+      console.error("[GEA-analyze] Fetch error:", err);
+      res.status(500).json({ error: err instanceof Error ? err.message : "Analysis failed" });
+    }
+  });
+
   return httpServer;
 }
