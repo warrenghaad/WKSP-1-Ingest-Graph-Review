@@ -263,6 +263,124 @@ function computeResult(
   };
 }
 
+// ── Image Analysis Protocol ─────────────────────────────────────────
+
+const ANALYSIS_PROMPT = `Analyze this artifact image using the GEA Construction Grammar framework.
+
+## 1. VISUAL DESCRIPTION
+Describe exactly what you see. Be precise about:
+- Overall form (shape, dimensions, medium)
+- Geometric elements visible (circles, lines, angles, curves, triangles, squares, spirals)
+- Patterns (repetition, symmetry type, complexity)
+- Construction technique evidence (tool marks, precision level, layering)
+- Cultural markers (deity symbols, insignia, decorative conventions)
+
+## 2. GEA DECOMPOSITION
+For each geometric element identified:
+- Which GEA primitive(s) compose it? (Point, Line, Angle, Curve, Plane, Triangle, Square)
+- What operations were used to create it? (sweep, rotate, extrude, close, tile, fold, overlay)
+- How many independent construction vectors are required?
+- What is the cognitive complexity level? (Halford: Unary through Quinary)
+
+## 3. PATTERN COMPLEXITY ANALYSIS (if patterns present)
+- Symmetry type: none / bilateral / rotational / translational / wallpaper / fractal / aperiodic
+- Nesting depth: how many levels of embedded geometric construction?
+- Medium complexity: stamped(1) / incised(2) / carved(3) / painted(4) / assembled(5) / mosaic(6) / woven(7)
+- Total complexity score and corresponding GECD stage
+
+## 4. EMANATION PROFILE
+For the primary geometric element:
+- What physics can this shape produce? (force, motion, energy, state)
+- What can it NOT produce? (the constraint that defines it)
+- What is its emanation axis?
+
+## 5. CONSTRUCTION TIMELINE ANALYSIS
+- Estimated GECD stage based on construction complexity
+- Predicted earliest possible date of creation
+- What tools were required to produce this artifact?
+- Are there predicted missing intermediate stages between this artifact and simpler known examples?
+
+## 6. DAY A SECTION MAPPING (for curriculum use)
+- A1 (Myth): What deity/cultural origin does this connect to?
+- A2 (Artifact): What visual rhetoric skills does this artifact demonstrate?
+- A3 (Bridge): Where does metaphor = function in this artifact?
+- A4 (Patterns): How does this artifact's pattern complexity fit in the intensification timeline?
+- A5 (Skill): What construction technique could students learn from this?
+- A6 (Create): What grade-appropriate version of this artifact could students produce?
+
+## 7. DAY B SECTION MAPPING (for curriculum use)
+- B2 (Math): What mathematical properties does this artifact embody?
+- B4 (Mechanics): What classical mechanics principle does this artifact demonstrate?
+- B5 (STEM History): Where does this sit in the DII timeline for its geometric element?
+- B6 (Invention): What invention did this geometric application eventually enable?
+
+## 8. SIMPLE MACHINE VALIDATION (if applicable)
+- Does this artifact contain or relate to any of the six simple machines?
+- What GEA combination produces that machine?
+- Does the construction vector count match the expected complexity?
+
+## 9. CROSS-CIVILIZATION COMPARISON
+- Do similar geometric patterns appear in other civilizations?
+- If so, does the construction complexity suggest independent invention or cultural contact?
+- What does the convergence/divergence tell us about the universality of this geometric form?
+
+Format the output as a structured academic analysis suitable for research documentation.`;
+
+const KB_PRIMITIVES = [
+  { p:"Point",    dim:"0D", physics:"Center of mass",    eman:"Omnidirectional" },
+  { p:"Line",     dim:"1D", physics:"Force vector",      eman:"Axial only" },
+  { p:"Angle",    dim:"1D", physics:"Force resolution",  eman:"Two component directions" },
+  { p:"Curve",    dim:"1D", physics:"Continuous force",  eman:"Tangential + centripetal" },
+  { p:"Plane",    dim:"2D", physics:"Field/pressure",    eman:"Uniform surface distribution" },
+  { p:"Triangle", dim:"2D", physics:"Load distribution", eman:"Directional, along sides" },
+  { p:"Square",   dim:"2D", physics:"Tessellation",      eman:"Orthogonal channels" },
+];
+
+const KB_SIMPLE_MACHINES = [
+  { m:"Wedge",          gea:"Triangle × 2",                vec:"2" },
+  { m:"Lever",          gea:"Line + Point + Angle",         vec:"2" },
+  { m:"Inclined Plane", gea:"Triangle (profile)",           vec:"2" },
+  { m:"Wheel & Axle",   gea:"Circle + Point + Line",        vec:"2–3" },
+  { m:"Pulley",         gea:"Circle + Curve + Line",        vec:"2–3" },
+  { m:"Screw",          gea:"Spiral (= Triangle on Circle)", vec:"3" },
+];
+
+const KB_COG = [
+  { lvl:1, name:"Unary",       meaning:"Shape recognition — 'that is round'" },
+  { lvl:2, name:"Binary",      meaning:"Shape + property — 'round things roll'" },
+  { lvl:3, name:"Ternary",     meaning:"Shape + property + application — 'round granary distributes pressure'" },
+  { lvl:4, name:"Quaternary",  meaning:"Shape + property + material + mechanism — 'potter's wheel'" },
+  { lvl:5, name:"Quinary",     meaning:"Full integration — 'fast wheel with flywheel momentum'" },
+];
+
+const KB_PATTERN = [
+  { lvl:1, type:"Simple repetition (translation)",   ex:"Cord-impressed pottery ~16,000 BCE" },
+  { lvl:2, type:"Mirror symmetry (reflection)",      ex:"Acheulean handaxe ~500,000 BP" },
+  { lvl:3, type:"Rotational symmetry (n-fold)",      ex:"Halaf rosettes ~6,000 BCE" },
+  { lvl:4, type:"Combined symmetry (frieze groups)", ex:"Göbekli Tepe ~9,600 BCE" },
+  { lvl:5, type:"Wallpaper groups (17 types)",       ex:"Alhambra ~1300 CE" },
+  { lvl:6, type:"Topological interlace",             ex:"Celtic knotwork ~700 CE" },
+  { lvl:7, type:"Quasi-crystalline tiling",          ex:"Darb-i Imam 1453 CE" },
+  { lvl:8, type:"Fractal / self-similar",            ex:"Ba-ila settlement, pre-colonial" },
+];
+
+const KB_MEDIUM = [
+  { score:1, med:"Stamped",   cog:"Basic mark-making" },
+  { score:2, med:"Incised",   cog:"Controlled line cutting" },
+  { score:3, med:"Carved",    cog:"3D material removal" },
+  { score:4, med:"Painted",   cog:"Multi-step color application" },
+  { score:5, med:"Assembled", cog:"Multi-material composition" },
+  { score:6, med:"Mosaic",    cog:"Pre-planned spatial arrangement" },
+  { score:7, med:"Woven",     cog:"Binary/modular arithmetic in material" },
+];
+
+const KB_AGG = [
+  { state:"Visible",           meaning:"User can see the primitive in the artifact" },
+  { state:"Partially Hidden",  meaning:"User sees effect but not the primitive" },
+  { state:"Encapsulated",      meaning:"Structurally present, cognitively invisible" },
+  { state:"Black Box",         meaning:"Even the builder forgot why it works" },
+];
+
 // ── Colours ─────────────────────────────────────────────────────────
 const DIM_COLORS = ["#556", "#3b82f6", "#22c55e", "#a855f7"];
 const COG_COLOR  = (level: number) =>
@@ -274,7 +392,8 @@ export default function GEACalculator() {
   const [op,   setOp]   = useState<string | null>(null);
   const [dur,  setDur]  = useState<string | null>(null);
   const [vec,  setVec]  = useState<string | null>(null);
-  const [tab,  setTab]  = useState<"calc" | "combine">("calc");
+  const [tab,  setTab]  = useState<"calc" | "combine" | "protocol">("calc");
+  const [copied, setCopied] = useState(false);
   const [hovCombo, setHovCombo] = useState<number | null>(null);
 
   const result = useMemo(
@@ -284,6 +403,13 @@ export default function GEACalculator() {
 
   const reset = useCallback(() => {
     setPrim(null); setOp(null); setDur(null); setVec(null);
+  }, []);
+
+  const copyPrompt = useCallback(() => {
+    navigator.clipboard.writeText(ANALYSIS_PROMPT).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
   }, []);
 
   const mono = "'JetBrains Mono','Courier New',monospace";
@@ -324,7 +450,7 @@ export default function GEACalculator() {
 
         {/* Tab switcher */}
         <div style={{ display:"flex", gap:8, marginBottom:20 }}>
-          {(["calc","combine"] as const).map(k => (
+          {(["calc","combine","protocol"] as const).map(k => (
             <button key={k} onClick={() => setTab(k)}
               style={{ padding:"6px 18px", fontSize:10, letterSpacing:2,
                        cursor:"pointer", border:"1px solid",
@@ -332,7 +458,7 @@ export default function GEACalculator() {
                        background:  tab===k ? "#f5c51812" : "transparent",
                        color:       tab===k ? "#f5c518" : "#334155",
                        borderRadius:3, fontFamily:mono }}>
-              {k === "calc" ? "SINGLE PRIMITIVE" : "COMBINATIONS"}
+              {k === "calc" ? "SINGLE PRIMITIVE" : k === "combine" ? "COMBINATIONS" : "IMAGE ANALYSIS PROTOCOL"}
             </button>
           ))}
         </div>
@@ -558,7 +684,7 @@ export default function GEACalculator() {
               </div>
             )}
           </>
-        ) : (
+        ) : tab === "combine" ? (
           /* ── Combinations tab ── */
           <Section title="KNOWN GEA COMBINATIONS">
             <div style={{ fontSize:10, color:"#1e2a40", marginBottom:16 }}>
@@ -622,6 +748,9 @@ export default function GEACalculator() {
               ))}
             </div>
           </Section>
+        ) : (
+          /* ── Protocol tab ── */
+          <ProtocolTab copyPrompt={copyPrompt} copied={copied} />
         )}
       </div>
     </div>
@@ -676,5 +805,223 @@ function SectionHead({ children, style }: {
   return (
     <div style={{ fontSize:8, color:"#1e2a40", letterSpacing:2,
                   marginBottom:4, ...style }}>{children}</div>
+  );
+}
+
+// ── Protocol Tab ────────────────────────────────────────────────────
+
+function KBTable({ cols, rows }: { cols: string[]; rows: (string|number)[][] }) {
+  const mono = "'JetBrains Mono','Courier New',monospace";
+  return (
+    <table style={{ width:"100%", borderCollapse:"collapse", fontSize:9,
+                    fontFamily:mono, marginBottom:12 }}>
+      <thead>
+        <tr>
+          {cols.map((c,i) => (
+            <th key={i} style={{ textAlign:"left", padding:"4px 8px",
+                                 color:"#1e2a40", borderBottom:"1px solid #0b1428",
+                                 fontWeight:400, letterSpacing:2 }}>{c}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row, ri) => (
+          <tr key={ri}>
+            {row.map((cell, ci) => (
+              <td key={ci} style={{ padding:"4px 8px", color:"#64748b",
+                                    borderBottom:"1px solid #06091a",
+                                    lineHeight:1.6 }}>{cell}</td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function ProtocolTab({ copyPrompt, copied }: { copyPrompt: () => void; copied: boolean }) {
+  const mono = "'JetBrains Mono','Courier New',monospace";
+  const serif = "'Georgia',serif";
+
+  return (
+    <div>
+      {/* Header */}
+      <div style={{ padding:"14px 16px", background:"#060c1e",
+                    border:"1px solid #0b1428", borderRadius:5, marginBottom:12 }}>
+        <div style={{ display:"flex", justifyContent:"space-between",
+                      alignItems:"flex-start", marginBottom:8 }}>
+          <div>
+            <div style={{ fontSize:11, color:"#f5c518", fontFamily:serif,
+                          letterSpacing:2, marginBottom:4 }}>
+              GEA IMAGE ANALYSIS PROTOCOL
+            </div>
+            <div style={{ fontSize:9, color:"#334155", lineHeight:1.7 }}>
+              For academic investigation of artifacts, patterns, and material culture.<br/>
+              Upload an artifact image to any LLM and paste this prompt to get a full GEA decomposition.
+            </div>
+          </div>
+          <button onClick={copyPrompt}
+            style={{ padding:"7px 14px", background: copied ? "#22c55e18" : "#f5c51812",
+                     border:`1px solid ${copied ? "#22c55e50" : "#f5c51840"}`,
+                     borderRadius:4, color: copied ? "#22c55e" : "#f5c518",
+                     fontSize:9, cursor:"pointer", fontFamily:mono,
+                     letterSpacing:1, transition:"all 0.2s", flexShrink:0 }}
+            data-testid="button-copy-prompt">
+            {copied ? "✓ COPIED" : "COPY PROMPT"}
+          </button>
+        </div>
+        {/* Prompt preview */}
+        <div style={{ background:"#040810", border:"1px solid #0b1428",
+                      borderRadius:4, padding:"12px 14px",
+                      fontFamily:mono, fontSize:8, color:"#475569",
+                      lineHeight:1.8, maxHeight:220, overflowY:"auto",
+                      whiteSpace:"pre-wrap" }}>
+          {ANALYSIS_PROMPT}
+        </div>
+        <div style={{ marginTop:8, fontSize:8, color:"#1e2a40" }}>
+          Citation: Majeed, S. (2026). GEA Construction Grammar: A framework for analyzing geometric cognition in material culture.
+          Unpublished manuscript, Project Euclid / Trivius.
+        </div>
+      </div>
+
+      {/* Knowledge base tables */}
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
+
+        {/* GEA Primitives */}
+        <div style={{ padding:"14px 16px", background:"#060c1e",
+                      border:"1px solid #0b1428", borderRadius:5 }}>
+          <div style={{ fontSize:9, color:"#1e2a40", letterSpacing:3,
+                        marginBottom:10 }}>GEA PRIMITIVES</div>
+          <KBTable
+            cols={["Primitive","Dim","Physics","Emanation"]}
+            rows={KB_PRIMITIVES.map(r => [r.p, r.dim, r.physics, r.eman])}
+          />
+          <div style={{ fontSize:8, color:"#1e2a40", marginTop:8, lineHeight:1.7 }}>
+            <span style={{ color:"#334155" }}>Construction rule:</span>{" "}
+            Primitive + Motion + Duration + Vector = Result = F(ge)<br/>
+            Output dim = motion vector dim (NOT primitive dim)<br/>
+            Parallel motion does NOT increase dimensionality<br/>
+            Force vectors are (n−1)D of motion path (perpendicular)<br/>
+            Construction vector count = cognitive complexity (Halford)
+          </div>
+        </div>
+
+        {/* Simple Machines */}
+        <div style={{ padding:"14px 16px", background:"#060c1e",
+                      border:"1px solid #0b1428", borderRadius:5 }}>
+          <div style={{ fontSize:9, color:"#1e2a40", letterSpacing:3,
+                        marginBottom:10 }}>SIMPLE MACHINE VALIDATION</div>
+          <KBTable
+            cols={["Machine","GEA Construction","Vectors"]}
+            rows={KB_SIMPLE_MACHINES.map(r => [r.m, r.gea, r.vec])}
+          />
+
+          {/* Aggregation states */}
+          <div style={{ fontSize:9, color:"#1e2a40", letterSpacing:3,
+                        marginTop:12, marginBottom:8 }}>AGGREGATION STATES</div>
+          <KBTable
+            cols={["State","Meaning"]}
+            rows={KB_AGG.map(r => [r.state, r.meaning])}
+          />
+        </div>
+      </div>
+
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
+
+        {/* Cognitive Complexity */}
+        <div style={{ padding:"14px 16px", background:"#060c1e",
+                      border:"1px solid #0b1428", borderRadius:5 }}>
+          <div style={{ fontSize:9, color:"#1e2a40", letterSpacing:3,
+                        marginBottom:10 }}>COGNITIVE COMPLEXITY (HALFORD)</div>
+          {KB_COG.map((r) => {
+            const barColor = r.lvl <= 1 ? "#22c55e" : r.lvl === 2 ? "#3b82f6"
+              : r.lvl === 3 ? "#eab308" : r.lvl === 4 ? "#f97316" : "#ef4444";
+            return (
+              <div key={r.lvl} style={{ marginBottom:8 }}>
+                <div style={{ display:"flex", alignItems:"center",
+                              gap:8, marginBottom:2 }}>
+                  <span style={{ width:14, height:14, borderRadius:"50%",
+                                 background: barColor + "30",
+                                 border:`1px solid ${barColor}`,
+                                 display:"flex", alignItems:"center",
+                                 justifyContent:"center",
+                                 fontSize:7, color:barColor, flexShrink:0 }}>
+                    {r.lvl}
+                  </span>
+                  <span style={{ fontSize:9, color: barColor }}>{r.name}</span>
+                </div>
+                <div style={{ fontSize:8, color:"#334155",
+                              paddingLeft:22, lineHeight:1.5 }}>{r.meaning}</div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Pattern + Medium Complexity */}
+        <div style={{ padding:"14px 16px", background:"#060c1e",
+                      border:"1px solid #0b1428", borderRadius:5 }}>
+          <div style={{ fontSize:9, color:"#1e2a40", letterSpacing:3,
+                        marginBottom:10 }}>PATTERN COMPLEXITY HIERARCHY</div>
+          <KBTable
+            cols={["Lvl","Type","Earliest Example"]}
+            rows={KB_PATTERN.map(r => [r.lvl, r.type, r.ex])}
+          />
+          <div style={{ fontSize:9, color:"#1e2a40", letterSpacing:3,
+                        marginTop:12, marginBottom:8 }}>MEDIUM COMPLEXITY</div>
+          <KBTable
+            cols={["Score","Medium","Cognitive Requirement"]}
+            rows={KB_MEDIUM.map(r => [r.score, r.med, r.cog])}
+          />
+        </div>
+      </div>
+
+      {/* Shamash Example */}
+      <div style={{ padding:"14px 16px", background:"#060c1e",
+                    border:"1px solid #c9a84c30", borderRadius:5 }}>
+        <div style={{ fontSize:9, color:"#f5c518", letterSpacing:3,
+                      marginBottom:10 }}>EXAMPLE OUTPUT — SHAMASH TABLET (BM 91000, ~870 BCE)</div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
+          <div>
+            <div style={{ fontSize:8, color:"#1e2a40", letterSpacing:2,
+                          marginBottom:6 }}>GEA DECOMPOSITION</div>
+            {[
+              { elem:"Circle (sun disc on altar)",
+                note:"Curve + close = circle. 2 construction vectors." },
+              { elem:"Lines (rays from shoulders)",
+                note:"8 radial lines from center point. Line + angular repetition = star. 2 vectors." },
+              { elem:"Rectangle (altar)",
+                note:"Square variant. 4 lines + 4 right angles. 3 vectors." },
+              { elem:"Anthropomorphic figure",
+                note:"Compound GEM requiring 5+ construction vectors for representation." },
+            ].map((row, i) => (
+              <div key={i} style={{ marginBottom:8, paddingLeft:8,
+                                    borderLeft:"2px solid #f5c51830" }}>
+                <div style={{ fontSize:9, color:"#94a3b8",
+                              marginBottom:2 }}>{row.elem}</div>
+                <div style={{ fontSize:8, color:"#475569",
+                              lineHeight:1.6 }}>{row.note}</div>
+              </div>
+            ))}
+          </div>
+          <div>
+            <div style={{ fontSize:8, color:"#1e2a40", letterSpacing:2,
+                          marginBottom:6 }}>ANALYSIS</div>
+            {[
+              ["Pattern Complexity", "Level 5+ (compound symmetry + representational + compositional hierarchy across multiple registers)"],
+              ["Cognitive Complexity", "Quinary (5) — simultaneously manages geometric symbolism, representational art, narrative composition, material execution, and cultural semiotic convention"],
+              ["GECD Stage", "5 (full integration) — could not exist without millennia of prior geometric development: simple disc → rayed disc → anthropomorphic figure + geometric symbol coexisting"],
+              ["Simple Machine", "The sun disc IS a circle. The circle IS the wheel. Day A metaphor (divine sun) = Day B function (rotational mechanics)"],
+            ].map(([k, v], i) => (
+              <div key={i} style={{ marginBottom:8 }}>
+                <div style={{ fontSize:8, color:"#f5c518",
+                              marginBottom:2 }}>{k}</div>
+                <div style={{ fontSize:8, color:"#475569",
+                              lineHeight:1.6 }}>{v}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
