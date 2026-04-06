@@ -14,12 +14,19 @@ A 3D interactive timeline for exploring Mesopotamian artifacts (~6500 BCE – 33
 - **Notion Integration**: Connected via MCP for reading Project Euclid databases (Geometric Element Atomics, Primitives × Civilizations, GEM Production Matrix)
 
 ## MAGIC Framework
-The theoretical backbone of the platform. Five drivers form a weight vector per lesson section:
-- **M** (Mathematics): Formal properties, proofs, measurement
-- **A** (Aesthetics/Art): Visual rhetoric, craft, perceptual affordance
-- **G** (Geometry): Spatial organization, GEA/GEM composition
-- **I** (Institutionalization): Ideology, mythology, ritual, tradition
-- **C** (Control/Power): Who funds, controls, permits, suppresses
+Five variables plotted on the Braid graph — each is a scored float (0–1) per research instantiation:
+- **M** (Math): Mathematical formalization, proofs, calculation
+- **A** (Art): Aesthetic, visual rhetoric, decorative significance
+- **G** (Geometric thinking): Spatial reasoning, geometric form analysis
+- **I** (Ideology): Institutional, religious, political embedding
+- **C** (Comptroller): Economic, administrative, accounting control
+
+### Braid Graph (`/braid`)
+ONE visualization: five colored ribbons flowing along a time axis. At each research-derived plot point (knot), the ribbons converge and cross based on their relative scores — the crossing IS braid theory applied. Research text → Gemini analysis → MAGIC scores → new plot points. No bar charts. No deviation vectors. No invented panels.
+
+Database table: `braid_points` (id, name, year, math, art, geometry, ideology, comptroller, description, source).
+Routes: `GET/POST /api/braid/points`, `DELETE /api/braid/points/:id`, `POST /api/braid/analyze`, `POST /api/braid/seed`.
+41 initial plot points seeded from historical artifact data.
 
 ### Lesson Architecture (15 sections, two-day arc)
 - **Day A (A1–A7)**: Metaphor/Rhetoric register — "What does it MEAN?"

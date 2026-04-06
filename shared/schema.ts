@@ -389,6 +389,21 @@ export const graphNodes = pgTable("graph_nodes", {
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
+// ── Braid Graph Points (MAGIC instantiations) ────────────────────────────────
+export const braidPoints = pgTable("braid_points", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  year: integer("year").notNull(),
+  math: real("math").notNull().default(0),
+  art: real("art").notNull().default(0),
+  geometry: real("geometry").notNull().default(0),
+  ideology: real("ideology").notNull().default(0),
+  comptroller: real("comptroller").notNull().default(0),
+  description: text("description"),
+  source: text("source"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
 // ── Insert schemas ────────────────────────────────────────────────────────────
 
 export const insertRwiNeedsSchema = createInsertSchema(rwiNeeds).omit({ id: true, createdAt: true, updatedAt: true });
@@ -400,6 +415,7 @@ export const insertImageReviewQueueSchema = createInsertSchema(imageReviewQueue)
 export const insertRwiImageApprovalSchema = createInsertSchema(rwiImageApprovals).omit({ id: true, createdAt: true });
 export const insertMediaAssetSchema = createInsertSchema(mediaAssets).omit({ id: true, createdAt: true });
 export const insertGraphNodeSchema = createInsertSchema(graphNodes).omit({ id: true, createdAt: true });
+export const insertBraidPointSchema = createInsertSchema(braidPoints).omit({ id: true, createdAt: true });
 
 // ── Select types ──────────────────────────────────────────────────────────────
 
@@ -421,6 +437,8 @@ export type MediaAsset = typeof mediaAssets.$inferSelect;
 export type InsertMediaAsset = z.infer<typeof insertMediaAssetSchema>;
 export type GraphNode = typeof graphNodes.$inferSelect;
 export type InsertGraphNode = z.infer<typeof insertGraphNodeSchema>;
+export type BraidPoint = typeof braidPoints.$inferSelect;
+export type InsertBraidPoint = z.infer<typeof insertBraidPointSchema>;
 
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,

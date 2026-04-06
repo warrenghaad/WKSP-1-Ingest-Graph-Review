@@ -32,6 +32,8 @@ import {
   type RwiImageApproval, type InsertRwiImageApproval,
   type MediaAsset, type InsertMediaAsset,
   type GraphNode, type InsertGraphNode,
+  braidPoints,
+  type BraidPoint, type InsertBraidPoint,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -151,6 +153,11 @@ export interface IStorage {
   createGraphNode(node: InsertGraphNode): Promise<GraphNode>;
   getGraphNode(nodeId: string): Promise<GraphNode | undefined>;
   upsertGraphNode(node: InsertGraphNode): Promise<GraphNode>;
+
+  getBraidPoints(): Promise<BraidPoint[]>;
+  createBraidPoint(point: InsertBraidPoint): Promise<BraidPoint>;
+  deleteBraidPoint(id: number): Promise<void>;
+  countBraidPoints(): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -613,6 +620,24 @@ export class DatabaseStorage implements IStorage {
       return row;
     }
     return this.createGraphNode(node);
+  }
+
+  async getBraidPoints(): Promise<BraidPoint[]> {
+    return db.select().from(braidPoints).orderBy(braidPoints.year);
+  }
+
+  async createBraidPoint(point: InsertBraidPoint): Promise<BraidPoint> {
+    const [row] = await db.insert(braidPoints).values(point).returning();
+    return row;
+  }
+
+  async deleteBraidPoint(id: number): Promise<void> {
+    await db.delete(braidPoints).where(eq(braidPoints.id, id));
+  }
+
+  async countBraidPoints(): Promise<number> {
+    const [row] = await db.select({ count: sql<number>`count(*)` }).from(braidPoints);
+    return Number(row?.count ?? 0);
   }
 
   async getWorkQueue(): Promise<Array<{

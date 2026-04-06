@@ -12,6 +12,7 @@ import { extractConcepts, generateQueryPack } from "./conceptExtractor";
 import { checkBackendStatus, sendResearchIngest, buildHandoffPacket, sendHandoffPacket } from "./backendAdapter";
 import { extractEntitiesFromText } from "./entityExtractor";
 import { seedTimelineArtifacts, TIMELINE_NODES, CONVERGENCE_LINKS } from "./artifactSeeder";
+import { seedBraidPoints } from "./braidSeeder";
 import { generateGeminiImage, searchGeminiForArtifact } from "./providers/gemini";
 import { searchPerplexityForArtifact } from "./providers/perplexity";
 import { exec } from "child_process";
@@ -2180,6 +2181,140 @@ Be precise and academic. Use GEA notation: Primitive + Operation + Duration + Ve
     } catch (err: unknown) {
       console.error("[GEA-analyze] Fetch error:", err);
       res.status(500).json({ error: err instanceof Error ? err.message : "Analysis failed" });
+    }
+  });
+
+  // ── Braid Graph ────────────────────────────────────────────────────────────
+
+  app.get("/api/braid/points", async (_req, res) => {
+    try {
+      const points = await storage.getBraidPoints();
+      res.json(points);
+    } catch (err) {
+      res.status(500).json({ error: String(err) });
+    }
+  });
+
+  app.post("/api/braid/seed", async (_req, res) => {
+    try {
+      const result = await seedBraidPoints();
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ error: String(err) });
+    }
+  });
+
+  app.post("/api/braid/points", async (req, res) => {
+    try {
+      const { name, year, math, art, geometry, ideology, comptroller, description, source } = req.body;
+      if (!name || year == null) return res.status(400).json({ error: "name and year are required" });
+      const point = await storage.createBraidPoint({
+        name, year: Number(year),
+        math: Number(math ?? 0),
+        art: Number(art ?? 0),
+        geometry: Number(geometry ?? 0),
+        ideology: Number(ideology ?? 0),
+        comptroller: Number(comptroller ?? 0),
+        description: description ?? null,
+        source: source ?? null,
+      });
+      res.json(point);
+    } catch (err) {
+      res.status(500).json({ error: String(err) });
+    }
+  });
+
+  app.delete("/api/braid/points/:id", async (req, res) => {
+    try {
+      await storage.deleteBraidPoint(Number(req.params.id));
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(500).json({ error: String(err) });
+    }
+  });
+
+  app.post("/api/braid/analyze", async (req, res) => {
+    try {
+      const { text } = req.body as { text?: string };
+      if (!text || text.trim().length < 20) return res.status(400).json({ error: "Please provide research text (at least 20 characters)" });
+      const apiKey = process.env.Google_AI;
+      if (!apiKey) return res.status(503).json({ error: "Google_AI key not configured" });
+
+      const SYSTEM = `You are a MAGIC framework analyst for ancient Mesopotamian history.
+Given a piece of research text, extract up to 5 MAGIC instantiation plot points — moments where the research describes a historically significant event, artifact, or development.
+
+For each plot point, score these five variables (0.0–1.0):
+- math: Mathematical formalization, proofs, calculation (0 = none, 1 = primary mathematical breakthrough)
+- art: Aesthetic, visual rhetoric, decorative significance (0 = purely functional, 1 = primarily aesthetic)
+- geometry: Geometric reasoning, spatial understanding, form analysis (0 = no geometric thinking, 1 = geometric thinking is the core driver)
+- ideology: Institutional, religious, political embedding (0 = individual craft, 1 = civilization-scale institution)
+- comptroller: Economic, administrative, accounting control (0 = no economic function, 1 = primary economic/administrative tool)
+
+Respond ONLY with a JSON array (no markdown, no explanation):
+[{
+  "name": "Short descriptive name (max 60 chars)",
+  "year": -1800,
+  "math": 0.0,
+  "art": 0.0,
+  "geometry": 0.0,
+  "ideology": 0.0,
+  "comptroller": 0.0,
+  "description": "One sentence explaining the event and why these scores were chosen."
+}]
+
+Rules:
+- year is an integer; BCE dates are negative (e.g., -3500 for 3500 BCE), CE dates are positive
+- All five scores must be present and between 0.0 and 1.0
+- Extract only events with clear historical grounding in the provided text
+- If no clear dates are given, make a reasonable estimate based on the period described`;
+
+      const geminiRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contents: [{ parts: [{ text: `${SYSTEM}\n\nResearch text:\n\n${text}` }] }] }),
+        }
+      );
+      if (!geminiRes.ok) {
+        const errText = await geminiRes.text();
+        return res.status(502).json({ error: `Gemini error: ${errText.slice(0, 200)}` });
+      }
+      const geminiData = await geminiRes.json() as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+      let raw = geminiData.candidates?.[0]?.content?.parts?.[0]?.text ?? "[]";
+      raw = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+
+      let extracted: Array<{
+        name: string; year: number;
+        math: number; art: number; geometry: number; ideology: number; comptroller: number;
+        description?: string;
+      }>;
+      try {
+        extracted = JSON.parse(raw);
+        if (!Array.isArray(extracted)) throw new Error("not an array");
+      } catch {
+        return res.status(502).json({ error: "Gemini returned non-JSON response", raw: raw.slice(0, 500) });
+      }
+
+      const saved = [];
+      for (const item of extracted.slice(0, 5)) {
+        const point = await storage.createBraidPoint({
+          name: String(item.name ?? "Unnamed").slice(0, 120),
+          year: Number(item.year ?? 0),
+          math: Math.min(1, Math.max(0, Number(item.math ?? 0))),
+          art: Math.min(1, Math.max(0, Number(item.art ?? 0))),
+          geometry: Math.min(1, Math.max(0, Number(item.geometry ?? 0))),
+          ideology: Math.min(1, Math.max(0, Number(item.ideology ?? 0))),
+          comptroller: Math.min(1, Math.max(0, Number(item.comptroller ?? 0))),
+          description: item.description ? String(item.description).slice(0, 500) : null,
+          source: "research-ingestion",
+        });
+        saved.push(point);
+      }
+      res.json({ created: saved.length, points: saved });
+    } catch (err) {
+      console.error("[braid-analyze]", err);
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
     }
   });
 
