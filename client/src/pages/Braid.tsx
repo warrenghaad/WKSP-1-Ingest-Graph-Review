@@ -11,8 +11,9 @@ const PL = 170, PR = 120, PT = 96, PB = 80;
 const PW  = SVG_W - PL - PR;
 const PH  = SVG_H - PT - PB;
 const N_LANES  = 9;
-const APPROACH = 110;
+const APPROACH = 160;    // px on each side of knot where thread gently bows
 const KNOT_R   = 22;
+const COMPRESS = 0.22;   // threads bow only 22% toward knot centroid (not crash)
 
 // MAGIC scale: 0.0–2.0
 // G is the center (always present, instantiative). M A I C form 4 axes.
@@ -354,7 +355,7 @@ function threadPath(
     const edgeDist = Math.min(x - x0, x1 - x);
     const fade = Math.min(edgeDist / 80, 1);
     const yr   = yr0 + t * (yr1 - yr0);
-    const osc  = 20 * fade * Math.sin(2 * Math.PI * yr / 720 + phi);
+    const osc  = 28 * fade * Math.sin(2 * Math.PI * yr / 680 + phi);
     pts.push([x, by + osc]);
   }
   pts.push([x1, y1]);
@@ -380,7 +381,12 @@ function knotY(k: Knot, allStrands: Strand[]): number {
 }
 
 // ── Segment builder ────────────────────────────────────────────────────────────
-interface Segment { d: string; color: string; width: number; strandId: string }
+// COMPRESS: threads bow only COMPRESS fraction toward knot centroid.
+// This keeps them in their lanes — they gather visually without crashing to center.
+interface Segment {
+  d: string; color: string; width: number; strandId: string;
+  lane: number;   // used for depth-sort (Sankey-braid 2.5D render order)
+}
 
 function buildSegments(allStrands: Strand[], knotMap: Map<string,number>): Segment[] {
   const segs: Segment[] = [];
@@ -399,24 +405,38 @@ function buildSegments(allStrands: Strand[], knotMap: Map<string,number>): Segme
     let cursor = startX, cursorYr = strand.startYear;
 
     for (const knot of myKnots) {
-      const kx  = toX(knot.year);
-      const ky  = knotMap.get(knot.id) ?? baseY;
-      const inp = knot.inputs.find(i => i.threadId === strand.id);
-      const w   = inp ? inp.weight * 4 + 0.8 : 1.2;
+      const kx     = toX(knot.year);
+      const kyCent = knotMap.get(knot.id) ?? baseY;   // centroid = where the HEX SYMBOL sits
+      // Thread does NOT go to centroid — it bows only COMPRESS fraction toward it.
+      // This is the key difference from a full Sankey collapse.
+      const bowY   = baseY + COMPRESS * (kyCent - baseY);
+      const inp    = knot.inputs.find(i => i.threadId === strand.id);
+      // Width proportional to contribution (Sankey aspect): heavier flow = wider ribbon
+      const w      = inp ? inp.weight * 5.5 + 1.6 : 1.8;
 
       const approachStart = kx - APPROACH;
       if (approachStart > cursor + 4) {
-        segs.push({ d: threadPath(cursor, baseY, approachStart, baseY, strand.phi, cursorYr, knot.year - 200), color: strand.color, width: 1.4, strandId: strand.id });
+        segs.push({ d: threadPath(cursor, baseY, approachStart, baseY, strand.phi, cursorYr, knot.year - 300),
+                    color: strand.color, width: 2.0, strandId: strand.id, lane: strand.lane });
       }
-      segs.push({ d: threadPath(approachStart, baseY, kx, ky, strand.phi, knot.year - 200, knot.year), color: strand.color, width: w, strandId: strand.id });
+      // Approach bow: thread moves from base Y toward the bow Y (partial gathering)
+      segs.push({ d: threadPath(approachStart, baseY, kx, bowY, strand.phi, knot.year - 300, knot.year),
+                  color: strand.color, width: w, strandId: strand.id, lane: strand.lane });
+      // Departure bow: thread returns from bow Y back to base Y
       const approachEnd = kx + APPROACH;
-      segs.push({ d: threadPath(kx, ky, approachEnd, baseY, strand.phi, knot.year, knot.year + 200), color: strand.color, width: w, strandId: strand.id });
-      cursor = approachEnd; cursorYr = knot.year + 200;
+      segs.push({ d: threadPath(kx, bowY, approachEnd, baseY, strand.phi, knot.year, knot.year + 300),
+                  color: strand.color, width: w, strandId: strand.id, lane: strand.lane });
+      cursor = approachEnd; cursorYr = knot.year + 300;
     }
     if (cursor < endX - 4) {
-      segs.push({ d: threadPath(cursor, baseY, endX, baseY, strand.phi, cursorYr, strand.endYear), color: strand.color, width: 1.4, strandId: strand.id });
+      segs.push({ d: threadPath(cursor, baseY, endX, baseY, strand.phi, cursorYr, strand.endYear),
+                  color: strand.color, width: 2.0, strandId: strand.id, lane: strand.lane });
     }
   }
+
+  // ── 2.5D depth sort: high lane = "behind" (rendered first), low lane = "in front" ──
+  // Simulates viewing a horizontal braid from slightly above — top strands occlude lower ones.
+  segs.sort((a, b) => b.lane - a.lane);
   return segs;
 }
 
@@ -614,16 +634,42 @@ export default function Braid() {
             );
           })}
 
-          {/* Thread segments */}
+          {/* Thread ribbons — 3 passes for 2.5D ribbon depth illusion:
+               Pass 1: dark shadow outline  (depth cue — shows strand has thickness)
+               Pass 2: main strand color    (the ribbon body)
+               Pass 3: thin white highlight (specular highlight — "lit from above")
+               Depth sort is already baked in: segs sorted high-lane→low-lane
+               so high-lane strands are rendered first and appear "behind". */}
+          {/* Pass 1: shadow */}
+          {segments.map((seg, i) => {
+            const dim = hovStrand && hovStrand !== seg.strandId;
+            if (dim) return null;
+            return (
+              <path key={`sh-${i}`} d={seg.d}
+                    stroke="#000912" strokeWidth={seg.width + 3}
+                    fill="none" strokeLinecap="round" opacity={0.55}/>
+            );
+          })}
+          {/* Pass 2: main body */}
           {segments.map((seg, i) => {
             const dim = hovStrand && hovStrand !== seg.strandId;
             return (
-              <path key={i} d={seg.d}
-                    stroke={dim ? "#0a1220" : seg.color}
-                    strokeWidth={dim ? 0.4 : seg.width}
+              <path key={`m-${i}`} d={seg.d}
+                    stroke={dim ? "#05080f" : seg.color}
+                    strokeWidth={dim ? 0.8 : seg.width}
                     fill="none" strokeLinecap="round"
-                    opacity={dim ? 0.1 : 0.82}
-                    style={{ transition:"stroke 0.2s, opacity 0.2s" }}/>
+                    opacity={dim ? 0.12 : 0.88}
+                    style={{ transition:"stroke 0.25s, opacity 0.25s" }}/>
+            );
+          })}
+          {/* Pass 3: highlight (simulates lit-from-above ribbon surface) */}
+          {segments.map((seg, i) => {
+            const dim = hovStrand && hovStrand !== seg.strandId;
+            if (dim) return null;
+            return (
+              <path key={`hi-${i}`} d={seg.d}
+                    stroke="#ffffff" strokeWidth={Math.max(seg.width * 0.28, 0.5)}
+                    fill="none" strokeLinecap="round" opacity={0.12}/>
             );
           })}
 
