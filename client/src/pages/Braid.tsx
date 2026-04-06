@@ -15,10 +15,11 @@ const APPROACH = 160;    // px on each side of knot where thread gently bows
 const KNOT_R   = 22;
 const COMPRESS = 0.22;   // threads bow only 22% toward knot centroid (not crash)
 
-// MAGIC scale: 0.0–2.0
-// G is the center (always present, instantiative). M A I C form 4 axes.
+// MAIC scale: 0.0–1.0
+// G is the GEOMETRIC OUTPUT/PRODUCT of MAIC convergence — it is what the knot produces.
+// M, A, I, C are the four driver axes whose convergence creates G.
 // GECD = the ruler. MAGIC = the reading the ruler produces.
-const MAGIC_MAX = 2.0;
+const MAGIC_MAX = 1.0;
 
 const toX = (yr: number) => PL + ((yr - T0) / TSPAN) * PW;
 const toY = (lane: number) => PT + (lane / (N_LANES - 1)) * PH;
@@ -33,8 +34,10 @@ interface Strand {
 interface KnotInput  { threadId: string; weight: number }
 interface KnotOutput { threadId: string }
 
-// MAGIC: G is NOT scored as an axis — it is the center point.
-// M, A, I, C form the 4-vertex quadrilateral. Their delta = Insight. Magnitude = Ingenuity.
+// MAIC: four DRIVER axes whose convergence produces G (geometric complexity).
+// G is NOT an input — it is what MAIC produces at each knot.
+// "Singles produce definitions. Doubles produce discoveries. Triples produce innovations. Full MAIC = inventions."
+// Scale 0.0–1.0 per axis.
 interface MagicReading { M: number; A: number; I: number; C: number }
 
 interface Knot {
@@ -61,8 +64,8 @@ interface Knot {
     duration:  string; vector: string; fGe: string;
   };
   contribution: string;
-  magic: MagicReading;  // 0.0–2.0 per axis; G is center (implied, unlabeled axis)
-  geLabel: string;      // human-readable G description (geometric element present)
+  magic: MagicReading;  // 0.0–1.0 per axis; G is the geometric OUTPUT this convergence produces
+  geLabel: string;      // human-readable G description (the geometric element this knot produces)
 }
 
 // ── Terminology (locked) ───────────────────────────────────────────────────────
@@ -84,11 +87,13 @@ const BASE_STRANDS: Strand[] = [
 ];
 
 // ── DII Convergence Knots (Creative Acts) ─────────────────────────────────────
-// MAGIC scale 0.0–2.0:
-//   0.0–0.9  accessory (present but not causal)
-//   1.0–1.3  required + co-dependent
-//   1.4–1.7  required + partially independent
-//   1.8–2.0  dominant driver
+// MAIC scale 0.0–1.0 per driver axis:
+//   0.0–0.25  accessory (present but not causal)
+//   0.25–0.50 supporting (contributes but not necessary)
+//   0.50–0.70 required + co-dependent
+//   0.70–0.85 required + partially independent
+//   0.85–1.0  dominant driver
+// Singles produce definitions. Doubles → discoveries. Triples → innovations. Full MAIC → inventions.
 const KNOTS: Knot[] = [
   {
     id:"halaf", year:-5500, name:"Halaf Spiral Pottery", gem:"Spiral", icon:"◉",
@@ -117,8 +122,9 @@ const KNOTS: Knot[] = [
       fGe:       "Curve + Rotation + Full(1-axis) → Vessel. A solid of revolution that is simultaneously an aesthetic argument.",
     },
     contribution: "Geometry (40%) supplies the spiral template from natural observation. Matter (30%) is the clay medium that retains form after firing. Craft (30%) is the hand-skill to execute radial motion at ceramic scale.",
-    magic: { M:0.4, A:1.8, I:0.3, C:0.2 },
-    geLabel: "G: Spiral (rotation of curve around vertical axis)",
+    // Halaf: A dominant (aesthetic-cosmic world-model). I and C nascent, M only practical rotation.
+    magic: { M:0.15, A:0.85, I:0.35, C:0.20 },
+    geLabel: "G → Spiral (rotation of curve around vertical axis; organic growth encoded in clay)",
   },
   {
     id:"cylinder-seal", year:-3500, name:"Cylinder Seal", gem:"Circle", icon:"⊛",
@@ -147,8 +153,9 @@ const KNOTS: Knot[] = [
       fGe:       "Circle + Linear-Translation + Full(1-axis) → Continuous Frieze. The circle's revolution maps one-to-one onto a linear authority record.",
     },
     contribution: "Geometry (35%) defines the cylinder-circle relationship. Power (35%) is the institutional need demanding authentication. Craft (20%) executes miniature carving. Aesthetic Code (10%) encodes mythological narrative.",
-    magic: { M:0.6, A:1.6, I:1.8, C:1.8 },
-    geLabel: "G: Circle (cylinder cross-section rolling through translation)",
+    // Cylinder Seal: I and C dominant (administrative monopoly, divine auth). A strong (iconography). M partial.
+    magic: { M:0.30, A:0.65, I:0.80, C:0.85 },
+    geLabel: "G → Circle/Frieze (cylinder cross-section rolling through translation; first cryptographic signature)",
   },
   {
     id:"cuneiform", year:-3200, name:"Cuneiform Writing", gem:"Triangle", icon:"𒀭",
@@ -177,8 +184,9 @@ const KNOTS: Knot[] = [
       fGe:       "Triangle + Puncture + Zero-duration → Wedge Mark. A sign is a triangle arrested at the moment of maximum force.",
     },
     contribution: "Number (40%) is the accounting need that motivates the invention. Matter (30%) supplies clay — cuneiform is impossible without wet alluvial silt. Geometry (30%) provides the triangular wedge logic that enables systematic replication.",
-    magic: { M:1.2, A:0.3, I:1.9, C:1.9 },
-    geLabel: "G: Triangle (wedge — frozen angle of reed under pressure)",
+    // Cuneiform: I and C dominant (scribal monopoly, legal binding). M growing (numeracy). A minimal (functional).
+    magic: { M:0.35, A:0.15, I:0.90, C:0.85 },
+    geLabel: "G → Triangle/Wedge (frozen angle of reed under pressure; thought made permanent)",
   },
   {
     id:"sexagesimal", year:-3000, name:"Sexagesimal System", gem:"Rosette/Circle", icon:"⬡",
@@ -207,8 +215,9 @@ const KNOTS: Knot[] = [
       fGe:       "Circle × 6-Triangle + Radial-Rotation + Full-all-axes → Rosette → 360° → Base-60. Geometry precedes arithmetic.",
     },
     contribution: "Geometry (45%) discovers that 6 equilateral triangles tile a circle exactly — the mathematical fact. Cosmos (35%) supplies the astronomical need (year/month/day cycles) demanding a highly divisible base. Number (20%) is the formal system that adopts and propagates it.",
-    magic: { M:1.9, A:0.2, I:1.2, C:1.1 },
-    geLabel: "G: Rosette (6-fold rotational completion of equilateral triangles in circle)",
+    // Sexagesimal: M dominant (geometric discovery of 6-fold completion). I strong (astronomy/calendar). A/C accessory.
+    magic: { M:0.90, A:0.15, I:0.55, C:0.40 },
+    geLabel: "G → Rosette (6 equilateral triangles tiling a circle exactly; 360° and base-60 are geometric inevitabilities)",
   },
   {
     id:"ziggurat", year:-2100, name:"Ziggurat of Ur", gem:"Pyramid", icon:"△",
@@ -235,8 +244,9 @@ const KNOTS: Knot[] = [
       fGe:       "Rectangle(brick) × Z-Stacking + Full(1-axis) → Stepped Pyramid. A discrete solid of revolution built from modular standardized units.",
     },
     contribution: "Power (35%) provides institutional will and mobilizes labor. Geometry (30%) provides pyramid profile and brick layout calculations. Matter (25%) is standardized fired brick enabling modular large-scale construction. Base-60 (10%) supplies the proportioning mathematics for terrace ratios.",
-    magic: { M:1.6, A:1.8, I:2.0, C:1.2 },
-    geLabel: "G: Pyramid (Z-axis stacking of rectangles; stepped solid of revolution)",
+    // Ziggurat: I dominant (cosmic mountain, divine legitimacy). C and A very strong. M required (construction).
+    magic: { M:0.65, A:0.80, I:0.90, C:0.85 },
+    geLabel: "G → Stepped Pyramid (Z-axis stacking of rectangles; hierarchy made architectural; power visible across flat land)",
   },
   {
     id:"plimpton", year:-1800, name:"Plimpton 322", gem:"Triangle", icon:"⊿",
@@ -265,8 +275,9 @@ const KNOTS: Knot[] = [
       fGe:       "Right-Triangle + No-motion + Zero-duration → Pythagorean Triples. The triangle is a ratio extractor, not a motion generator.",
     },
     contribution: "Base-60 (50%) is the number system making the ratios expressible as clean sexagesimal fractions. Geometry (35%) identifies the right-triangle constraint that generates the triples. Number (15%) supplies the systematic tabular format — this IS a generated sequence.",
-    magic: { M:1.95, A:0.2, I:0.7, C:0.4 },
-    geLabel: "G: Right Triangle (static — ratio extraction without motion)",
+    // Plimpton 322: M dominant (systematic Pythagorean triples). I supporting (scribal culture). A/C accessory.
+    magic: { M:0.95, A:0.10, I:0.40, C:0.30 },
+    geLabel: "G → Right Triangle (static ratio extraction; Pythagorean triples 1,800 years before Pythagoras)",
   },
   {
     id:"hammurabi", year:-1754, name:"Code of Hammurabi", gem:"Stele/Triangle", icon:"⚖",
@@ -293,8 +304,9 @@ const KNOTS: Knot[] = [
       fGe:       "Stele(Triangle+Rectangle) + Linear-Inscription + Full → Permanent Legal Text. Authority frozen in the hardest available stone.",
     },
     contribution: "Inscription (40%) is the writing system that makes 282 laws expressible and reproducible. Power (40%) is Babylonian imperial authority commissioning and enforcing. Identity-Token (20%) — the cylinder seal system pre-established the logic of authenticated geometric identity.",
-    magic: { M:0.4, A:1.4, I:2.0, C:1.9 },
-    geLabel: "G: Stele composite (Triangle apex → Rectangle body; linear inscription)",
+    // Hammurabi: I and C dominant (divine legal codification, state monopoly on justice). A supporting. M accessory.
+    magic: { M:0.20, A:0.55, I:0.95, C:0.90 },
+    geLabel: "G → Stele composite (Triangle apex → Rectangle body; divine authority radiating into human law)",
   },
   {
     id:"antikythera", year:-100, name:"Antikythera Mechanism", gem:"Circle/Gear", icon:"⚙",
@@ -321,8 +333,9 @@ const KNOTS: Knot[] = [
       fGe:       "Circle(A) × Circle(B) + Interlocked-Rotation + ∞-1 → Ratio Machine. Two touching circles IS the computation; their circumference ratio IS the answer.",
     },
     contribution: "Cosmos (35%) provides the astronomical periods the mechanism must encode. Base-60 (30%) supplies the number system making periods expressible as gear ratios. Algebraic Geometry (20%) provides right-triangle ratio mathematics for gear tooth engineering. Craft (15%) executes miniature bronze work at precision not re-achieved for 1,400 years.",
-    magic: { M:1.95, A:0.7, I:0.5, C:0.4 },
-    geLabel: "G: Circle/gear (interlocked rotation; ∞-1 duration; ratio transmission)",
+    // Antikythera: M dominant (gear ratio = astronomical ratio). A craftsmanship supporting. I/C weaker (private trade commission).
+    magic: { M:0.90, A:0.40, I:0.45, C:0.35 },
+    geLabel: "G → Circle/Gear train (interlocked rotation; circumference ratio IS the astronomical computation)",
   },
 ];
 
@@ -440,26 +453,27 @@ function buildSegments(allStrands: Strand[], knotMap: Map<string,number>): Segme
   return segs;
 }
 
-// ── Ingenuity = magnitude of MAGIC delta between two knots ─────────────────────
+// ── Ingenuity = magnitude of MAIC delta between two knots ──────────────────────
 function ingenuity(a: MagicReading, b: MagicReading): number {
-  // Euclidean distance in 4D MAGIC space, normalized to [0,1]
-  // Max possible distance: all 4 axes change by MAGIC_MAX → sqrt(4 × MAGIC_MAX²) = 2×MAGIC_MAX
+  // Euclidean distance in 4D MAIC driver space, normalized to [0,1]
+  // Max possible distance: all 4 axes change by 1.0 → sqrt(4 × 1²) = 2.0
   const d = Math.sqrt((a.M-b.M)**2 + (a.A-b.A)**2 + (a.I-b.I)**2 + (a.C-b.C)**2);
-  return d / (2 * MAGIC_MAX);
+  return d / 2.0;
 }
 
-// ── MAGIC Quadrilateral (G at center, MAIC as 4 axes, 0–2 scale) ──────────────
+// ── MAIC Driver Quadrilateral (0–1 scale; G is the geometric OUTPUT, shown as label not axis) ──
 function MagicQuad({
   magic, prev, size = 90,
 }: {
   magic: MagicReading; prev?: MagicReading; size?: number;
 }) {
   const cx = size / 2, cy = size / 2, r = size / 2 - 10;
+  // Canonical colors from magicFramework.ts
   const axes = [
-    { k: "M" as const, angle: -Math.PI / 2, color: "#3b82f6" },
-    { k: "A" as const, angle: 0,            color: "#f97316" },
-    { k: "I" as const, angle: Math.PI / 2,  color: "#8b5cf6" },
-    { k: "C" as const, angle: Math.PI,      color: "#ef4444" },
+    { k: "M" as const, angle: -Math.PI / 2, color: "#3b82f6" },  // Mathematics — blue
+    { k: "A" as const, angle: 0,            color: "#a855f7" },  // Aesthetics — purple
+    { k: "I" as const, angle: Math.PI / 2,  color: "#eab308" },  // Institutionalization — yellow
+    { k: "C" as const, angle: Math.PI,      color: "#ef4444" },  // Control/Power — red
   ];
   const pt = (val: number, angle: number): [number,number] => [
     cx + (val / MAGIC_MAX) * r * Math.cos(angle),
@@ -470,18 +484,18 @@ function MagicQuad({
 
   return (
     <svg width={size} height={size} style={{ display:"block" }}>
-      {/* Grid rings at 0.5, 1.0, 1.5, 2.0 */}
-      {[0.5, 1.0, 1.5, 2.0].map(v => {
+      {/* Grid rings at 0.25, 0.50, 0.75, 1.0 */}
+      {[0.25, 0.50, 0.75, 1.0].map(v => {
         const pts2 = axes.map(a => pt(v, a.angle).join(",")).join(" ");
         return <polygon key={v} points={pts2} fill="none" stroke="#0d1830"
-                        strokeWidth={v === 1.0 ? 0.8 : 0.4} strokeDasharray={v===1.0?"":"3,3"}/>;
+                        strokeWidth={v === 0.50 ? 0.8 : 0.4} strokeDasharray={v===0.50?"":"3,3"}/>;
       })}
       {/* Axis spokes */}
       {axes.map(a => {
         const [x2, y2] = pt(MAGIC_MAX, a.angle);
         return <line key={a.k} x1={cx} y1={cy} x2={x2} y2={y2} stroke="#1a2540" strokeWidth={0.5}/>;
       })}
-      {/* Previous quadrilateral (insight delta shown in grey) */}
+      {/* Previous quadrilateral (dashed — shows MAIC delta = ingenuity) */}
       {prev && <polygon points={poly(prev)} fill="none" stroke="#334155"
                         strokeWidth={0.7} strokeDasharray="2,2" opacity={0.5}/>}
       {/* Current quadrilateral */}
@@ -491,30 +505,30 @@ function MagicQuad({
         const [x2, y2] = pt(magic[a.k], a.angle);
         return <circle key={a.k} cx={x2} cy={y2} r={2.5} fill={a.color}/>;
       })}
-      {/* G center dot (always present — makes measurement possible) */}
-      <circle cx={cx} cy={cy} r={3.5} fill="#f5c518" opacity={0.8}/>
-      {/* Axis labels */}
+      {/* G = output product — shown at center as the geometric element this convergence produces */}
+      <circle cx={cx} cy={cy} r={3} fill="#22c55e" opacity={0.7}/>
+      {/* Axis labels — placed 15% outside the max ring */}
       {axes.map(a => {
-        const [x2, y2] = pt(2.35, a.angle);
+        const [x2, y2] = pt(1.15, a.angle);
         return <text key={a.k} x={x2} y={y2 + 3.5} textAnchor="middle"
                      fill={a.color} fontSize={8} fontWeight="bold">{a.k}</text>;
       })}
-      {/* G label */}
-      <text x={cx + 5} y={cy - 5} fill="#f5c518" fontSize={7} opacity={0.7}>G</text>
+      {/* G output label */}
+      <text x={cx + 5} y={cy - 4} fill="#22c55e" fontSize={7} opacity={0.8}>G↑</text>
     </svg>
   );
 }
 
-// ── MAGIC constants ────────────────────────────────────────────────────────────
+// ── MAIC constants (canonical labels and colors from magicFramework.ts) ────────
 const MAGIC_KEYS   = ["M","A","I","C"] as const;
-const MAGIC_LABELS = { M:"Math", A:"Aesthetic", I:"Institution", C:"Comptroller" };
-const MAGIC_COLORS = { M:"#3b82f6", A:"#f97316", I:"#8b5cf6", C:"#ef4444" };
+const MAGIC_LABELS = { M:"Mathematics", A:"Aesthetics", I:"Institutionalization", C:"Control/Power" };
+const MAGIC_COLORS = { M:"#3b82f6", A:"#a855f7", I:"#eab308", C:"#ef4444" };
 
 function magicLabel(v: number): string {
-  if (v < 0.5)  return "accessory";
-  if (v < 1.0)  return "near-codependent";
-  if (v < 1.35) return "required + co-dependent";
-  if (v < 1.75) return "required + partial indep.";
+  if (v < 0.25) return "accessory";
+  if (v < 0.50) return "supporting";
+  if (v < 0.70) return "required + co-dependent";
+  if (v < 0.85) return "required + partial indep.";
   return "dominant driver";
 }
 
@@ -871,10 +885,10 @@ export default function Braid() {
               </div>
             </div>
 
-            {/* Col 4: MAGIC Quadrilateral + Insight */}
+            {/* Col 4: MAIC Driver Quadrilateral + Ingenuity */}
             <div style={{ padding:"14px 18px" }}>
               <div style={{ fontSize:9, color:"#1e2a40", letterSpacing:3, marginBottom:6 }}>
-                MAGIC READING · G AT CENTER
+                MAIC DRIVER ANALYSIS · G = geometric output ↑
               </div>
 
               {/* Radar + Ingenuity */}
@@ -906,7 +920,7 @@ export default function Braid() {
                     </div>
                   )}
                   <div style={{ fontSize:8, color:"#0d1428", marginTop:4 }}>
-                    dashed = prior quad<br/>solid = this reading<br/>G = geometric element (center)
+                    dashed = prior MAIC quad<br/>solid = this knot's drivers<br/>G↑ = geometric output (produced)
                   </div>
                 </div>
               </div>

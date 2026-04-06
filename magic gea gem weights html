@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>GEA→GEM Composition + MAGIC Weights</title>
+<style>
+:root{--bg:#fff;--bg2:#f5f5f2;--tx:#1a1a1a;--tx2:#666;--bd:rgba(0,0,0,0.1)}
+@media(prefers-color-scheme:dark){:root{--bg:#1a1a1a;--bg2:#2a2a2a;--tx:#e8e8e8;--tx2:#999;--bd:rgba(255,255,255,0.1)}}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg2);color:var(--tx);padding:1.5rem}
+h1{font-size:18px;font-weight:500;margin-bottom:2px}
+.sub{font-size:12px;color:var(--tx2);margin-bottom:16px}
+.tabs{display:flex;gap:8px;margin-bottom:16px}
+.tabs button{font-size:12px;padding:5px 14px;border-radius:8px;cursor:pointer;font-family:inherit;border:0.5px solid var(--bd);background:transparent;color:var(--tx)}
+.tabs button.active{background:var(--tx);color:var(--bg);border-color:var(--tx)}
+.card{background:var(--bg);border-radius:12px;border:0.5px solid var(--bd);padding:20px;margin-bottom:16px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-weight:500;padding:8px 6px;border-bottom:1px solid var(--bd);font-size:11px;color:var(--tx2)}
+td{padding:8px 6px;border-bottom:0.5px solid var(--bd);vertical-align:top}
+.bar-cell{display:flex;align-items:center;gap:4px}
+.bar{height:16px;border-radius:3px;display:inline-block;min-width:2px}
+.bar-label{font-size:10px;color:var(--tx2);min-width:24px}
+.required{opacity:1}.accessory{opacity:0.35}
+.sum{font-weight:500;font-size:13px}
+.sum-high{color:#E24B4A}.sum-mid{color:#BA7517}.sum-low{color:#639922}
+.comp-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;padding:10px;border-radius:8px;border:0.5px solid var(--bd)}
+.elem{padding:3px 10px;border-radius:6px;font-size:11px;font-weight:500}
+.arrow{color:var(--tx2);font-size:14px}
+.layer-label{font-size:11px;font-weight:500;color:var(--tx2);margin:16px 0 8px;text-transform:uppercase;letter-spacing:0.5px}
+.note{font-size:11px;color:var(--tx2);margin-top:12px;line-height:1.6}
+</style>
+</head>
+<body>
+<h1>GEA → GEM composition + MAGIC weight profiles</h1>
+<p class="sub">Geometric element complexity and MAGIC dependency analysis — EUCLID Mesopotamia pilot</p>
+<div class="tabs">
+<button class="active" onclick="show('comp',this)">GEA → GEM composition</button>
+<button onclick="show('magic',this)">MAGIC weight table</button>
+<button onclick="show('method',this)">Weighting methodology</button>
+<button onclick="show('art',this)">Art analysis method</button>
+</div>
+
+<div id="comp" class="panel">
+<div class="card">
+<div class="layer-label">Layer 1 — GEA primitives (irreducible)</div>
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px">
+<span class="elem" style="background:#FAEEDA;color:#633806;border:1px solid #BA7517">Circle ~6200 BCE</span>
+<span class="elem" style="background:#E6F1FB;color:#0C447C;border:1px solid #378ADD">Line ~7000 BCE</span>
+<span class="elem" style="background:#EAF3DE;color:#27500A;border:1px solid #639922">Triangle ~6000 BCE</span>
+<span class="elem" style="background:#E6F1FB;color:#0C447C;border:1px solid #378ADD">Square ~7000 BCE</span>
+<span class="elem" style="background:#E6F1FB;color:#0C447C;border:1px solid #378ADD">Angle ~7000 BCE</span>
+<span class="elem" style="background:#FAEEDA;color:#633806;border:1px solid #BA7517">Arc/Curve ~6000 BCE</span>
+</div>
+
+<div class="layer-label">Layer 2 — GEM composites (require 2+ GEAs)</div>
+
+<div class="comp-row">
+<span class="elem" style="background:#FAEEDA;color:#633806">Circle</span>
+<span class="arrow">+</span>
+<span class="elem" style="background:#E6F1FB;color:#0C447C">Line</span>
+<span class="arrow">→</span>
+<span class="elem" style="background:#FBEAF0;color:#72243E;border:1px solid #D4537E"><b>Rosette</b> ~6100 BCE (4-petal)</span>
+<span style="font-size:10px;color:var(--tx2)">Halaf stamp seals. Radial lines from circle center.</span>
+</div>
+<div class="comp-row">
+<span class="elem" style="background:#FBEAF0;color:#72243E">Rosette</span>
+<span class="arrow">+</span>
+<span class="elem" style="background:#E6F1FB;color:#0C447C">Angle (45°)</span>
+<span class="arrow">→</span>
+<span class="elem" style="background:#EEEDFE;color:#3C3489;border:1px solid #534AB7"><b>8-Pointed Star</b> ~3100 BCE</span>
+<span style="font-size:10px;color:var(--tx2)">GEM from GEM: rosette refined through angle bisection.</span>
+</div>
+<div class="comp-row">
+<span class="elem" style="background:#FAEEDA;color:#633806">Circle</span>
+<span class="arrow">+</span>
+<span class="elem" style="background:#FAEEDA;color:#633806">Circle (offset)</span>
+<span class="arrow">→</span>
+<span class="elem" style="background:#F1EFE8;color:#444441;border:1px solid #888780"><b>Crescent</b> ~2900 BCE</span>
+<span style="font-size:10px;color:var(--tx2)">Two overlapping circles, keep the sliver. Youngest GEM.</span>
+</div>
+<div class="comp-row">
+<span class="elem" style="background:#E6F1FB;color:#0C447C">Square</span>
+<span class="arrow">+</span>
+<span class="elem" style="background:#E6F1FB;color:#0C447C">Angle</span>
+<span class="arrow">+</span>
+<span class="elem" style="background:#FAEEDA;color:#633806">Circle</span>
+<span class="arrow">→</span>
+<span class="elem" style="background:#E1F5EE;color:#085041;border:1px solid #1D9E75"><b>Tessellation</b> ~3500 BCE</span>
+<span style="font-size:10px;color:var(--tx2)">Uruk cone mosaics. Repeating polygonal coverage.</span>
+</div>
+<div class="comp-row">
+<span class="elem" style="background:#FAEEDA;color:#633806">Circle (arc)</span>
+<span class="arrow">+</span>
+<span class="elem" style="background:#EAF3DE;color:#27500A">Triangle (forces)</span>
+<span class="arrow">→</span>
+<span class="elem" style="background:#FAECE7;color:#712B13;border:1px solid #D85A30"><b>Arch</b> ~2600 BCE</span>
+<span style="font-size:10px;color:var(--tx2)">Ur Royal Tombs. Curved form + triangulated force paths.</span>
+</div>
+<div class="comp-row" style="background:#FCEBEB">
+<span class="elem" style="background:#EEEDFE;color:#3C3489">8-Star</span>
+<span class="arrow">+</span>
+<span class="elem" style="background:#E6F1FB;color:#0C447C">Square</span>
+<span class="arrow">→</span>
+<span class="elem" style="background:#E1F5EE;color:#085041;border:1px solid #1D9E75"><b>Octagon-Square Tiling</b> ~1200 BCE</span>
+<span style="font-size:10px;color:var(--tx2)"><b>GEM + GEM</b>: Two composites combining. Assyrian palace floors.</span>
+</div>
+
+<div class="layer-label">Layer 3 — Carriers (require GEAs + GEMs in combination)</div>
+
+<div class="comp-row">
+<span class="elem" style="background:#FAEEDA;color:#633806">Circle</span>
+<span class="arrow">+</span>
+<span class="elem" style="background:#EEEDFE;color:#3C3489">8-Star</span>
+<span class="arrow">+</span>
+<span class="elem" style="background:#E6F1FB;color:#0C447C">Line</span>
+<span class="arrow">→</span>
+<span style="font-weight:500">Cylinder Seal</span>
+<span style="font-size:10px;color:var(--tx2)">~3500 BCE. Rolling (circle) + recognition (8-star) + frieze (line).</span>
+</div>
+<div class="comp-row">
+<span class="elem" style="background:#EAF3DE;color:#27500A">Triangle</span>
+<span class="arrow">+</span>
+<span class="elem" style="background:#FAEEDA;color:#633806">Circle</span>
+<span class="arrow">+</span>
+<span class="elem" style="background:#EEEDFE;color:#3C3489">8-Star</span>
+<span class="arrow">+</span>
+<span class="elem" style="background:#FAECE7;color:#712B13">Arch</span>
+<span class="arrow">→</span>
+<span style="font-weight:500">Ziggurat</span>
+<span style="font-size:10px;color:var(--tx2)">~2100 BCE. 4 elements. Densest carrier.</span>
+</div>
+<div class="comp-row">
+<span class="elem" style="background:#FAEEDA;color:#633806">Circle (360°)</span>
+<span class="arrow">+</span>
+<span class="elem" style="background:#F1EFE8;color:#444441">Crescent (marker)</span>
+<span class="arrow">→</span>
+<span style="font-weight:500">Lunar Calendar</span>
+<span style="font-size:10px;color:var(--tx2)">~3000 BCE. Circle's angular division; crescent as visual phase indicator.</span>
+</div>
+<div class="comp-row">
+<span class="elem" style="background:#EEEDFE;color:#3C3489">8-Star</span>
+<span class="arrow">+</span>
+<span class="elem" style="background:#F1EFE8;color:#444441">Crescent</span>
+<span class="arrow">+</span>
+<span class="elem" style="background:#FAEEDA;color:#633806">Circle (solar disc)</span>
+<span class="arrow">→</span>
+<span style="font-weight:500">Kudurru Triad</span>
+<span style="font-size:10px;color:var(--tx2)">~1186 BCE. Three lesson elements converge on one stone. Louvre Sb 22.</span>
+</div>
+
+<p class="note">Key insight: The 8-pointed star is a GEM derived from a GEM (rosette → 8-star via angle bisection). The crescent is the youngest element and derives entirely from the circle. The arch requires BOTH circle and triangle — it's a convergence GEM. Carriers at Layer 3 show which GEAs and GEMs must co-exist for an invention to crystallize.</p>
+</div>
+</div>
+
+<div id="magic" class="panel" style="display:none">
+<div class="card">
+<table>
+<tr><th style="width:160px">Invention / artifact</th><th>Date</th><th style="width:50px">M</th><th style="width:50px">A</th><th style="width:50px">G</th><th style="width:50px">I</th><th style="width:50px">C</th><th>Sum</th><th style="width:220px">Profile</th></tr>
+</table>
+<table id="mtable"></table>
+</div>
+<p class="note">Opacity indicates required (≥1.0, full) vs. accessory (&lt;1.0, faded). G is always 1.0 (geometric substrate). Sum = dependency density. Higher sum = more variables required = civilizational achievement. Sorted by sum descending.</p>
+</div>
+
+<div id="method" class="panel" style="display:none">
+<div class="card">
+<h2 style="font-size:16px;font-weight:500;margin-bottom:12px">Counterfactual dependency testing</h2>
+<p style="font-size:13px;line-height:1.7;margin-bottom:16px">For each MAGIC variable at each GECD node, ask: <b>"If this variable were removed from the historical context, would this GECD node still have crystallized?"</b></p>
+<table>
+<tr><th>Range</th><th>Meaning</th><th>Test</th></tr>
+<tr><td>0.0–0.3</td><td>Decorative / incidental</td><td>GECD exists unchanged without this variable</td></tr>
+<tr><td>0.4–0.7</td><td>Accelerator / improver</td><td>GECD exists but degraded, delayed, or less widespread</td></tr>
+<tr><td>0.8–0.99</td><td>Nearly necessary</td><td>GECD barely exists or only in primitive form without this variable</td></tr>
+<tr><td style="font-weight:500">1.0</td><td style="font-weight:500">Required threshold</td><td style="font-weight:500">GECD would NOT exist without this variable</td></tr>
+<tr><td>1.0–1.3</td><td>Required + co-dependent</td><td>Required AND needs 2+ other variables also at 1.0+. Collective invention.</td></tr>
+<tr><td>1.4–1.7</td><td>Required + partially independent</td><td>Drives GECD even when other variables are below 1.0</td></tr>
+<tr><td>1.8–2.0</td><td>Dominant driver</td><td>This variable alone nearly explains the GECD</td></tr>
+</table>
+<h3 style="font-size:14px;font-weight:500;margin:20px 0 8px">Second test — directness</h3>
+<p style="font-size:13px;line-height:1.7">For each variable scored above 0.5: "Is this variable's effect DIRECT (shapes the geometric element itself) or INDIRECT (creates conditions for crystallization)?" Indirect effects score 0.2–0.3 lower than equivalent direct effects.</p>
+<h3 style="font-size:14px;font-weight:500;margin:20px 0 8px">Validation: dependency density sum</h3>
+<table>
+<tr><th>Sum range</th><th>Character</th><th>Examples</th></tr>
+<tr><td>~2.0–3.5</td><td>Concentrated. 1-2 dominant variables.</td><td>Bronze sickle, compass card</td></tr>
+<tr><td>~3.5–5.0</td><td>Moderate. 2-3 driving, others supporting.</td><td>Potter's wheel, Plimpton 322</td></tr>
+<tr><td>~5.0–6.5</td><td>Civilizational. All variables at or near required.</td><td>Ziggurat, cylinder seal, cuneiform</td></tr>
+<tr><td>>7.0</td><td>Check for error. Too many independently sufficient claims.</td><td>—</td></tr>
+</table>
+</div>
+</div>
+
+<div id="art" class="panel" style="display:none">
+<div class="card">
+<h2 style="font-size:16px;font-weight:500;margin-bottom:12px">Proposed art analysis method for MAGIC weighting</h2>
+<p style="font-size:13px;line-height:1.7;margin-bottom:16px">Four-pass analysis combining established art historical methods (Wölfflin's formal analysis, Panofsky's iconography, and computational geometry) adapted for MAGIC variable extraction:</p>
+
+<h3 style="font-size:14px;font-weight:500;margin:16px 0 8px">Pass 1 — Geometric decomposition (feeds G and M)</h3>
+<p style="font-size:13px;line-height:1.7;margin-bottom:12px">Identify every GEA and GEM present in the artifact. For each: what is it (circle, triangle, arc), what geometric property does it exhibit (symmetry group, angular relationships, proportions), and what is its dimensional behavior (2D surface, 3D volume, transformation). This is pure geometric census — no meaning, no function yet. Record the GECD notation: Element, Carrier, Dimension.</p>
+<p style="font-size:13px;line-height:1.7;margin-bottom:12px"><b>Standard practice equivalent:</b> Wölfflin's formal analysis (line, plane, form, color) plus computational shape analysis (Biederman's GEON decomposition — already in your framework as GEA adoption).</p>
+
+<h3 style="font-size:14px;font-weight:500;margin:16px 0 8px">Pass 2 — Material and production analysis (feeds A and M)</h3>
+<p style="font-size:13px;line-height:1.7;margin-bottom:12px">What material is this? How was it made? What tools were required? What skill level? What production scale (unique commission vs. mass production)? What is the craftsmanship quality (precision of angles, smoothness of curves, regularity of patterns)? This feeds A (aesthetic achievement) and M (mathematical/technical knowledge required for production).</p>
+<p style="font-size:13px;line-height:1.7;margin-bottom:12px"><b>Standard practice equivalent:</b> Technical art history / archaeometry. Museum conservation reports often contain this data. Accession records list material, dimensions, production technique.</p>
+
+<h3 style="font-size:14px;font-weight:500;margin:16px 0 8px">Pass 3 — Iconographic and institutional analysis (feeds I and C)</h3>
+<p style="font-size:13px;line-height:1.7;margin-bottom:12px">What does this artifact depict? Whose symbol is present (deity, king, institution)? Where was it found (temple, palace, domestic, grave)? Who commissioned it? Who had access to it? What texts or inscriptions accompany it? This is Panofsky's three levels: pre-iconographic (what you see), iconographic (what it refers to), iconological (what worldview it embodies). The findspot and access pattern feed C. The symbolic content feeds I.</p>
+<p style="font-size:13px;line-height:1.7;margin-bottom:12px"><b>Standard practice equivalent:</b> Panofsky's iconographic method + contextual archaeology (findspot analysis, association analysis). Museum records provide provenance chains.</p>
+
+<h3 style="font-size:14px;font-weight:500;margin:16px 0 8px">Pass 4 — Functional analysis (feeds M and C)</h3>
+<p style="font-size:13px;line-height:1.7;margin-bottom:12px">What did this artifact DO? Was it rolled (seal), worn (jewelry), displayed (stele), used (tool), built upon (architecture)? What geometric property enabled that function? Who controlled the function (temple administration, royal workshop, individual craft)? This is where Day B content lives. The mechanical function feeds M. The control of function feeds C.</p>
+
+<h3 style="font-size:14px;font-weight:500;margin:16px 0 8px">Scoring protocol</h3>
+<p style="font-size:13px;line-height:1.7;margin-bottom:12px">After all four passes, apply the counterfactual test per variable. Each pass should have generated evidence for 2-3 MAGIC variables. Where passes disagree (e.g., Pass 2 suggests high M but Pass 4 suggests low M), the DIRECT effect takes precedence. Where evidence is absent, score 0.3 (assumed minimal presence — no variable is ever truly zero in a human artifact).</p>
+
+<h3 style="font-size:14px;font-weight:500;margin:16px 0 8px">Automation potential</h3>
+<p style="font-size:13px;line-height:1.7">Pass 1 is partially automatable (computational shape recognition on artifact images). Pass 2 is partially automatable (material identification from museum metadata). Pass 3 requires human judgment but can be templated (iconographic checklist per civilization). Pass 4 requires domain expertise but can be structured as a decision tree. For the RWI pipeline, Passes 1-2 could be delegated to image analysis agents; Passes 3-4 need human-in-the-loop or heavily prompted LLM with archaeological databases.</p>
+</div>
+</div>
+
+<script>
+function show(id,btn){
+document.querySelectorAll('.panel').forEach(p=>p.style.display='none');
+document.getElementById(id).style.display='block';
+document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('active'));
+btn.classList.add('active');
+}
+const data=[
+{n:'Ziggurat buttress',d:'~2100 BCE',m:1.5,a:0.8,g:1.0,i:1.3,c:1.7,s:6.3},
+{n:'Kudurru Sb 22',d:'~1186 BCE',m:0.5,a:1.3,g:1.0,i:1.6,c:1.7,s:6.1},
+{n:'Cone mosaics (Eanna)',d:'~3500 BCE',m:0.7,a:1.5,g:1.0,i:1.4,c:1.3,s:5.9},
+{n:'Lunar calendar',d:'~3000 BCE',m:1.3,a:0.4,g:1.0,i:1.5,c:1.6,s:5.8},
+{n:'Cylinder seal',d:'~3500 BCE',m:0.8,a:1.3,g:1.0,i:1.2,c:1.4,s:5.7},
+{n:'Standard of Ur carts',d:'~2600 BCE',m:1.1,a:1.2,g:1.0,i:0.8,c:1.6,s:5.7},
+{n:'Cuneiform',d:'~3400 BCE',m:1.4,a:0.6,g:1.0,i:1.1,c:1.5,s:5.6},
+{n:'Palace rosettes',d:'~1200 BCE',m:0.6,a:1.5,g:1.0,i:0.8,c:1.7,s:5.6},
+{n:'Fast potter\'s wheel',d:'~3500 BCE',m:1.4,a:0.6,g:1.0,i:0.7,c:1.2,s:4.9},
+{n:'Samarra Plate',d:'~5800 BCE',m:0.8,a:1.8,g:1.0,i:0.7,c:0.3,s:4.6},
+{n:'Si.427 land survey',d:'~1900 BCE',m:1.6,a:0.2,g:1.0,i:0.4,c:1.3,s:4.5},
+{n:'Jupiter trapezoid',d:'~350 BCE',m:1.9,a:0.1,g:1.0,i:0.6,c:0.8,s:4.4},
+{n:'Halaf painted circles',d:'~6200 BCE',m:0.6,a:1.6,g:1.0,i:0.8,c:0.3,s:4.3},
+{n:'Wheeled cart',d:'~3500 BCE',m:1.3,a:0.3,g:1.0,i:0.3,c:1.4,s:4.3},
+{n:'Standardized brick',d:'~3600 BCE',m:1.3,a:0.4,g:1.0,i:0.5,c:1.1,s:4.3},
+{n:'π ≈ 3.125 (Susa)',d:'~1800 BCE',m:1.8,a:0.2,g:1.0,i:0.5,c:0.7,s:4.2},
+{n:'Plimpton 322',d:'~1800 BCE',m:1.9,a:0.2,g:1.0,i:0.4,c:0.6,s:4.1},
+{n:'Uruk compass card',d:'~300 BCE',m:1.5,a:0.3,g:1.0,i:0.4,c:0.8,s:4.0},
+{n:'Slow potter\'s wheel',d:'~4500 BCE',m:1.2,a:0.5,g:1.0,i:0.4,c:0.6,s:3.7},
+{n:'Bronze sickle',d:'~3300 BCE',m:1.0,a:0.4,g:1.0,i:0.3,c:0.6,s:3.3}
+];
+const colors={m:'#BA7517',a:'#534AB7',g:'#888',i:'#D4537E',c:'#1D9E75'};
+const tb=document.getElementById('mtable');
+data.forEach(d=>{
+const tr=document.createElement('tr');
+const sc=d.s>=5.5?'sum-high':d.s>=4.2?'sum-mid':'sum-low';
+function bar(v,c){const w=Math.round(v/2*40);const op=v>=1?'required':'accessory';return `<div class="bar-cell"><div class="bar ${op}" style="width:${w}px;background:${c}"></div><span class="bar-label">${v.toFixed(1)}</span></div>`;}
+tr.innerHTML=`<td style="width:160px;font-weight:500">${d.n}</td><td style="font-size:11px;color:var(--tx2)">${d.d}</td><td>${bar(d.m,colors.m)}</td><td>${bar(d.a,colors.a)}</td><td>${bar(d.g,colors.g)}</td><td>${bar(d.i,colors.i)}</td><td>${bar(d.c,colors.c)}</td><td class="sum ${sc}">${d.s.toFixed(1)}</td><td style="font-size:10px;color:var(--tx2)">${d.m>=1.4?'M-driven ':''}${d.a>=1.4?'A-driven ':''}${d.i>=1.4?'I-driven ':''}${d.c>=1.4?'C-driven ':''}${d.s>=5.5?'⬤ civilizational':d.s>=4.2?'◐ moderate':'○ concentrated'}</td>`;
+tb.appendChild(tr);
+});
+</script>
+
+</body>
+</html>
