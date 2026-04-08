@@ -406,11 +406,12 @@ export const braidPoints = pgTable("braid_points", {
 
 export const lessonSectionContributions = pgTable("lesson_section_contributions", {
   id: serial("id").primaryKey(),
-  braidPointId: integer("braid_point_id"),
+  braidPointId: integer("braid_point_id").references(() => braidPoints.id, { onDelete: "set null" }),
   sourceName: text("source_name").notNull(),
   sectionId: text("section_id").notNull(),
   relevance: real("relevance").notNull().default(0),
   contribution: text("contribution"),
+  learningObjective: text("learning_objective"),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 

@@ -33,6 +33,7 @@ interface SectionContribution {
   sectionId: string;
   relevance: number;
   contribution: string | null;
+  learningObjective: string | null;
 }
 
 // ── Lesson section definitions (canonical v2026-04-01) ───────────────────────
@@ -548,12 +549,16 @@ export default function Braid() {
                 {expanded && (
                   <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${dayColor}22` }}>
                     {contrib?.contribution && (
-                      <p style={{ margin: "0 0 6px", fontSize: 11, color: "rgba(255,255,255,0.8)", lineHeight: 1.55 }}>
-                        {contrib.contribution}
-                      </p>
+                      <div style={{ marginBottom: 8 }}>
+                        <div style={{ fontSize: 9, color: dayColor, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", marginBottom: 3 }}>This research contributes</div>
+                        <p style={{ margin: 0, fontSize: 11, color: "rgba(255,255,255,0.85)", lineHeight: 1.55 }}>
+                          {contrib.contribution}
+                        </p>
+                      </div>
                     )}
-                    <p style={{ margin: 0, fontSize: 10, color: "rgba(255,255,255,0.35)", lineHeight: 1.5, fontStyle: "italic" }}>
-                      {sec.purpose}
+                    <div style={{ fontSize: 9, color: "rgba(255,255,255,0.3)", fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", marginBottom: 3 }}>Learning objective</div>
+                    <p style={{ margin: 0, fontSize: 10, color: "rgba(255,255,255,0.4)", lineHeight: 1.5 }}>
+                      {contrib?.learningObjective ?? sec.purpose}
                     </p>
                   </div>
                 )}

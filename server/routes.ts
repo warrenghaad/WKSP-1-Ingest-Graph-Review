@@ -2344,22 +2344,50 @@ Rules:
       }
 
       const VALID_SECTIONS = ["A1","A2","A3","A4","A5","A6","A7","B1","B2","B3","B4","B5","B6","B7","B8"];
-      const sourceName = pointsRaw[0]?.name ?? text.slice(0, 60);
-      const braidPointId = savedPoints[0]?.id ?? null;
+      const SECTION_LO: Record<string, string> = {
+        A1: "Hook — narrative entry. Three-act myth where the geometric element SOLVES the problem.",
+        A2: "Visual rhetoric — how geometric properties produce cognitive effects via three-stage broadcast.",
+        A3: "Bridge myth to material culture. Deity's geometric powers AT WORK in real artifacts.",
+        A4: "Element across 6 object classes. Ideology institutionalizing — I narrates, C allocates.",
+        A5: "Teach compositional mechanics identified in A2. Explicit instruction in HOW.",
+        A6: "Student creation — must match A2. Students produce using visual rhetoric skills.",
+        A7: "Pivot to Day B. Architecture as dual-register capstone. Bridge: 'What does it DO?'",
+        B1: "Resolve A7 bridge question. MUST reference SAME artifact as A7. Same element, new register.",
+        B2: "Mathematical formalization. 'Because' = demonstration, NOT definition. F(ge) formula.",
+        B3: "Element in operation — what the math enables. Geometric operations.",
+        B4: "What transformation produces — mechanical result. The geometry does physical WORK.",
+        B5: "Where element sits in STEM timeline — historical lineage of functional deployments.",
+        B6: "ONE specific invention — crystallization point. The STEM notch.",
+        B7: "Student construction. Hands-on. Parallels A6.",
+        B8: "Both registers visible SIMULTANEOUSLY. Superimpositional agreement — NOT 'metaphor = function.'",
+      };
 
-      const contribRows = sectionMapRaw
-        .filter(s => VALID_SECTIONS.includes(s.sectionId))
-        .map(s => ({
-          braidPointId,
-          sourceName: String(sourceName).slice(0, 120),
-          sectionId: s.sectionId,
-          relevance: clamp(s.relevance),
-          contribution: s.contribution ? String(s.contribution).slice(0, 400) : null,
-        }));
+      // Normalize: build a map from Gemini's response, then fill ALL 15 sections
+      const geminiBySection: Record<string, { relevance: number; contribution: string | null }> = {};
+      for (const s of sectionMapRaw) {
+        if (VALID_SECTIONS.includes(s.sectionId)) {
+          geminiBySection[s.sectionId] = {
+            relevance: clamp(s.relevance),
+            contribution: s.contribution ? String(s.contribution).slice(0, 400) : null,
+          };
+        }
+      }
 
-      const savedContribs = contribRows.length > 0
-        ? await storage.createLessonContributions(contribRows)
-        : [];
+      // Determine source name and primary braid point (first created, if any)
+      const sourceName = (pointsRaw[0]?.name ?? text.slice(0, 60)).slice(0, 120);
+      const primaryBraidPointId = savedPoints[0]?.id ?? null;
+
+      // Emit exactly 15 rows — one per section; default to relevance=0, contribution=null for missing
+      const contribRows = VALID_SECTIONS.map(sectionId => ({
+        braidPointId: primaryBraidPointId,
+        sourceName,
+        sectionId,
+        relevance: geminiBySection[sectionId]?.relevance ?? 0,
+        contribution: geminiBySection[sectionId]?.contribution ?? null,
+        learningObjective: SECTION_LO[sectionId] ?? null,
+      }));
+
+      const savedContribs = await storage.createLessonContributions(contribRows);
 
       res.json({
         created: savedPoints.length,
