@@ -2246,11 +2246,11 @@ Given a piece of research text, return a single JSON object with two keys: "poin
 ## PART 1 — "points": MAGIC plot points
 Extract up to 5 historically significant events, artifacts, or developments from the text.
 For each, score five MAGIC variables (0.0–1.0):
-- math: Mathematical formalization, proofs, calculation
-- art: Aesthetic, visual rhetoric, decorative significance
-- geometry: Geometric reasoning, spatial understanding, form analysis
-- ideology: Institutional, religious, political embedding
-- comptroller: Economic, administrative, accounting control
+- math (M): Mathematical formalization, proofs, measurement, calculation
+- art (A): Aesthetic, visual rhetoric, decorative significance, compositional power
+- geometry (G): Geometric reasoning, spatial understanding, structural form analysis (INDEPENDENT variable)
+- ideology (I): Institutional, religious, political embedding, narrative authority
+- comptroller (C): Economic, administrative, accounting, resource allocation control
 
 "points" format:
 [{
@@ -2261,25 +2261,27 @@ For each, score five MAGIC variables (0.0–1.0):
 }]
 
 ## PART 2 — "sectionMap": Lesson section impact
-Score the relevance of this research text to each of these 15 lesson sections (0.0–1.0).
+Score the relevance of this research text to each of the 15 lesson sections (0.0–1.0).
 Write a one-sentence contribution ONLY for sections with relevance ≥ 0.4.
 
-Sections:
-A1 (Myth): Hook — narrative entry. Three-act myth where the geometric element SOLVES the problem. Deity/cultural origin.
-A2 (Identify Artifact + Visual Skills): Visual rhetoric — how geometric properties produce cognitive effects. GEA decomposition.
-A3 (Connect Myth to Artifact): Bridge myth to material culture. Deity's geometric powers at work in real artifacts.
-A4 (Material Culture): Element across 6 object classes — sacred/ceremonial, administrative, trade/economic, domestic, architectural, personal.
-A5 (TEACH Visual Rhetoric): Teach compositional mechanics from A2. How the geometry was made.
-A6 (CREATE Artifact): Student creation matching A2. Grade-appropriate production using techniques from A5.
-A7 (Architecture Bridge): Pivot to Day B. Architecture as dual-register capstone. "What does it DO?"
-B1 (Bridge Review): Resolve A7 bridge question. Same artifact, new register — functional reading.
-B2 (Math Proof): Mathematical formalization. Properties, proofs, measurements. F(ge) formula.
-B3 (Transformation): Element in operation — what the math enables. Geometric operations (rotation, reflection, scaling).
-B4 (Mechanics): What transformation produces — mechanical result. The geometry does physical WORK.
-B5 (STEM History): Where element sits in STEM timeline. Historical lineage of functional deployments.
-B6 (The Moment/Invention): ONE specific invention — crystallization point. The STEM notch.
-B7 (Activity/Build): Student construction. Hands-on. Parallels A6.
-B8 (Synthesis): Both registers visible simultaneously. Superimpositional agreement — NOT "metaphor = function."
+Use the per-section MAGIC emphasis profiles below when computing relevance — a section is more relevant if the research text is strong in the same MAGIC dimensions the section emphasizes.
+
+Sections with MAGIC emphasis profiles (dominant dimensions listed first):
+A1 (Myth) [I, A, G]: Hook — narrative entry. Three-act myth where the geometric element SOLVES the problem. Deity/cultural origin. Emphasizes Ideology and Art.
+A2 (Identify Artifact) [G, A, M]: Visual rhetoric — GEA decomposition, how geometric properties produce cognitive effects via three-stage broadcast. Emphasizes Geometry and Art.
+A3 (Connect Myth to Artifact) [I, A, G]: Bridge myth to material culture. Deity's geometric powers at work in real artifacts. Emphasizes Ideology and Art.
+A4 (Material Culture) [I, C, A]: Element across 6 object classes. Ideology institutionalizing — I narrates, C allocates. Emphasizes Ideology and Comptroller.
+A5 (TEACH Visual Rhetoric) [A, G, M]: Teach compositional mechanics from A2. Explicit instruction in HOW the geometry was made. Emphasizes Art and Geometry.
+A6 (CREATE Artifact) [A, G]: Student creation matching A2. Grade-appropriate production using visual rhetoric skills. Emphasizes Art.
+A7 (Architecture Bridge) [G, M, I]: Pivot to Day B. Architecture as dual-register capstone. "What does it DO?" Emphasizes Geometry and Math.
+B1 (Bridge Review) [G, M, I]: Resolve A7 bridge question. Same artifact, new register — functional reading. Emphasizes Geometry.
+B2 (Math Proof) [M, G]: Mathematical formalization. Properties, proofs, measurements. F(ge) formula. Strongly emphasizes Math.
+B3 (Transformation) [G, M]: Element in operation — what the math enables. Geometric operations (rotation, reflection, scaling). Emphasizes Geometry.
+B4 (Mechanics) [M, G, C]: What transformation produces — mechanical result. The geometry does physical WORK. Emphasizes Math and Comptroller.
+B5 (STEM History) [M, G, I, C]: Where element sits in STEM timeline. Historical lineage of functional deployments. Balanced MAGIC emphasis.
+B6 (Invention Moment) [M, C, I]: ONE specific invention — crystallization point. The STEM notch. Emphasizes Math and Comptroller.
+B7 (Activity/Build) [G, A, M]: Student construction. Hands-on. Parallels A6. Emphasizes Geometry and Art.
+B8 (Synthesis) [G, M, I, A]: Both registers visible SIMULTANEOUSLY. Superimpositional agreement — NOT "metaphor = function." All MAGIC visible at once.
 
 "sectionMap" format:
 [
@@ -2373,19 +2375,23 @@ Rules:
         }
       }
 
-      // Determine source name and primary braid point (first created, if any)
+      // Source name derived from the first extracted point or the raw text
       const sourceName = (pointsRaw[0]?.name ?? text.slice(0, 60)).slice(0, 120);
-      const primaryBraidPointId = savedPoints[0]?.id ?? null;
 
-      // Emit exactly 15 rows — one per section; default to relevance=0, contribution=null for missing
-      const contribRows = VALID_SECTIONS.map(sectionId => ({
-        braidPointId: primaryBraidPointId,
-        sourceName,
-        sectionId,
-        relevance: geminiBySection[sectionId]?.relevance ?? 0,
-        contribution: geminiBySection[sectionId]?.contribution ?? null,
-        learningObjective: SECTION_LO[sectionId] ?? null,
-      }));
+      // Create one set of 15 section rows per created braid point so each point
+      // has its own full A1–B8 impact map.  If no points were created (ingestion
+      // returned zero points) fall back to a single set linked to null.
+      const pointsToLink = savedPoints.length > 0 ? savedPoints : [{ id: null }];
+      const contribRows = pointsToLink.flatMap(pt =>
+        VALID_SECTIONS.map(sectionId => ({
+          braidPointId: pt.id as number | null,
+          sourceName,
+          sectionId,
+          relevance: geminiBySection[sectionId]?.relevance ?? 0,
+          contribution: geminiBySection[sectionId]?.contribution ?? null,
+          learningObjective: SECTION_LO[sectionId] ?? null,
+        }))
+      );
 
       const savedContribs = await storage.createLessonContributions(contribRows);
 
