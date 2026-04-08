@@ -404,6 +404,16 @@ export const braidPoints = pgTable("braid_points", {
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
+export const lessonSectionContributions = pgTable("lesson_section_contributions", {
+  id: serial("id").primaryKey(),
+  braidPointId: integer("braid_point_id"),
+  sourceName: text("source_name").notNull(),
+  sectionId: text("section_id").notNull(),
+  relevance: real("relevance").notNull().default(0),
+  contribution: text("contribution"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
 // ── Insert schemas ────────────────────────────────────────────────────────────
 
 export const insertRwiNeedsSchema = createInsertSchema(rwiNeeds).omit({ id: true, createdAt: true, updatedAt: true });
@@ -416,6 +426,7 @@ export const insertRwiImageApprovalSchema = createInsertSchema(rwiImageApprovals
 export const insertMediaAssetSchema = createInsertSchema(mediaAssets).omit({ id: true, createdAt: true });
 export const insertGraphNodeSchema = createInsertSchema(graphNodes).omit({ id: true, createdAt: true });
 export const insertBraidPointSchema = createInsertSchema(braidPoints).omit({ id: true, createdAt: true });
+export const insertLessonSectionContributionSchema = createInsertSchema(lessonSectionContributions).omit({ id: true, createdAt: true });
 
 // ── Select types ──────────────────────────────────────────────────────────────
 
@@ -439,6 +450,8 @@ export type GraphNode = typeof graphNodes.$inferSelect;
 export type InsertGraphNode = z.infer<typeof insertGraphNodeSchema>;
 export type BraidPoint = typeof braidPoints.$inferSelect;
 export type InsertBraidPoint = z.infer<typeof insertBraidPointSchema>;
+export type LessonSectionContribution = typeof lessonSectionContributions.$inferSelect;
+export type InsertLessonSectionContribution = z.infer<typeof insertLessonSectionContributionSchema>;
 
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,

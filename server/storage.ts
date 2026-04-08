@@ -34,6 +34,8 @@ import {
   type GraphNode, type InsertGraphNode,
   braidPoints,
   type BraidPoint, type InsertBraidPoint,
+  lessonSectionContributions,
+  type LessonSectionContribution, type InsertLessonSectionContribution,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -158,6 +160,9 @@ export interface IStorage {
   createBraidPoint(point: InsertBraidPoint): Promise<BraidPoint>;
   deleteBraidPoint(id: number): Promise<void>;
   countBraidPoints(): Promise<number>;
+
+  createLessonContributions(rows: InsertLessonSectionContribution[]): Promise<LessonSectionContribution[]>;
+  getLessonContributionsForPoint(braidPointId: number): Promise<LessonSectionContribution[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -638,6 +643,17 @@ export class DatabaseStorage implements IStorage {
   async countBraidPoints(): Promise<number> {
     const [row] = await db.select({ count: sql<number>`count(*)` }).from(braidPoints);
     return Number(row?.count ?? 0);
+  }
+
+  async createLessonContributions(rows: InsertLessonSectionContribution[]): Promise<LessonSectionContribution[]> {
+    if (rows.length === 0) return [];
+    return db.insert(lessonSectionContributions).values(rows).returning();
+  }
+
+  async getLessonContributionsForPoint(braidPointId: number): Promise<LessonSectionContribution[]> {
+    return db.select().from(lessonSectionContributions)
+      .where(eq(lessonSectionContributions.braidPointId, braidPointId))
+      .orderBy(lessonSectionContributions.sectionId);
   }
 
   async getWorkQueue(): Promise<Array<{

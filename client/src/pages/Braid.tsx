@@ -26,6 +26,34 @@ interface BraidPoint {
   source: string | null;
 }
 
+interface SectionContribution {
+  id: number;
+  braidPointId: number | null;
+  sourceName: string;
+  sectionId: string;
+  relevance: number;
+  contribution: string | null;
+}
+
+// ── Lesson section definitions (canonical v2026-04-01) ───────────────────────
+const SECTIONS = [
+  { id: "A1", name: "Myth",                          day: "A", purpose: "Hook — narrative entry. Three-act myth where the geometric element SOLVES the problem. Deity/cultural origin." },
+  { id: "A2", name: "Identify Artifact",             day: "A", purpose: "Visual rhetoric — how geometric properties produce cognitive effects via three-stage broadcast. GEA decomposition." },
+  { id: "A3", name: "Connect Myth to Artifact",      day: "A", purpose: "Bridge myth to material culture. Deity's geometric powers AT WORK in real artifacts." },
+  { id: "A4", name: "Material Culture",              day: "A", purpose: "Element across 6 object classes. Ideology institutionalizing — I narrates, C allocates. Sacred→mundane diffusion." },
+  { id: "A5", name: "TEACH Visual Rhetoric",         day: "A", purpose: "Teach compositional mechanics identified in A2. Explicit instruction in HOW. Prepares A6 creation." },
+  { id: "A6", name: "CREATE Artifact",               day: "A", purpose: "Student creation — must match A2. Students produce using visual rhetoric skills identified in A2 and taught in A5." },
+  { id: "A7", name: "Architecture Bridge",           day: "A", purpose: "Pivot to Day B. Architecture as dual-register capstone. Bridge: 'What does it DO?'" },
+  { id: "B1", name: "Bridge Review",                 day: "B", purpose: "Resolve A7 bridge question. MUST reference SAME artifact as A7. Same element, new register." },
+  { id: "B2", name: "Math Proof",                    day: "B", purpose: "Mathematical formalization. 'Because' = demonstration, NOT definition. F(ge) formula." },
+  { id: "B3", name: "Transformation",                day: "B", purpose: "Element in operation — what the math enables. Geometric operations (rotation, reflection, scaling)." },
+  { id: "B4", name: "Mechanics",                     day: "B", purpose: "What transformation produces — mechanical result. The geometry does physical WORK." },
+  { id: "B5", name: "STEM History",                  day: "B", purpose: "Where element sits in STEM timeline — historical lineage of functional deployments." },
+  { id: "B6", name: "The Moment (Invention)",        day: "B", purpose: "ONE specific invention — crystallization point. The STEM notch." },
+  { id: "B7", name: "Activity (Build)",              day: "B", purpose: "Student construction. Hands-on. Parallels A6." },
+  { id: "B8", name: "Synthesis",                     day: "B", purpose: "Both registers visible SIMULTANEOUSLY. Superimpositional agreement — NOT 'metaphor = function.'" },
+] as const;
+
 // ── SVG layout constants ──────────────────────────────────────────────────────
 const SVG_H  = 520;
 const PL     = 20;
@@ -88,6 +116,8 @@ export default function Braid() {
   const [manualOpen, setManualOpen]   = useState(false);
   const [manual, setManual]           = useState({ name: "", year: "", math: "0.5", art: "0.5", geometry: "0.5", ideology: "0.5", comptroller: "0.5", description: "" });
   const [activeVar, setActiveVar]     = useState<MKey | null>(null);
+  const [sectionMap, setSectionMap]   = useState<SectionContribution[] | null>(null);
+  const [expandedSec, setExpandedSec] = useState<string | null>(null);
   const scrollRef                     = useRef<HTMLDivElement>(null);
 
   const fetchPoints = useCallback(async () => {
@@ -128,6 +158,8 @@ export default function Braid() {
     if (!researchText.trim()) return;
     setAnalyzing(true);
     setAnalyzeResult(null);
+    setSectionMap(null);
+    setExpandedSec(null);
     try {
       const res = await fetch("/api/braid/analyze", {
         method: "POST",
@@ -137,6 +169,9 @@ export default function Braid() {
       const data = await res.json();
       if (!res.ok) { setAnalyzeResult(`Error: ${data.error}`); return; }
       setAnalyzeResult(`Added ${data.created} plot point${data.created !== 1 ? "s" : ""} to the graph.`);
+      if (Array.isArray(data.sectionMap) && data.sectionMap.length > 0) {
+        setSectionMap(data.sectionMap as SectionContribution[]);
+      }
       setResearchText("");
       await fetchPoints();
     } catch (e) {
@@ -473,6 +508,85 @@ export default function Braid() {
             {analyzeResult}
           </div>
         )}
+
+        {/* Section impact map */}
+        {sectionMap && sectionMap.length > 0 && (() => {
+          const byId: Record<string, SectionContribution> = {};
+          for (const sc of sectionMap) byId[sc.sectionId] = sc;
+          const dayA = SECTIONS.filter(s => s.day === "A");
+          const dayB = SECTIONS.filter(s => s.day === "B");
+
+          const SectionCard = ({ sec }: { sec: typeof SECTIONS[number] }) => {
+            const contrib = byId[sec.id];
+            const relevance = contrib?.relevance ?? 0;
+            const isA = sec.day === "A";
+            const dayColor = isA ? "#f472b6" : "#4f8ef7";
+            const expanded = expandedSec === sec.id;
+            const dim = relevance < 0.2;
+            return (
+              <div
+                onClick={() => setExpandedSec(expanded ? null : sec.id)}
+                data-testid={`section-card-${sec.id}`}
+                style={{
+                  padding: "8px 10px", borderRadius: 6, cursor: "pointer",
+                  border: `1px solid ${expanded ? dayColor + "66" : relevance >= 0.4 ? dayColor + "33" : "rgba(255,255,255,0.06)"}`,
+                  background: expanded ? (isA ? "#1a0c14" : "#0c1220") : "rgba(255,255,255,0.02)",
+                  opacity: dim ? 0.35 : 1,
+                  transition: "all 0.15s",
+                  marginBottom: 4,
+                }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: dayColor, minWidth: 22 }}>{sec.id}</span>
+                  <span style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", flex: 1 }}>{sec.name}</span>
+                  <div style={{ width: 48, height: 4, background: "rgba(255,255,255,0.08)", borderRadius: 2, flexShrink: 0 }}>
+                    <div style={{ height: 4, width: `${relevance * 100}%`, background: dayColor, borderRadius: 2, opacity: 0.85 }} />
+                  </div>
+                  <span style={{ fontSize: 9, color: relevance >= 0.4 ? dayColor : "rgba(255,255,255,0.25)", fontFamily: "monospace", minWidth: 28, textAlign: "right" }}>
+                    {(relevance * 100).toFixed(0)}%
+                  </span>
+                </div>
+                {expanded && (
+                  <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${dayColor}22` }}>
+                    {contrib?.contribution && (
+                      <p style={{ margin: "0 0 6px", fontSize: 11, color: "rgba(255,255,255,0.8)", lineHeight: 1.55 }}>
+                        {contrib.contribution}
+                      </p>
+                    )}
+                    <p style={{ margin: 0, fontSize: 10, color: "rgba(255,255,255,0.35)", lineHeight: 1.5, fontStyle: "italic" }}>
+                      {sec.purpose}
+                    </p>
+                  </div>
+                )}
+              </div>
+            );
+          };
+
+          return (
+            <div style={{ marginTop: 14, padding: 14, borderRadius: 8, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(0,0,0,0.3)" }}
+              data-testid="section-impact-panel">
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <span style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", fontWeight: 600, letterSpacing: 1 }}>
+                  LESSON SECTION IMPACT
+                </span>
+                <button onClick={() => setSectionMap(null)}
+                  style={{ background: "none", border: "none", color: "rgba(255,255,255,0.25)", cursor: "pointer", fontSize: 16, lineHeight: 1, padding: 0 }}>×</button>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 16px" }}>
+                <div>
+                  <div style={{ fontSize: 9, color: "#f472b6", letterSpacing: 1, fontWeight: 700, marginBottom: 6, textTransform: "uppercase" }}>Day A — Meaning</div>
+                  {dayA.map(s => <SectionCard key={s.id} sec={s} />)}
+                </div>
+                <div>
+                  <div style={{ fontSize: 9, color: "#4f8ef7", letterSpacing: 1, fontWeight: 700, marginBottom: 6, textTransform: "uppercase" }}>Day B — Function</div>
+                  {dayB.map(s => <SectionCard key={s.id} sec={s} />)}
+                </div>
+              </div>
+              <div style={{ marginTop: 8, fontSize: 9, color: "rgba(255,255,255,0.2)", textAlign: "center" }}>
+                Click any section to see its contribution and purpose · Sections below 20% are dimmed
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Manual entry */}
         {manualOpen && (

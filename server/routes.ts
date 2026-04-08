@@ -2240,33 +2240,60 @@ Be precise and academic. Use GEA notation: Primitive + Operation + Duration + Ve
       const apiKey = process.env.Google_AI;
       if (!apiKey) return res.status(503).json({ error: "Google_AI key not configured" });
 
-      const SYSTEM = `You are a MAGIC framework analyst for ancient Mesopotamian history.
-Given a piece of research text, extract up to 5 MAGIC instantiation plot points — moments where the research describes a historically significant event, artifact, or development.
+      const SYSTEM = `You are a MAGIC framework analyst for ancient Mesopotamian history and geometric cognition research.
+Given a piece of research text, return a single JSON object with two keys: "points" and "sectionMap".
 
-For each plot point, score these five variables (0.0–1.0):
-- math: Mathematical formalization, proofs, calculation (0 = none, 1 = primary mathematical breakthrough)
-- art: Aesthetic, visual rhetoric, decorative significance (0 = purely functional, 1 = primarily aesthetic)
-- geometry: Geometric reasoning, spatial understanding, form analysis (0 = no geometric thinking, 1 = geometric thinking is the core driver)
-- ideology: Institutional, religious, political embedding (0 = individual craft, 1 = civilization-scale institution)
-- comptroller: Economic, administrative, accounting control (0 = no economic function, 1 = primary economic/administrative tool)
+## PART 1 — "points": MAGIC plot points
+Extract up to 5 historically significant events, artifacts, or developments from the text.
+For each, score five MAGIC variables (0.0–1.0):
+- math: Mathematical formalization, proofs, calculation
+- art: Aesthetic, visual rhetoric, decorative significance
+- geometry: Geometric reasoning, spatial understanding, form analysis
+- ideology: Institutional, religious, political embedding
+- comptroller: Economic, administrative, accounting control
 
-Respond ONLY with a JSON array (no markdown, no explanation):
+"points" format:
 [{
   "name": "Short descriptive name (max 60 chars)",
   "year": -1800,
-  "math": 0.0,
-  "art": 0.0,
-  "geometry": 0.0,
-  "ideology": 0.0,
-  "comptroller": 0.0,
+  "math": 0.0, "art": 0.0, "geometry": 0.0, "ideology": 0.0, "comptroller": 0.0,
   "description": "One sentence explaining the event and why these scores were chosen."
 }]
 
+## PART 2 — "sectionMap": Lesson section impact
+Score the relevance of this research text to each of these 15 lesson sections (0.0–1.0).
+Write a one-sentence contribution ONLY for sections with relevance ≥ 0.4.
+
+Sections:
+A1 (Myth): Hook — narrative entry. Three-act myth where the geometric element SOLVES the problem. Deity/cultural origin.
+A2 (Identify Artifact + Visual Skills): Visual rhetoric — how geometric properties produce cognitive effects. GEA decomposition.
+A3 (Connect Myth to Artifact): Bridge myth to material culture. Deity's geometric powers at work in real artifacts.
+A4 (Material Culture): Element across 6 object classes — sacred/ceremonial, administrative, trade/economic, domestic, architectural, personal.
+A5 (TEACH Visual Rhetoric): Teach compositional mechanics from A2. How the geometry was made.
+A6 (CREATE Artifact): Student creation matching A2. Grade-appropriate production using techniques from A5.
+A7 (Architecture Bridge): Pivot to Day B. Architecture as dual-register capstone. "What does it DO?"
+B1 (Bridge Review): Resolve A7 bridge question. Same artifact, new register — functional reading.
+B2 (Math Proof): Mathematical formalization. Properties, proofs, measurements. F(ge) formula.
+B3 (Transformation): Element in operation — what the math enables. Geometric operations (rotation, reflection, scaling).
+B4 (Mechanics): What transformation produces — mechanical result. The geometry does physical WORK.
+B5 (STEM History): Where element sits in STEM timeline. Historical lineage of functional deployments.
+B6 (The Moment/Invention): ONE specific invention — crystallization point. The STEM notch.
+B7 (Activity/Build): Student construction. Hands-on. Parallels A6.
+B8 (Synthesis): Both registers visible simultaneously. Superimpositional agreement — NOT "metaphor = function."
+
+"sectionMap" format:
+[
+  { "sectionId": "A1", "relevance": 0.0, "contribution": null },
+  { "sectionId": "A2", "relevance": 0.8, "contribution": "One sentence about what this research contributes to this section." },
+  ...all 15 sections must appear...
+]
+
 Rules:
-- year is an integer; BCE dates are negative (e.g., -3500 for 3500 BCE), CE dates are positive
-- All five scores must be present and between 0.0 and 1.0
-- Extract only events with clear historical grounding in the provided text
-- If no clear dates are given, make a reasonable estimate based on the period described`;
+- Return ONLY valid JSON, no markdown, no explanation
+- year is integer; BCE = negative (e.g., -3500 for 3500 BCE), CE = positive
+- All MAGIC scores between 0.0 and 1.0
+- All 15 sectionIds must appear in sectionMap: A1, A2, A3, A4, A5, A6, A7, B1, B2, B3, B4, B5, B6, B7, B8
+- contribution is null for sections with relevance < 0.4`;
 
       const geminiRes = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
@@ -2281,37 +2308,64 @@ Rules:
         return res.status(502).json({ error: `Gemini error: ${errText.slice(0, 200)}` });
       }
       const geminiData = await geminiRes.json() as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
-      let raw = geminiData.candidates?.[0]?.content?.parts?.[0]?.text ?? "[]";
+      let raw = geminiData.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
       raw = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
 
-      let extracted: Array<{
-        name: string; year: number;
-        math: number; art: number; geometry: number; ideology: number; comptroller: number;
-        description?: string;
-      }>;
+      let parsed: {
+        points?: Array<{ name: string; year: number; math: number; art: number; geometry: number; ideology: number; comptroller: number; description?: string; }>;
+        sectionMap?: Array<{ sectionId: string; relevance: number; contribution: string | null; }>;
+      };
       try {
-        extracted = JSON.parse(raw);
-        if (!Array.isArray(extracted)) throw new Error("not an array");
+        parsed = JSON.parse(raw);
+        if (typeof parsed !== "object" || parsed === null) throw new Error("not an object");
       } catch {
         return res.status(502).json({ error: "Gemini returned non-JSON response", raw: raw.slice(0, 500) });
       }
 
-      const saved = [];
-      for (const item of extracted.slice(0, 5)) {
+      const pointsRaw = Array.isArray(parsed.points) ? parsed.points : [];
+      const sectionMapRaw = Array.isArray(parsed.sectionMap) ? parsed.sectionMap : [];
+
+      const clamp = (n: number) => Math.min(1, Math.max(0, Number(n ?? 0)));
+
+      const savedPoints = [];
+      for (const item of pointsRaw.slice(0, 5)) {
         const point = await storage.createBraidPoint({
           name: String(item.name ?? "Unnamed").slice(0, 120),
           year: Number(item.year ?? 0),
-          math: Math.min(1, Math.max(0, Number(item.math ?? 0))),
-          art: Math.min(1, Math.max(0, Number(item.art ?? 0))),
-          geometry: Math.min(1, Math.max(0, Number(item.geometry ?? 0))),
-          ideology: Math.min(1, Math.max(0, Number(item.ideology ?? 0))),
-          comptroller: Math.min(1, Math.max(0, Number(item.comptroller ?? 0))),
+          math: clamp(item.math),
+          art: clamp(item.art),
+          geometry: clamp(item.geometry),
+          ideology: clamp(item.ideology),
+          comptroller: clamp(item.comptroller),
           description: item.description ? String(item.description).slice(0, 500) : null,
           source: "research-ingestion",
         });
-        saved.push(point);
+        savedPoints.push(point);
       }
-      res.json({ created: saved.length, points: saved });
+
+      const VALID_SECTIONS = ["A1","A2","A3","A4","A5","A6","A7","B1","B2","B3","B4","B5","B6","B7","B8"];
+      const sourceName = pointsRaw[0]?.name ?? text.slice(0, 60);
+      const braidPointId = savedPoints[0]?.id ?? null;
+
+      const contribRows = sectionMapRaw
+        .filter(s => VALID_SECTIONS.includes(s.sectionId))
+        .map(s => ({
+          braidPointId,
+          sourceName: String(sourceName).slice(0, 120),
+          sectionId: s.sectionId,
+          relevance: clamp(s.relevance),
+          contribution: s.contribution ? String(s.contribution).slice(0, 400) : null,
+        }));
+
+      const savedContribs = contribRows.length > 0
+        ? await storage.createLessonContributions(contribRows)
+        : [];
+
+      res.json({
+        created: savedPoints.length,
+        points: savedPoints,
+        sectionMap: savedContribs,
+      });
     } catch (err) {
       console.error("[braid-analyze]", err);
       res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
