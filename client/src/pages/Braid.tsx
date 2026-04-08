@@ -539,6 +539,12 @@ export default function Braid() {
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ fontSize: 11, fontWeight: 700, color: dayColor, minWidth: 22 }}>{sec.id}</span>
                   <span style={{ fontSize: 10, color: "rgba(255,255,255,0.6)", flex: 1 }}>{sec.name}</span>
+                  {relevance >= 0.66 && (
+                    <span style={{ fontSize: 8, fontWeight: 700, letterSpacing: 0.8, color: dayColor, background: dayColor + "22", borderRadius: 3, padding: "1px 5px", flexShrink: 0 }}>HIGH</span>
+                  )}
+                  {relevance >= 0.33 && relevance < 0.66 && (
+                    <span style={{ fontSize: 8, fontWeight: 700, letterSpacing: 0.8, color: "rgba(255,255,255,0.5)", background: "rgba(255,255,255,0.07)", borderRadius: 3, padding: "1px 5px", flexShrink: 0 }}>MED</span>
+                  )}
                   <div style={{ width: 48, height: 4, background: "rgba(255,255,255,0.08)", borderRadius: 2, flexShrink: 0 }}>
                     <div style={{ height: 4, width: `${relevance * 100}%`, background: dayColor, borderRadius: 2, opacity: 0.85 }} />
                   </div>

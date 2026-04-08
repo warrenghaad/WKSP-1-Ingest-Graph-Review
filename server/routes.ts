@@ -2395,10 +2395,14 @@ Rules:
 
       const savedContribs = await storage.createLessonContributions(contribRows);
 
+      // Return one canonical 15-section display map (the first point's rows, or
+      // all rows when no points were created) so the UI payload stays lean.
+      const displayMap = savedContribs.filter(r => r.braidPointId === savedPoints[0]?.id ?? null);
+
       res.json({
         created: savedPoints.length,
         points: savedPoints,
-        sectionMap: savedContribs,
+        sectionMap: displayMap.length > 0 ? displayMap : savedContribs.slice(0, 15),
       });
     } catch (err) {
       console.error("[braid-analyze]", err);
