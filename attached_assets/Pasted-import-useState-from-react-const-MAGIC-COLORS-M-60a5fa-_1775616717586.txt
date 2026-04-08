@@ -1,0 +1,178 @@
+import { useState } from “react”;
+
+const MAGIC_COLORS = {
+M: “#60a5fa”,
+A: “#f472b6”,
+G: “#4ade80”,
+I: “#fbbf24”,
+C: “#a78bfa”,
+};
+
+const MAGIC_LABELS = {
+M: “Math”,
+A: “Art (Aesthetic)”,
+G: “Geometry”,
+I: “Ideology”,
+C: “Czar (Power)”,
+};
+
+const MAGIC_DESCRIPTIONS = {
+M: “Geometric mathematical thinking — discrete, measurable operations”,
+A: “Artistic territory — aesthetic perception and production”,
+G: “The integral of all MAGIC variables — calculable through accumulated deltas. NOT constant.”,
+I: “Myth AND material culture: ritual/internalization, institutionalization. How meaning is narrated, installed, spread.”,
+C: “Power — who directs production, who benefits, who is excluded.”,
+};
+
+const ECD_CARRIERS = [“Clay Tablet”,“Stone Seal”,“Textile”,“Bronze/Metal”,“Architecture”,“Ritual Practice”,“Pottery”,“Personal Ornament”];
+const ECD_DIMENSIONS = [“2D→3D Extrusion”,“Rotation”,“Reflection”,“Scaling”,“Tessellation”,“Projection”];
+
+const sections = {
+A1:{id:“A1”,name:“Myth”,day:“A”,purpose:“Hook — narrative entry. Three-act myth where the geometric element SOLVES the problem. Not symbolism — functional correctness.”,magic:{M:0.1,A:0.6,G:0.5,I:0.9,C:0.2},ecd:{carriers:[“Stone Seal”,“Clay Tablet”],dimensions:[“2D→3D Extrusion”]},lo:”[Element] represents [metaphor] because [myth event] demonstrates [geometric attribute solving the problem].”,tags:“myth_primary, deity_association, narrative_entry”},
+A2:{id:“A2”,name:“Identify Artifact + Visual Skills”,day:“A”,purpose:“Visual rhetoric — how geometric properties produce cognitive effects via three-stage broadcast. Installs productive symbolic schema, NOT emotion. Kekulé/ouroboros = anchor case. NEVER flatten to SEL.”,magic:{M:0.3,A:0.8,G:0.8,I:0.5,C:0.2},ecd:{carriers:[“Stone Seal”,“Clay Tablet”],dimensions:[“2D→3D Extrusion”,“Reflection”]},lo:”[Element] produces [perceptual effect] because [geometric property] installs [productive symbolic schema].”,chain:“A2→A5→A6 START”,critical:“A2↔A6 MATCH. What is identified here must be CREATED in A6. NEVER flatten to SEL.”,tags:“visual_rhetoric, artifact_identification, compositional_mechanics”},
+A3:{id:“A3”,name:“Connect Myth to Artifact”,day:“A”,purpose:“Bridge myth to material culture. Deity’s geometric powers AT WORK in real artifacts. Progressive disclosure: A2 defines, A3 deploys.”,magic:{M:0.1,A:0.9,G:0.7,I:0.9,C:0.3},ecd:{carriers:[“Stone Seal”,“Clay Tablet”,“Architecture”],dimensions:[“2D→3D Extrusion”,“Reflection”]},lo:”[Element] appears in [SPECIFIC ARTIFACT] because [myth meaning] is materially encoded through [geometric property].”,tags:“myth_artifact_bridge, progressive_disclosure”},
+A4:{id:“A4”,name:“Material Culture (6 parts)”,day:“A”,purpose:“Element across 6 object classes. Ideology institutionalizing — I narrates, C allocates. Sacred→mundane diffusion.”,magic:{M:0.2,A:0.7,G:0.7,I:0.8,C:0.6},ecd:{carriers:ECD_CARRIERS.slice(0,6),dimensions:[“2D→3D Extrusion”,“Tessellation”,“Rotation”]},lo:”[Element] signals [meaning] on [SPECIFIC NAMED ARTIFACT] because [convention] marks [significance].”,subs:[“A4a Sacred/Ceremonial”,“A4b Ritual”,“A4c Official/Admin”,“A4d Domestic”,“A4e Architectural”,“A4f Personal/Wearable”],tags:“material_culture, six_object_classes, institutionalization”},
+A5:{id:“A5”,name:“TEACH Visual Rhetoric from A2”,day:“A”,purpose:“Teach compositional mechanics identified in A2. Explicit instruction in HOW. Prepares A6 creation.”,magic:{M:0.3,A:0.9,G:0.8,I:0.3,C:0.1},ecd:{carriers:[“Pottery”,“Textile”,“Bronze/Metal”],dimensions:[“Rotation”,“Scaling”]},lo:“A5a: [Element] was made using [method]. A5b: [Element] is a geometric motif because [concept] is visualized with [attributes].”,chain:“A2→A5→A6 MIDDLE · THE BRIDGE: A5↔B5”,critical:“Must teach what A2 identified. Must prepare for A6.”,tags:“visual_rhetoric_teaching, technique_instruction”},
+A6:{id:“A6”,name:“CREATE Artifact from A2”,day:“A”,purpose:“Student creation — must match A2. Students produce using visual rhetoric skills identified in A2 and taught in A5.”,magic:{M:0.2,A:0.9,G:0.8,I:0.4,C:0.1},ecd:{carriers:[“Pottery”,“Textile”,“Stone Seal”],dimensions:[“Rotation”,“Tessellation”]},lo:”[Element] is created using [technique] because [method] produces [result matching A2].”,chain:“A2→A5→A6 END”,critical:“A2↔A6 MATCH. What students create must use skills from A2.”,tags:“student_creation, a2_match”},
+A7:{id:“A7”,name:“Architecture Bridge + Exit”,day:“A”,purpose:“Pivot to Day B. Architecture as dual-register capstone. Bridge: ‘What does it DO?’”,magic:{M:0.5,A:0.7,G:0.9,I:0.7,C:0.6},ecd:{carriers:[“Architecture”],dimensions:[“2D→3D Extrusion”,“Rotation”,“Scaling”]},lo:“Bridge: ‘Why does [structure] need [element] to work?’”,chain:“THE PIVOT: A7→B1”,tags:“architecture_bridge, dual_register, pivot_to_day_b”},
+B1:{id:“B1”,name:“Bridge Review”,day:“B”,purpose:“Resolve A7 bridge question. MUST reference SAME artifact as A7. Same element, new register.”,magic:{M:0.3,A:0.5,G:0.6,I:0.5,C:0.2},ecd:{carriers:[“Architecture”],dimensions:[“2D→3D Extrusion”]},lo:”[Element] answers [bridge question] because [property] resolves [A7 problem].”,chain:“THE PIVOT: A7→B1”,critical:“MUST reference same artifact as A7”,tags:“bridge_review, register_pivot”},
+B2:{id:“B2”,name:“Math Proof”,day:“B”,purpose:“Mathematical formalization. ‘Because’ = demonstration, NOT definition. No tautology.”,magic:{M:0.9,A:0.2,G:0.7,I:0.2,C:0.1},ecd:{carriers:[],dimensions:[“Rotation”,“Reflection”,“Scaling”]},lo:”[Finding] confirms [property] because [rule] defines it.”,chain:“B2→B3→B4 START”,tags:“math_definition, formal_proof”},
+B3:{id:“B3”,name:“Transformation”,day:“B”,purpose:“Element in operation — what the math enables. How the math MOVES. References B2.”,magic:{M:0.8,A:0.3,G:0.9,I:0.2,C:0.2},ecd:{carriers:[],dimensions:ECD_DIMENSIONS.slice(0,4)},lo:”[Element] can [operation] because [B2 principle] enables it.”,chain:“B2→B3→B4 MIDDLE”,tags:“transformation, geometric_operations”},
+B4:{id:“B4”,name:“Mechanics”,day:“B”,purpose:“What transformation produces — mechanical result. The geometry does WORK.”,magic:{M:0.6,A:0.4,G:0.8,I:0.4,C:0.6},ecd:{carriers:[“Architecture”,“Bronze/Metal”,“Pottery”],dimensions:[“2D→3D Extrusion”,“Rotation”]},lo:”[Operation] produces [result] because [property in motion].”,chain:“B2→B3→B4 END”,tags:“mechanics, causal_chain, physical_result”},
+B5:{id:“B5”,name:“STEM History”,day:“B”,purpose:“Where element sits in STEM timeline — historical lineage of functional deployments.”,magic:{M:0.7,A:0.4,G:0.8,I:0.4,C:0.6},ecd:{carriers:[“Clay Tablet”,“Architecture”,“Bronze/Metal”],dimensions:[“Scaling”,“Projection”]},lo:”[Element] contributed to [field] because [property] enabled [advancement].”,chain:“THE BRIDGE: A5↔B5”,tags:“stem_history, historical_lineage”},
+B6:{id:“B6”,name:“The Moment (Invention)”,day:“B”,purpose:“ONE specific invention — crystallization point. The STEM notch.”,magic:{M:0.8,A:0.5,G:0.9,I:0.3,C:0.7},ecd:{carriers:[“Architecture”,“Bronze/Metal”,“Pottery”],dimensions:[“2D→3D Extrusion”,“Rotation”,“Scaling”]},lo:”[Civilization] [invented] [thing] because [element property] solved [specific problem].”,tags:“invention, stem_notch, crystallization_point”},
+B7:{id:“B7”,name:“Activity (Build)”,day:“B”,purpose:“Student construction. Hands-on. Parallels A6.”,magic:{M:0.7,A:0.4,G:0.8,I:0.2,C:0.2},ecd:{carriers:[“Architecture”,“Pottery”],dimensions:[“2D→3D Extrusion”,“Rotation”,“Scaling”]},lo:”[Element] can be [built/tested] as [model] because [method] applies [principle].”,chain:“THE CIRCUIT: B7→next A1”,tags:“student_construction, engineering_practice”},
+B8:{id:“B8”,name:“Synthesis”,day:“B”,purpose:“Both registers visible SIMULTANEOUSLY. Superimpositional agreement: two different operations on the same spatial configuration produce equivalent expressions. NOT ‘metaphor = function.’ NOT collapsing registers.”,magic:{M:0.5,A:0.5,G:0.9,I:0.5,C:0.5},ecd:{carriers:[],dimensions:[]},lo:”[Element] unites [metaphor] and [function] because [same property] supports both operations — not because they are equal, but because the geometry is deep enough.”,critical:“Superimpositional agreement. NOT metaphor=function. NOT collapsing registers. Terminal — no chain output.”,tags:“synthesis, superimpositional_agreement, dual_register_simultaneous”},
+};
+
+const sectionKeys = Object.keys(sections);
+
+const GE_EXAMPLES = [
+{name:“Circle”,deity:“Shamash”,week:1,metaphor:“Completeness / Justice”,fn:“Equidistance / Rotational Symmetry”},
+{name:“Triangle”,deity:“Enlil”,week:2,metaphor:“Authority / Foundation”,fn:“Structural Rigidity / Cannot Deform”},
+{name:“8-Point Star”,deity:“Ishtar”,week:3,metaphor:“Divine Radiance / Duality Unified”,fn:“D₈ Symmetry (16 isometries)”},
+{name:“Spiral”,deity:“Enki”,week:4,metaphor:“Wisdom / Continuous Growth”,fn:“Continuous Radius Increase / Self-Similarity”},
+{name:“Rectangle”,deity:“Nisaba”,week:5,metaphor:“Measurement / Order”,fn:“Right Angle / Area Calculation”},
+{name:“Zigzag/Wave”,deity:“Tiamat”,week:6,metaphor:“Eternal Return / Chaos→Order”,fn:“Repetition / Carrier-Dependent Parsing”},
+];
+
+function MagicBar({weights,compact=false}){
+return(<div style={{display:“flex”,gap:compact?“2px”:“4px”,alignItems:“center”}}>{[“M”,“A”,“G”,“I”,“C”].map(d=>(<div key={d} style={{width:compact?“18px”:“28px”,height:compact?“6px”:“10px”,borderRadius:“2px”,background:MAGIC_COLORS[d],opacity:weights[d]||0.05}} title={`${MAGIC_LABELS[d]}: ${weights[d]}`}/>))}</div>);
+}
+
+function SectionCard({k,isSelected,onClick}){
+const s=sections[k];const isB8=k===“B8”;const isBridge=k===“A7”||k===“B1”;
+const borderColor=isB8?”#22c55e”:isBridge&&isSelected?”#fbbf24”:isSelected?(s.day===“A”?”#f472b6”:”#60a5fa”):”#1a1a2a”;
+const bgColor=isB8&&isSelected?”#0a1a0a”:isSelected?(s.day===“A”?”#1a0c14”:”#0c1220”):(isB8?”#08120833”:”#0c0c14”);
+const nameColor=isB8?”#22c55e”:isSelected?(s.day===“A”?”#f472b6”:”#60a5fa”):”#aaa”;
+return(
+<div onClick={onClick} style={{padding:“10px 12px”,marginBottom:“4px”,borderRadius:“6px”,border:`1px solid ${borderColor}`,background:bgColor,cursor:“pointer”,transition:“all 0.15s”}}>
+<div style={{display:“flex”,justifyContent:“space-between”,alignItems:“center”}}>
+<div>
+<span style={{fontSize:“12px”,fontWeight:700,color:nameColor}}>{s.id}</span>
+<span style={{fontSize:“11px”,color:”#777”,marginLeft:“8px”}}>{s.name}</span>
+{s.chain&&<span style={{fontSize:“9px”,color:”#fbbf2466”,marginLeft:“6px”}}>{s.chain}</span>}
+</div>
+<MagicBar weights={s.magic} compact/>
+</div>
+{isSelected&&(
+<div style={{marginTop:“8px”,fontSize:“11px”}}>
+<div style={{color:”#aaa”,lineHeight:1.5}}>{s.purpose}</div>
+<div style={{marginTop:“6px”,padding:“6px 8px”,borderRadius:“4px”,background:”#08080e”,border:“1px solid #1a1a2a”,fontSize:“10px”,color:”#888”,fontFamily:“monospace”}}>LO → {s.lo}</div>
+{s.subs&&<div style={{marginTop:“6px”,fontSize:“10px”,color:”#666”}}>Sub-sections: {s.subs.join(” • “)}</div>}
+{s.critical&&<div style={{marginTop:“4px”,fontSize:“10px”,color:isB8?”#22c55e”:”#fbbf24”}}>⚠ {s.critical}</div>}
+{s.tags&&<div style={{marginTop:“4px”,fontSize:“9px”,color:”#555”}}>Tags: {s.tags}</div>}
+{s.ecd.carriers.length>0&&<div style={{marginTop:“6px”}}><span style={{fontSize:“9px”,color:”#555”,textTransform:“uppercase”,letterSpacing:“1px”}}>Carriers: </span><span style={{fontSize:“10px”,color:”#a78bfa”}}>{s.ecd.carriers.join(”, “)}</span></div>}
+{s.ecd.dimensions.length>0&&<div style={{marginTop:“2px”}}><span style={{fontSize:“9px”,color:”#555”,textTransform:“uppercase”,letterSpacing:“1px”}}>Dimensions: </span><span style={{fontSize:“10px”,color:”#67e8f9”}}>{s.ecd.dimensions.join(”, “)}</span></div>}
+</div>
+)}
+</div>
+);
+}
+
+export default function GESectionMap(){
+const[selectedGE,setSelectedGE]=useState(2);
+const[selectedSection,setSelectedSection]=useState(null);
+const[view,setView]=useState(“radial”);
+const[showMagicDetail,setShowMagicDetail]=useState(false);
+const ge=GE_EXAMPLES[selectedGE];
+const sec=selectedSection?sections[selectedSection]:null;
+
+return(
+<div style={{background:”#0a0a12”,color:”#e0e0e8”,minHeight:“100vh”,fontFamily:”‘IBM Plex Sans’,system-ui,sans-serif”,padding:“20px”}}>
+<div style={{textAlign:“center”,marginBottom:“16px”}}>
+<h1 style={{fontSize:“18px”,color:”#f0f0f5”,margin:“0 0 4px”,letterSpacing:“2px”,fontWeight:600}}>GE → SECTION → MAGIC → ECD</h1>
+<p style={{fontSize:“11px”,color:”#666”,margin:“0 0 2px”}}>v7.0 Canonical • 15 Sections (A1-A7 + B1-B8) • A2↔A6 Match • B8 = Superimpositional Agreement</p>
+<p style={{fontSize:“10px”,color:”#444”,margin:0}}>MAGIC: five endogenous, co-determined, non-causal variables • GECD: Element × Carrier × Dimension</p>
+</div>
+
+```
+  <div style={{display:"flex",gap:"6px",justifyContent:"center",marginBottom:"16px",flexWrap:"wrap"}}>
+    {GE_EXAMPLES.map((g,i)=>(<button key={i} onClick={()=>{setSelectedGE(i);setSelectedSection(null);}} style={{padding:"6px 12px",borderRadius:"6px",border:i===selectedGE?"1px solid #4ade80":"1px solid #222",background:i===selectedGE?"#0f2918":"#0c0c14",color:i===selectedGE?"#4ade80":"#888",cursor:"pointer",fontSize:"11px",fontFamily:"inherit"}}>W{g.week}: {g.name}</button>))}
+  </div>
+
+  <div style={{display:"flex",gap:"4px",justifyContent:"center",marginBottom:"16px"}}>
+    {[{id:"radial",label:"Radial Map"},{id:"flow",label:"Section Flow"},{id:"detail",label:"MAGIC × ECD Matrix"}].map(v=>(<button key={v.id} onClick={()=>setView(v.id)} style={{padding:"4px 10px",borderRadius:"4px",border:view===v.id?"1px solid #60a5fa":"1px solid #1a1a2a",background:view===v.id?"#0c1a2e":"transparent",color:view===v.id?"#60a5fa":"#555",cursor:"pointer",fontSize:"10px",fontFamily:"inherit"}}>{v.label}</button>))}
+  </div>
+
+  <div style={{background:"#0f1a0f",border:"1px solid #22c55e33",borderRadius:"10px",padding:"14px 18px",marginBottom:"16px",display:"flex",gap:"20px",alignItems:"center",flexWrap:"wrap"}}>
+    <div style={{width:"56px",height:"56px",borderRadius:"50%",background:"radial-gradient(circle,#22c55e22,transparent)",border:"2px solid #22c55e66",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"10px",color:"#4ade80",fontWeight:700,textAlign:"center"}}>GE<br/>{ge.name}</div>
+    <div style={{flex:1,minWidth:"200px"}}>
+      <div style={{fontSize:"14px",fontWeight:600,color:"#4ade80"}}>Week {ge.week}: {ge.name} — {ge.deity}</div>
+      <div style={{fontSize:"11px",color:"#888",marginTop:"4px"}}><span style={{color:"#f472b6"}}>Metaphor:</span> {ge.metaphor}<span style={{margin:"0 8px",color:"#333"}}>|</span><span style={{color:"#60a5fa"}}>Function:</span> {ge.fn}</div>
+      <div style={{fontSize:"10px",color:"#555",marginTop:"4px",fontStyle:"italic"}}>Non-causal, non-equivalent, circumnutating — two registers of the same geometric configuration</div>
+    </div>
+  </div>
+
+  <div style={{marginBottom:"16px",padding:"10px 14px",borderRadius:"8px",background:"#0c0c14",border:"1px solid #1a1a2a"}}>
+    <div style={{display:"flex",gap:"16px",flexWrap:"wrap",justifyContent:"center",alignItems:"center"}}>
+      {Object.entries(MAGIC_COLORS).map(([k,c])=>(<div key={k} style={{display:"flex",alignItems:"center",gap:"6px"}}><div style={{width:"12px",height:"12px",borderRadius:"2px",background:c}}/><span style={{fontSize:"10px",color:"#888"}}>{MAGIC_LABELS[k]}</span></div>))}
+      <button onClick={()=>setShowMagicDetail(!showMagicDetail)} style={{background:"none",border:"1px solid #333",borderRadius:"4px",padding:"2px 8px",color:"#555",fontSize:"9px",cursor:"pointer"}}>{showMagicDetail?"hide":"what are these?"}</button>
+    </div>
+    {showMagicDetail&&(<div style={{marginTop:"10px",borderTop:"1px solid #1a1a2a",paddingTop:"10px"}}>{Object.entries(MAGIC_DESCRIPTIONS).map(([k,desc])=>(<div key={k} style={{fontSize:"10px",color:"#666",marginBottom:"4px",display:"flex",gap:"8px"}}><span style={{color:MAGIC_COLORS[k],fontWeight:700,minWidth:"14px"}}>{k}</span><span>{desc}</span></div>))}<div style={{fontSize:"9px",color:"#444",marginTop:"6px",fontStyle:"italic"}}>NOT independent axes. They co-determine. MAGICdelta (deviation vector at each node) is the operative quantity.</div></div>)}
+  </div>
+
+  {view==="radial"&&(<div style={{display:"flex",gap:"12px",flexWrap:"wrap"}}>
+    <div style={{flex:1,minWidth:"280px"}}>
+      <div style={{fontSize:"11px",fontWeight:700,color:"#f472b6",letterSpacing:"1px",padding:"6px 10px",borderBottom:"1px solid #f472b622",marginBottom:"8px"}}>DAY A — METAPHOR REGISTER • "What does this MEAN?"</div>
+      {sectionKeys.filter(k=>k.startsWith("A")).map(k=><SectionCard key={k} k={k} isSelected={selectedSection===k} onClick={()=>setSelectedSection(selectedSection===k?null:k)}/>)}
+    </div>
+    <div style={{flex:1,minWidth:"280px"}}>
+      <div style={{fontSize:"11px",fontWeight:700,color:"#60a5fa",letterSpacing:"1px",padding:"6px 10px",borderBottom:"1px solid #60a5fa22",marginBottom:"8px"}}>DAY B — FUNCTION REGISTER • "What does this DO?"</div>
+      {sectionKeys.filter(k=>k.startsWith("B")).map(k=><SectionCard key={k} k={k} isSelected={selectedSection===k} onClick={()=>setSelectedSection(selectedSection===k?null:k)}/>)}
+    </div>
+  </div>)}
+
+  {view==="flow"&&(<div style={{padding:"10px"}}>
+    <div style={{fontSize:"11px",color:"#666",textAlign:"center",marginBottom:"12px"}}>A2→A5→A6 chain • A7→B1 pivot • B2→B3→B4 chain • B7→next A1 circuit • B8 terminal</div>
+    <div style={{marginBottom:"20px"}}>
+      <div style={{fontSize:"10px",color:"#f472b6",fontWeight:700,letterSpacing:"1px",marginBottom:"8px"}}>DAY A: IDENTIFY → TEACH → CREATE</div>
+      <div style={{display:"flex",gap:"4px",alignItems:"center",flexWrap:"wrap"}}>
+        {sectionKeys.filter(k=>k.startsWith("A")).map((k,i,arr)=>(<div key={k} style={{display:"flex",alignItems:"center",gap:"4px"}}><div onClick={()=>setSelectedSection(selectedSection===k?null:k)} style={{padding:"8px 12px",borderRadius:"6px",border:selectedSection===k?"1px solid #f472b6":"1px solid #222",background:selectedSection===k?"#1a0c14":"#0c0c14",cursor:"pointer",textAlign:"center",minWidth:"50px"}}><div style={{fontSize:"12px",fontWeight:700,color:selectedSection===k?"#f472b6":"#aaa"}}>{k}</div><div style={{fontSize:"8px",color:"#555",marginTop:"2px"}}>{sections[k].name.split("(")[0].split("+")[0].trim()}</div><MagicBar weights={sections[k].magic} compact/></div>{i<arr.length-1&&<span style={{color:"#333",fontSize:"14px"}}>→</span>}</div>))}
+      </div>
+    </div>
+    <div style={{textAlign:"center",padding:"8px",borderLeft:"2px solid #fbbf2444",borderRight:"2px solid #fbbf2444",margin:"0 40px 20px"}}><span style={{fontSize:"11px",color:"#fbbf24",fontWeight:700}}>THE PIVOT: A7 → B1</span></div>
+    <div>
+      <div style={{fontSize:"10px",color:"#60a5fa",fontWeight:700,letterSpacing:"1px",marginBottom:"8px"}}>DAY B: PROOF → TRANSFORM → MECHANICS → HISTORY → INVENT → BUILD → SYNTHESIZE</div>
+      <div style={{display:"flex",gap:"4px",alignItems:"center",flexWrap:"wrap"}}>
+        {sectionKeys.filter(k=>k.startsWith("B")).map((k,i,arr)=>{const isChain=["B2","B3","B4"].includes(k);const isB8=k==="B8";return(<div key={k} style={{display:"flex",alignItems:"center",gap:"4px"}}><div onClick={()=>setSelectedSection(selectedSection===k?null:k)} style={{padding:"8px 12px",borderRadius:"6px",border:isB8?"1px solid #22c55e":selectedSection===k?"1px solid #60a5fa":isChain?"1px solid #60a5fa44":"1px solid #222",background:isB8?"#0f1a0f":selectedSection===k?"#0c1220":"#0c0c14",cursor:"pointer",textAlign:"center",minWidth:"50px"}}><div style={{fontSize:"12px",fontWeight:700,color:isB8?"#22c55e":selectedSection===k?"#60a5fa":"#aaa"}}>{k}</div><div style={{fontSize:"8px",color:"#555",marginTop:"2px"}}>{sections[k].name.split("(")[0].split("+")[0].trim()}</div><MagicBar weights={sections[k].magic} compact/></div>{i<arr.length-1&&<span style={{color:isChain&&["B2","B3"].includes(k)?"#60a5fa":"#333",fontSize:isChain&&["B2","B3"].includes(k)?"16px":"14px",fontWeight:isChain&&["B2","B3"].includes(k)?700:400}}>→</span>}</div>);})}
+      </div>
+    </div>
+    {sec&&(<div style={{marginTop:"16px",padding:"14px",borderRadius:"8px",background:sec.id==="B8"?"#0a1a0a":sec.day==="A"?"#1a0c14":"#0c1220",border:`1px solid ${sec.id==="B8"?"#22c55e44":sec.day==="A"?"#f472b644":"#60a5fa44"}`}}><div style={{fontSize:"13px",fontWeight:700,color:sec.id==="B8"?"#22c55e":sec.day==="A"?"#f472b6":"#60a5fa"}}>{sec.id}: {sec.name}</div><div style={{fontSize:"11px",color:"#aaa",marginTop:"6px",lineHeight:1.5}}>{sec.purpose}</div><div style={{marginTop:"8px",padding:"6px 8px",borderRadius:"4px",background:"#08080e",border:"1px solid #1a1a2a",fontSize:"10px",color:"#888",fontFamily:"monospace"}}>LO → {sec.lo}</div>{sec.critical&&<div style={{marginTop:"6px",fontSize:"10px",color:sec.id==="B8"?"#22c55e":"#fbbf24"}}>⚠ {sec.critical}</div>}</div>)}
+  </div>)}
+
+  {view==="detail"&&(<div style={{overflowX:"auto"}}>
+    <table style={{width:"100%",borderCollapse:"collapse",fontSize:"10px",fontFamily:"'IBM Plex Mono',monospace"}}>
+      <thead><tr><th style={{padding:"8px",borderBottom:"1px solid #222",textAlign:"left",color:"#888"}}>Section</th>{Object.keys(MAGIC_COLORS).map(m=>(<th key={m} style={{padding:"8px",borderBottom:"1px solid #222",textAlign:"center",color:MAGIC_COLORS[m],fontSize:"11px"}}>{m}</th>))}<th style={{padding:"8px",borderBottom:"1px solid #222",textAlign:"left",color:"#a78bfa"}}>Carriers</th><th style={{padding:"8px",borderBottom:"1px solid #222",textAlign:"left",color:"#67e8f9"}}>Dimensions</th></tr></thead>
+      <tbody>{sectionKeys.map(k=>{const s=sections[k];const isBridge=k==="A7"||k==="B1";const isB8=k==="B8";return(<tr key={k} onClick={()=>setSelectedSection(selectedSection===k?null:k)} style={{borderBottom:k==="A7"?"2px solid #fbbf2444":"1px solid #111",background:isB8?"#0a1a0a":selectedSection===k?"#0c0c1a":"transparent",cursor:"pointer"}}><td style={{padding:"6px 8px",fontWeight:700,color:isB8?"#22c55e":isBridge?"#fbbf24":s.day==="A"?"#f472b6":"#60a5fa"}}>{s.id} <span style={{fontWeight:400,color:"#555"}}>{s.name}</span>{s.chain&&<span style={{fontSize:"8px",color:"#fbbf2433",marginLeft:"4px"}}>{s.chain}</span>}</td>{Object.keys(MAGIC_COLORS).map(m=>(<td key={m} style={{padding:"6px",textAlign:"center"}}><div style={{width:"100%",height:"14px",borderRadius:"2px",background:MAGIC_COLORS[m],opacity:s.magic[m]}} title={`${MAGIC_LABELS[m]}: ${s.magic[m]}`}/></td>))}<td style={{padding:"6px 8px",color:"#777",fontSize:"9px"}}>{s.ecd.carriers.length>0?s.ecd.carriers.join(", "):"—"}</td><td style={{padding:"6px 8px",color:"#777",fontSize:"9px"}}>{s.ecd.dimensions.length>0?s.ecd.dimensions.join(", "):"—"}</td></tr>);})}</tbody>
+    </table>
+    {sec&&(<div style={{marginTop:"12px",padding:"12px",borderRadius:"6px",background:sec.id==="B8"?"#0a1a0a":"#0c0c14",border:`1px solid ${sec.id==="B8"?"#22c55e33":"#1a1a2a"}`}}><div style={{fontSize:"12px",fontWeight:700,color:sec.id==="B8"?"#22c55e":sec.day==="A"?"#f472b6":"#60a5fa"}}>{sec.id}: {sec.name}</div><div style={{fontSize:"10px",color:"#aaa",marginTop:"4px",lineHeight:1.5}}>{sec.purpose}</div>{sec.critical&&<div style={{fontSize:"10px",color:"#fbbf24",marginTop:"4px"}}>⚠ {sec.critical}</div>}</div>)}
+    <div style={{marginTop:"12px",padding:"10px 14px",borderRadius:"6px",background:"#0a1a0a",border:"1px solid #22c55e33",fontSize:"10px",color:"#4ade80",textAlign:"center"}}>B8 = Superimpositional Agreement: Two operations, same configuration, equivalent expressions.<span style={{color:"#666",display:"block",marginTop:"2px"}}>NOT "metaphor = function." The geometry is deep enough to support both.</span></div>
+  </div>)}
+
+  <div style={{marginTop:"16px",padding:"8px 14px",borderRadius:"6px",background:"#08080e",border:"1px solid #111",fontSize:"9px",color:"#444",textAlign:"center"}}>v7.0 Canonical • 15 sections (A1-A7 + B1-B8) • MAGIC: M(Math) A(Art) G(Geometry) I(Ideology) C(Czar) • GECD: Element × Carrier × Dimension<br/>A2↔A6 match • B2→B3→B4 chain • B8 = superimpositional agreement (terminal)</div>
+</div>
+```
+
+);
+}
