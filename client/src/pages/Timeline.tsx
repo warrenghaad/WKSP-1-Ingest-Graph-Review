@@ -3,7 +3,7 @@ import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Text } from "@react-three/drei";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import * as THREE from "three";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 
 // ── MAGIC ribbon definitions ──────────────────────────────────────────────────
 const MAGIC_DEF = [
@@ -542,6 +542,7 @@ function Legend({ hasSelection }: { hasSelection: boolean }) {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function Timeline() {
+  const [, navigate]            = useLocation();
   const [points,   setPoints]   = useState<BraidPoint[]>([]);
   const [loading,  setLoading]  = useState(true);
   const [selected, setSelected] = useState<BraidPoint | null>(null);
@@ -598,7 +599,7 @@ export default function Timeline() {
         borderRadius: 6, padding: "5px 9px", lineHeight: 1.8,
       }}>
         Drag to orbit · Scroll to zoom<br />
-        Click knot or year to select
+        Click knot or year → open node page
       </div>
 
       {/* Loading */}
@@ -623,7 +624,7 @@ export default function Timeline() {
             <BraidScene
               points={points}
               selectedId={selected?.id ?? null}
-              onSelect={setSelected}
+              onSelect={(pt) => { setSelected(pt); navigate(`/node/${pt.id}`); }}
             />
           </Suspense>
         </Canvas>
