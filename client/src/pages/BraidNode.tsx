@@ -62,13 +62,17 @@ const FACE_TRIPLES: [VKey, VKey, VKey][] = [
   ["art", "ideology", "comptroller"],
 ];
 
+// G-axis direction: normalized (1,1,1) — equidistant from all four tetrahedral vertices
+const G_AXIS_DIR = new THREE.Vector3(1, 1, 1).normalize();
+
 // ── Tetrahedron scene ─────────────────────────────────────────────────────────
 function TetrahedronScene({ point }: { point: BraidPoint }) {
+  // Vertex = base * score — score 0 collapses to origin, no artificial clamp
   const scaledVerts = useMemo<Record<VKey, THREE.Vector3>>(() => ({
-    math:        BASE_VERTICES.math.clone().multiplyScalar(Math.max(0.18, point.math)),
-    art:         BASE_VERTICES.art.clone().multiplyScalar(Math.max(0.18, point.art)),
-    ideology:    BASE_VERTICES.ideology.clone().multiplyScalar(Math.max(0.18, point.ideology)),
-    comptroller: BASE_VERTICES.comptroller.clone().multiplyScalar(Math.max(0.18, point.comptroller)),
+    math:        BASE_VERTICES.math.clone().multiplyScalar(point.math),
+    art:         BASE_VERTICES.art.clone().multiplyScalar(point.art),
+    ideology:    BASE_VERTICES.ideology.clone().multiplyScalar(point.ideology),
+    comptroller: BASE_VERTICES.comptroller.clone().multiplyScalar(point.comptroller),
   }), [point]);
 
   // Centroid of the four scaled vertices
@@ -79,9 +83,9 @@ function TetrahedronScene({ point }: { point: BraidPoint }) {
     return c;
   }, [scaledVerts]);
 
-  // G-axis endpoint: centroid + geometry * 1.4 along Y-up
+  // G-axis endpoint: centroid + G_score * 1.4 along the (1,1,1) direction
   const gAxisEnd = useMemo(
-    () => centroid.clone().add(new THREE.Vector3(0, 1, 0).multiplyScalar(point.geometry * 1.4)),
+    () => centroid.clone().add(G_AXIS_DIR.clone().multiplyScalar(point.geometry * 1.4)),
     [centroid, point.geometry]
   );
 
@@ -234,6 +238,23 @@ export default function BraidNode() {
   const [interpretation, setInterp]   = useState<string | null>(null);
   const [interpLoading, setInterpLoad] = useState(false);
 
+  const fetchInterpretation = async (pointId: number) => {
+    setInterpLoad(true);
+    try {
+      const res = await fetch("/api/braid/node/interpret", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: pointId }),
+      });
+      const data = await res.json() as { interpretation?: string; error?: string };
+      setInterp(data.interpretation ?? null);
+    } catch {
+      setInterp(null);
+    } finally {
+      setInterpLoad(false);
+    }
+  };
+
   useEffect(() => {
     if (isNaN(id)) return;
     setLoading(true);
@@ -243,29 +264,13 @@ export default function BraidNode() {
       fetch(`/api/braid/points/${id}`).then(r => r.ok ? r.json() as Promise<BraidPoint> : null),
       fetch(`/api/braid/adjacent/${id}`).then(r => r.ok ? r.json() as Promise<Adjacent> : { prev: null, next: null }),
     ]).then(([pt, adj]) => {
-      if (pt) setPoint(pt);
+      if (pt) {
+        setPoint(pt);
+        fetchInterpretation(pt.id);
+      }
       setAdjacent(adj as Adjacent);
     }).finally(() => setLoading(false));
   }, [id]);
-
-  const handleInterpret = async () => {
-    if (!point || interpLoading) return;
-    setInterpLoad(true);
-    try {
-      const res = await fetch("/api/braid/node/interpret", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: point.id }),
-      });
-      const data = await res.json() as { interpretation?: string; error?: string };
-      if (data.interpretation) setInterp(data.interpretation);
-      else setInterp("Interpretation unavailable.");
-    } catch {
-      setInterp("Network error while generating interpretation.");
-    } finally {
-      setInterpLoad(false);
-    }
-  };
 
   const ingenuityPrev = point && adjacent.prev
     ? Math.abs(point.geometry - adjacent.prev.geometry)
@@ -417,21 +422,26 @@ export default function BraidNode() {
           {/* Human Interpretive Machine */}
           <div>
             <div style={{ fontSize: 9, color: "#1e4060", letterSpacing: 1.5, textTransform: "uppercase", marginBottom: 8, fontFamily: "monospace" }}>Human Interpretive Machine</div>
-            {interpretation ? (
+            {interpLoading && !interpretation && (
+              <div style={{ fontSize: 11, color: "#1e4060", fontStyle: "italic" }} data-testid="interpret-loading">
+                Generating interpretation…
+              </div>
+            )}
+            {interpretation && (
               <p style={{ margin: 0, fontSize: 12, color: "#a0c0d4", lineHeight: 1.7, fontStyle: "italic" }} data-testid="interpretation-text">
                 {interpretation}
               </p>
-            ) : (
+            )}
+            {!interpLoading && !interpretation && (
               <button
-                onClick={handleInterpret}
-                disabled={interpLoading}
-                data-testid="interpret-btn"
+                onClick={() => point && fetchInterpretation(point.id)}
+                data-testid="interpret-retry-btn"
                 style={{
                   padding: "8px 16px", background: "rgba(79,142,247,0.12)", border: "1px solid rgba(79,142,247,0.3)",
-                  borderRadius: 6, color: "#4f8ef7", fontSize: 12, cursor: interpLoading ? "not-allowed" : "pointer",
+                  borderRadius: 6, color: "#4f8ef7", fontSize: 12, cursor: "pointer",
                   fontFamily: "system-ui", width: "100%",
                 }}>
-                {interpLoading ? "Generating…" : "Generate AI Interpretation →"}
+                Retry Interpretation →
               </button>
             )}
           </div>

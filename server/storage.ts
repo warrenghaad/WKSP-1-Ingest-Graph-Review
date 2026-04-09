@@ -1,4 +1,4 @@
-import { eq, desc, ilike, and, sql } from "drizzle-orm";
+import { eq, desc, ilike, and, sql, lt, gt, asc } from "drizzle-orm";
 import { db } from "./db";
 import {
   users, savedImages, textreaderSessions, conceptCards, conceptCandidates,
@@ -641,12 +641,16 @@ export class DatabaseStorage implements IStorage {
   async getAdjacentBraidPoints(id: number): Promise<{ prev: BraidPoint | null; next: BraidPoint | null }> {
     const [current] = await db.select({ year: braidPoints.year }).from(braidPoints).where(eq(braidPoints.id, id));
     if (!current) return { prev: null, next: null };
-    const allByYear = await db.select().from(braidPoints).orderBy(braidPoints.year);
-    const idx = allByYear.findIndex(p => p.id === id);
-    return {
-      prev: idx > 0 ? allByYear[idx - 1] : null,
-      next: idx >= 0 && idx < allByYear.length - 1 ? allByYear[idx + 1] : null,
-    };
+    const { year } = current;
+    const [prevRow] = await db.select().from(braidPoints)
+      .where(lt(braidPoints.year, year))
+      .orderBy(desc(braidPoints.year))
+      .limit(1);
+    const [nextRow] = await db.select().from(braidPoints)
+      .where(gt(braidPoints.year, year))
+      .orderBy(asc(braidPoints.year))
+      .limit(1);
+    return { prev: prevRow ?? null, next: nextRow ?? null };
   }
 
   async createBraidPoint(point: InsertBraidPoint): Promise<BraidPoint> {
