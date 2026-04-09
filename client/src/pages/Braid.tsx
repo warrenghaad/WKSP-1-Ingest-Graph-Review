@@ -269,10 +269,10 @@ export default function Braid() {
     });
   }, [enriched, activeVar]);
 
-  // ── Knot click targets — click navigates to /node/:id ─────────────────────
+  // ── Knot click targets ─────────────────────────────────────────────────────
   const knotTargets = useMemo(() =>
     enriched.map((k, i) => (
-      <g key={`knot-${i}`} style={{ cursor: "pointer" }} onClick={() => navigate(`/node/${k.id}`)}>
+      <g key={`knot-${i}`} style={{ cursor: "pointer" }} onClick={() => setSelected(k)}>
         <line x1={k.x} y1={PT - 12} x2={k.x} y2={PT + PH + 12}
           stroke={selected?.id === k.id ? "#fff" : "rgba(255,255,255,0.12)"}
           strokeWidth={selected?.id === k.id ? 1.5 : 0.8}
@@ -287,9 +287,9 @@ export default function Braid() {
           {k.year < 0 ? `${Math.abs(k.year)} BCE` : `${k.year} CE`}
         </text>
       </g>
-    )), [enriched, selected, navigate]);
+    )), [enriched, selected]);
 
-  // ── Knot labels (above timeline) — click navigates to /node/:id ───────────
+  // ── Knot labels (above timeline) ──────────────────────────────────────────
   const knotLabels = useMemo(() =>
     enriched.map((k, i) => {
       const even = i % 2 === 0;
@@ -299,11 +299,11 @@ export default function Braid() {
           textAnchor="middle" fontSize={8.5}
           fill={selected?.id === k.id ? "#fff" : "rgba(255,255,255,0.55)"}
           fontFamily="system-ui" fontWeight={selected?.id === k.id ? 600 : 400}
-          style={{ cursor: "pointer" }} onClick={() => navigate(`/node/${k.id}`)}>
+          style={{ cursor: "pointer" }} onClick={() => setSelected(k)}>
           {k.name.length > 22 ? k.name.slice(0, 21) + "…" : k.name}
         </text>
       );
-    }), [enriched, selected, navigate]);
+    }), [enriched, selected]);
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (

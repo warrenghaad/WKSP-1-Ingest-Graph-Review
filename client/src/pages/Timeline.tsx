@@ -599,7 +599,7 @@ export default function Timeline() {
         borderRadius: 6, padding: "5px 9px", lineHeight: 1.8,
       }}>
         Drag to orbit · Scroll to zoom<br />
-        Click knot or year → open node page
+        Click knot or year to select
       </div>
 
       {/* Loading */}
@@ -624,7 +624,7 @@ export default function Timeline() {
             <BraidScene
               points={points}
               selectedId={selected?.id ?? null}
-              onSelect={(pt) => { setSelected(pt); navigate(`/node/${pt.id}`); }}
+              onSelect={setSelected}
             />
           </Suspense>
         </Canvas>
