@@ -256,7 +256,10 @@ export default function BraidNode() {
   };
 
   useEffect(() => {
-    if (isNaN(id)) return;
+    if (isNaN(id) || !Number.isFinite(id) || id <= 0) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setPoint(null);
     setInterp(null);

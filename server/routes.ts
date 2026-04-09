@@ -2308,8 +2308,10 @@ Return only the paragraph text — no headings, no markdown.`;
       }
       const geminiData = await geminiRes.json() as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
       const interpretation = (geminiData.candidates?.[0]?.content?.parts?.[0]?.text ?? "").trim();
-      interpretCache.set(pointId, interpretation);
-      res.json({ interpretation });
+      if (interpretation) {
+        interpretCache.set(pointId, interpretation);
+      }
+      res.json({ interpretation: interpretation || null });
     } catch (err) {
       console.error("[braid-node-interpret]", err);
       res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
