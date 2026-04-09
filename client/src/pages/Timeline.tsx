@@ -495,8 +495,13 @@ function DetailPanel({ pt, onClose }: { pt: BraidPoint; onClose: () => void }) {
         <div style={{ fontSize: 9, color: "#1e3040", marginTop: 8, fontFamily: "monospace" }}>{pt.source}</div>
       )}
 
-      <div style={{ marginTop: 12, fontSize: 10, color: "#1a2d3a" }}>
-        Click elsewhere or ✕ to resume orbit
+      <div style={{ marginTop: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ fontSize: 10, color: "#1a2d3a" }}>Click elsewhere or ✕ to resume orbit</span>
+        <Link
+          href={`/node/${pt.id}`}
+          data-testid="open-node-timeline"
+          style={{ fontSize: 10, color: "#34d399", textDecoration: "none", fontWeight: 600 }}
+        >View Tetrahedron →</Link>
       </div>
     </div>
   );

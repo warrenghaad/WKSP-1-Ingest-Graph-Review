@@ -157,6 +157,8 @@ export interface IStorage {
   upsertGraphNode(node: InsertGraphNode): Promise<GraphNode>;
 
   getBraidPoints(): Promise<BraidPoint[]>;
+  getBraidPointById(id: number): Promise<BraidPoint | undefined>;
+  getAdjacentBraidPoints(id: number): Promise<{ prev: BraidPoint | null; next: BraidPoint | null }>;
   createBraidPoint(point: InsertBraidPoint): Promise<BraidPoint>;
   deleteBraidPoint(id: number): Promise<void>;
   countBraidPoints(): Promise<number>;
@@ -629,6 +631,22 @@ export class DatabaseStorage implements IStorage {
 
   async getBraidPoints(): Promise<BraidPoint[]> {
     return db.select().from(braidPoints).orderBy(braidPoints.year);
+  }
+
+  async getBraidPointById(id: number): Promise<BraidPoint | undefined> {
+    const [row] = await db.select().from(braidPoints).where(eq(braidPoints.id, id));
+    return row;
+  }
+
+  async getAdjacentBraidPoints(id: number): Promise<{ prev: BraidPoint | null; next: BraidPoint | null }> {
+    const [current] = await db.select({ year: braidPoints.year }).from(braidPoints).where(eq(braidPoints.id, id));
+    if (!current) return { prev: null, next: null };
+    const allByYear = await db.select().from(braidPoints).orderBy(braidPoints.year);
+    const idx = allByYear.findIndex(p => p.id === id);
+    return {
+      prev: idx > 0 ? allByYear[idx - 1] : null,
+      next: idx >= 0 && idx < allByYear.length - 1 ? allByYear[idx + 1] : null,
+    };
   }
 
   async createBraidPoint(point: InsertBraidPoint): Promise<BraidPoint> {

@@ -2224,12 +2224,95 @@ Be precise and academic. Use GEA notation: Primitive + Operation + Duration + Ve
     }
   });
 
+  app.get("/api/braid/points/:id", async (req, res) => {
+    try {
+      const point = await storage.getBraidPointById(Number(req.params.id));
+      if (!point) return res.status(404).json({ error: "Not found" });
+      res.json(point);
+    } catch (err) {
+      res.status(500).json({ error: String(err) });
+    }
+  });
+
+  app.get("/api/braid/adjacent/:id", async (req, res) => {
+    try {
+      const adj = await storage.getAdjacentBraidPoints(Number(req.params.id));
+      res.json(adj);
+    } catch (err) {
+      res.status(500).json({ error: String(err) });
+    }
+  });
+
   app.delete("/api/braid/points/:id", async (req, res) => {
     try {
       await storage.deleteBraidPoint(Number(req.params.id));
       res.json({ ok: true });
     } catch (err) {
       res.status(500).json({ error: String(err) });
+    }
+  });
+
+  // In-memory interpretation cache (keyed by braid point id)
+  const interpretCache = new Map<number, string>();
+
+  app.post("/api/braid/node/interpret", async (req, res) => {
+    try {
+      const { id } = req.body as { id?: number };
+      if (id == null || isNaN(Number(id))) return res.status(400).json({ error: "id is required" });
+      const pointId = Number(id);
+
+      if (interpretCache.has(pointId)) {
+        return res.json({ interpretation: interpretCache.get(pointId) });
+      }
+
+      const point = await storage.getBraidPointById(pointId);
+      if (!point) return res.status(404).json({ error: "Point not found" });
+
+      const apiKey = process.env.Google_AI;
+      if (!apiKey) return res.status(503).json({ error: "Google_AI key not configured" });
+
+      const { prev, next } = await storage.getAdjacentBraidPoints(pointId);
+
+      const ingenuityPrev = prev
+        ? Math.abs(point.geometry - prev.geometry).toFixed(3)
+        : null;
+      const ingenuityNext = next
+        ? Math.abs(point.geometry - next.geometry).toFixed(3)
+        : null;
+
+      const PROMPT = `You are a "human interpretive machine" for the MAGIC framework — a system for analysing Mesopotamian artifacts and events through five dimensions: Math (M), Art (A), Geometry/META (G), Ideology (I), and Comptroller (C).
+
+G is the META dimension: it represents the topological shape of this moment in cultural-cognitive space, expressed as the contour of how M, A, I, C relate to each other. Think of it as the orchestrating intelligence of the moment.
+
+Write a single paragraph of 2–3 sentences that interprets this braid node as a living, breathing moment in Mesopotamian history. Illuminate what the MAGIC scores say about this moment's character, what the Ingenuity delta reveals about the shift in cognitive topology between adjacent moments, and why G (the META contour) shapes how the other four dimensions converge or diverge here. Write in precise, evocative scholarly prose — not bullet points, not hedged academic language.
+
+Node: ${point.name} (${point.year < 0 ? Math.abs(point.year) + " BCE" : point.year + " CE"})
+M=${point.math.toFixed(2)}, A=${point.art.toFixed(2)}, G=${point.geometry.toFixed(2)}, I=${point.ideology.toFixed(2)}, C=${point.comptroller.toFixed(2)}
+${point.description ? "Context: " + point.description : ""}
+${ingenuityPrev ? "Ingenuity delta from previous node: " + ingenuityPrev : ""}
+${ingenuityNext ? "Ingenuity delta to next node: " + ingenuityNext : ""}
+
+Return only the paragraph text — no headings, no markdown.`;
+
+      const geminiRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contents: [{ parts: [{ text: PROMPT }] }] }),
+        }
+      );
+      if (!geminiRes.ok) {
+        const errText = await geminiRes.text();
+        return res.status(502).json({ error: `Gemini error: ${errText.slice(0, 200)}` });
+      }
+      const geminiData = await geminiRes.json() as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+      const interpretation = (geminiData.candidates?.[0]?.content?.parts?.[0]?.text ?? "").trim();
+      interpretCache.set(pointId, interpretation);
+      res.json({ interpretation });
+    } catch (err) {
+      console.error("[braid-node-interpret]", err);
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
     }
   });
 

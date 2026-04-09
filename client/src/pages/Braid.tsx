@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 
 // ── MAGIC variable definitions ────────────────────────────────────────────────
 const MAGIC = [
@@ -108,6 +108,7 @@ function bandPath(
 
 // ── Main component ────────────────────────────────────────────────────────────
 export default function Braid() {
+  const [, navigate]                  = useLocation();
   const [points, setPoints]           = useState<BraidPoint[]>([]);
   const [selected, setSelected]       = useState<BraidPoint | null>(null);
   const [loading, setLoading]         = useState(true);
@@ -451,9 +452,16 @@ export default function Braid() {
             )}
 
             <button
+              onClick={() => navigate(`/node/${selected.id}`)}
+              data-testid="open-node"
+              style={{ padding: "7px 12px", background: "rgba(52,211,153,0.1)", border: "1px solid rgba(52,211,153,0.3)", borderRadius: 6, color: "#34d399", fontSize: 11, cursor: "pointer", fontWeight: 600 }}>
+              Open 3D Node →
+            </button>
+
+            <button
               onClick={() => handleDelete(selected.id)}
               data-testid="delete-point"
-              style={{ marginTop: "auto", padding: "6px 12px", background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 6, color: "#f87171", fontSize: 11, cursor: "pointer" }}>
+              style={{ padding: "6px 12px", background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 6, color: "#f87171", fontSize: 11, cursor: "pointer" }}>
               Remove from graph
             </button>
           </div>
