@@ -624,7 +624,7 @@ export default function Timeline() {
             <BraidScene
               points={points}
               selectedId={selected?.id ?? null}
-              onSelect={setSelected}
+              onSelect={(pt) => navigate(`/node/${pt.id}`)}
             />
           </Suspense>
         </Canvas>
