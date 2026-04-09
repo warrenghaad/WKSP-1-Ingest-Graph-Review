@@ -307,11 +307,8 @@ function KnotYearLabels({
               color="#1e4060"
               anchorX="center"
               anchorY="top"
-              onClick={(e: any) => { e.stopPropagation(); onSelect(pt); }}
-              onPointerOver={(e: any) => {
-                e.stopPropagation();
-                document.body.style.cursor = "pointer";
-              }}
+              onClick={() => onSelect(pt)}
+              onPointerOver={() => { document.body.style.cursor = "pointer"; }}
               onPointerOut={() => { document.body.style.cursor = "default"; }}
             >{label}</Text>
           </group>
