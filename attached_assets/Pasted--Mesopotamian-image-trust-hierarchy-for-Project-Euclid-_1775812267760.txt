@@ -1,0 +1,393 @@
+# Mesopotamian image trust hierarchy for Project Euclid
+
+**The Metropolitan Museum of Art (CC0, full API) and CDLI (open REST API, 500K+ cuneiform records) are your two foundational pillars for verified, automatable image sourcing.** Together they cover the broadest range of Mesopotamian artifacts with the strongest combination of open licensing, scholar-verified metadata, and programmatic access. Every other source in this hierarchy either supplements their coverage, fills geographic gaps, or requires more manual verification. Below is the complete tiered system for Reading With Integrity compliance.
+
+-----
+
+## The trust framework: what makes a source RWI-safe
+
+Six criteria determine where a source sits in this hierarchy. **Curator verification** means every caption was written or approved by a specialist — this is non-negotiable for RWI. Provenance documentation traces an artifact to a specific excavation or acquisition history. Institutional authority reflects whether the organization’s core mission involves scholarly accuracy. Image-caption fidelity measures how reliably the text matches the visual. Licensing clarity determines whether you can legally use images in a K-8 curriculum. API availability determines whether you can automate verification at scale.
+
+Sources that score highest on all six dimensions sit in Tier 1. A source that excels on some but fails on others drops to lower tiers. The critical insight for Project Euclid: **no single source covers all artifact types you need** (seals, tablets, ziggurats, reliefs, pottery, rosettes), so the hierarchy is designed for layered cross-referencing.
+
+-----
+
+## Tier 1 — Primary museum collections with verified metadata
+
+These institutions employ specialist curators who write and verify artifact descriptions. Metadata reflects decades of scholarly cataloguing. Images depict objects physically held in the collection.
+
+### Metropolitan Museum of Art ★ BEST OVERALL FOR PROJECT EUCLID
+
+|Field                |Detail                                                                                    |
+|---------------------|------------------------------------------------------------------------------------------|
+|**Search URL**       |https://www.metmuseum.org/art/collection/search                                           |
+|**API**              |`https://collectionapi.metmuseum.org/public/collection/v1/` — no auth required, 80 req/sec|
+|**API docs**         |https://metmuseum.github.io/                                                              |
+|**License**          |**CC0** — unrestricted, including commercial use                                          |
+|**IIIF**             |Yes                                                                                       |
+|**Mesopotamian dept**|Department 3 = “Ancient Near Eastern Art”                                                 |
+|**Metadata**         |Curator-verified, nightly ETL from internal cataloguing system                            |
+
+**Key API queries for Project Euclid:**
+
+- All ANE objects with images: `…/search?departmentId=3&hasImages=true&q=mesopotamia` 
+- Cylinder seals: `…/search?departmentId=3&q=cylinder+seal&isPublicDomain=true`
+- Rosettes/Ishtar: `…/search?departmentId=3&q=rosette`
+- Striding lions (Babylon): `…/search?departmentId=3&q=striding+lion+babylon`
+- Use `isPublicDomain=true` to filter for CC0 images only
+
+### British Museum — LARGEST MESOPOTAMIAN COLLECTION WORLDWIDE
+
+|Field                |Detail                                                                                                       |
+|---------------------|-------------------------------------------------------------------------------------------------------------|
+|**Search URL**       |https://www.britishmuseum.org/collection                                                                     |
+|**API**              |SPARQL endpoint at `collection.britishmuseum.org/sparql` — historically unreliable; no REST API              |
+|**License**          |**CC BY-NC-SA 4.0** — non-commercial with attribution; commercial use requires paid license from bmimages.com|
+|**IIIF**             |Yes                                                                                                          |
+|**Mesopotamian dept**|“Middle East” — **~330,000 objects**, the world’s largest collection outside Iraq                            |
+|**Metadata**         |Curator-maintained over 40+ years; ~half the collection catalogued online                                    |
+
+**Search tips:** Filter by department “Middle East.” Use terms: “Mesopotamia,” “Assyria,” “Babylonia,” “Sumer,” “cuneiform,” “cylinder seal.” Search by museum number prefix (e.g., BM 89115). The Ashurbanipal Library alone contains ~130,000 cuneiform tablets.  **Caveat:** CC BY-NC-SA is fine for a nonprofit K-8 curriculum but prevents Wikipedia re-sharing and some commercial uses. 
+
+### Louvre — Department of Near Eastern Antiquities
+
+|Field         |Detail                                                                                                                           |
+|--------------|---------------------------------------------------------------------------------------------------------------------------------|
+|**Search URL**|https://collections.louvre.fr/en/                                                                                                |
+|**API**       |Partial — append `.json` to any entry URL for structured data; no search API                                                     |
+|**JSON docs** |https://collections.louvre.fr/en/page/documentationJSON                                                                          |
+|**License**   |Restrictive — free for educational projection/presentation only; commercial use via RMN-GP; **AI training explicitly prohibited**|
+|**IIIF**      |No                                                                                                                               |
+|**Metadata**  |Curator-verified by department specialists                                                                                       |
+
+**Search tips:** Filter by collection → “Antiquités orientales.” **Content is primarily in French** — use French search terms for better results (“Mésopotamie,” “Sumer,” “Babylone,” “Khorsabad”). Key artifacts: Code of Hammurabi, Lamassu from Khorsabad, Stele of Naram-Sin.   Each record has a permanent ARK-based URL.
+
+### Penn Museum (University of Pennsylvania)
+
+|Field         |Detail                                                                                                             |
+|--------------|-------------------------------------------------------------------------------------------------------------------|
+|**Search URL**|https://www.penn.museum/collections/search.php                                                                     |
+|**API**       |No live API; bulk CSV/XML/JSON download at https://www.penn.museum/collections/data.php — **last updated Oct 2018**|
+|**License**   |CC BY 3.0 (data); image reuse terms unclear                                                                        |
+|**IIIF**      |No                                                                                                                 |
+|**Holdings**  |~90,000 Near East artifacts + ~35,000 cuneiform tablets (one of the world’s 10 largest collections)                |
+|**Metadata**  |Mixed — ongoing review, some historical inaccuracies in older records                                              |
+
+**Search tips:** Filter by section “Near East” or “Babylonian.” Holds Royal Cemetery of Ur material (co-excavated with British Museum, 1922–1934) including Queen Puabi’s jewelry.  Nippur excavation material. **Best for:** Ur and Nippur artifacts, Sumerian school tablets. 
+
+### ISAC Museum (formerly Oriental Institute, University of Chicago)
+
+|Field         |Detail                                                                             |
+|--------------|-----------------------------------------------------------------------------------|
+|**Search URL**|https://isac-idb.uchicago.edu                                                      |
+|**API**       |No public API; new Data Research Center launched Nov 2024 may improve access       |
+|**License**   |Research use only — publication requires permission via isac-museum@uchicago.edu   |
+|**IIIF**      |No                                                                                 |
+|**Holdings**  |~350,000 artifacts; 100,000+ photographic negatives; thousands of cuneiform tablets|
+|**Metadata**  |Scholar-verified by specialist researchers                                         |
+
+**Search tips:** Everything is Near Eastern — no department filter needed. Also on Google Arts & Culture. Over 700 publications available free at https://isac.uchicago.edu/research/publications/. **Best for:** Excavation records, scholarly context, photographic archives from early 20th-century expeditions. 
+
+### Yale Babylonian Collection
+
+|Field               |Detail                                                                    |
+|--------------------|--------------------------------------------------------------------------|
+|**Search URL**      |https://collections.peabody.yale.edu/search/                              |
+|**Cross-collection**|https://lux.collections.yale.edu/ (searches all Yale museums)             |
+|**API**             |No standalone API; data published through CDLI                            |
+|**License**         |**CC0** (data/metadata)                                                   |
+|**IIIF**            |Yes                                                                       |
+|**Holdings**        |**~45,000 items** including ~4,000 seals + 10,000 ancient seal impressions|
+|**Metadata**        |Curator-verified by Assyriology specialists, maintained 100+ years        |
+
+**⚠️ Critical correction for Sami: Plimpton 322 is at Columbia University,  NOT Yale.** This is one of the most common misattributions online. YBC 7289 (the √2 tablet) IS at Yale.  A 3D scan of YBC 7289 exists on Sketchfab via Yale IPCH Digitization Lab. **Best for:** Mathematical tablets, cuneiform school texts, cylinder seals.
+
+### Vorderasiatisches Museum Berlin (Pergamon/Neues Museum)
+
+|Field            |Detail                                                                    |
+|-----------------|--------------------------------------------------------------------------|
+|**Search URL**   |https://sammlung.smb.museum/ (primarily German)                           |
+|**Alt interface**|https://smb.museum-digital.de/institution/8                               |
+|**API**          |Planned but not yet public                                                |
+|**License**      |CC NC-BY-SA for most images                                               |
+|**IIIF**         |In development                                                            |
+|**Holdings**     |**~500,000 objects; 30,000+ cuneiform texts** — one of the world’s largest|
+|**Metadata**     |Curator-verified                                                          |
+
+**⚠️ Pergamon Museum is completely closed until ~2037.** South Wing (housing the Vorderasiatisches Museum) closed 2023; North Wing reopening planned spring 2027. A “Babylon Reloaded” 3D virtual tour is available online. **Best for:** Ishtar Gate and Processional Way material.  Use Europeana API as a workaround to access SMB records programmatically.
+
+### Iraq Museum, Baghdad
+
+|Field                 |Detail                                                                              |
+|----------------------|------------------------------------------------------------------------------------|
+|**Website**           |https://www.theiraqmuseum.com/ (browse only, no searchable database)                |
+|**Best digital proxy**|CDLI records at https://cdli.earth/ — search by collection “National Museum of Iraq”|
+|**Google A&C**        |https://artsandculture.google.com/entity/the-iraq-museum/m01dt1w                    |
+|**API**               |None                                                                                |
+|**License**           |Highly restricted; no formal digital framework                                      |
+|**Holdings**          |~170,000 registered objects                                                         |
+
+**Caveat:** No comprehensive searchable online database exists. CDLI is the best proxy for cuneiform objects. Digitization ongoing with UNESCO and British Museum partnerships.  **Best for:** Context on provenance of objects excavated in Iraq and now held elsewhere.
+
+### Ashmolean Museum Oxford
+
+|Field           |Detail                                                                                           |
+|----------------|-------------------------------------------------------------------------------------------------|
+|**Search URL**  |https://collections.ashmolean.org/ (launched Dec 2023)                                           |
+|**CDLI records**|https://cdli.earth/collections/1418                                                              |
+|**API**         |No public API                                                                                    |
+|**License**     |Copyright held by Ashmolean; reproduction requires permission via picture.library@ashmus.ox.ac.uk|
+|**IIIF**        |Not for museum objects directly                                                                  |
+|**Metadata**    |Curator-verified                                                                                 |
+
+**Search tips:** Filter by department “Antiquities.” Holds the **Sumerian King List** (Weld-Blundell Prism, AN1923.444). Second-largest cuneiform collection in the UK. Kish excavation material (1923–1933). ⚠️ Department of Antiquities Study Room closed March 2026 – March 2028.
+
+### Walters Art Museum
+
+|Field          |Detail                                                                                                |
+|---------------|------------------------------------------------------------------------------------------------------|
+|**Search URL** |https://art.thewalters.org/                                                                           |
+|**ANE section**|https://art.thewalters.org/browse/location/ancient-near-eastern-art/ — **121 objects**                |
+|**Data**       |Static CSV/JSON on GitHub: https://github.com/WaltersArtMuseum/api-thewalters-org (API v1 closed 2023)|
+|**License**    |**CC0** — fully unrestricted                                                                          |
+|**IIIF**       |Yes (especially manuscripts)                                                                          |
+|**Metadata**   |Curator-maintained, some historical records under review                                              |
+
+**Small but perfectly open.** Only 121 ANE objects, but CC0 licensing makes these immediately usable without any rights concerns.   **Best for:** Quick, license-worry-free images of cylinder seals, amulets, and small finds.
+
+-----
+
+## Tier 2 — Academic and archaeological databases
+
+These sources aggregate data from Tier 1 institutions with scholarly oversight. Descriptions are expert-authored or expert-reviewed. Trust is high but images may inherit variable licensing from contributing institutions.
+
+### CDLI (Cuneiform Digital Library Initiative) ★ ESSENTIAL FOR PROJECT EUCLID
+
+|Field        |Detail                                                                                                             |
+|-------------|-------------------------------------------------------------------------------------------------------------------|
+|**URL**      |https://cdli.earth/ (new domain as of April 2025)                                                                  |
+|**API**      |Full REST API at https://cdli.earth/docs/api — JSON, LOD (JSON-LD, RDF/XML, Turtle), CSV, TSV, Excel               |
+|**Bulk data**|Daily dumps on GitHub: https://github.com/cdli-gh/data (catalogue CSV + ATF transliterations)                      |
+|**Holdings** |**500,000+ estimated cuneiform artifacts** catalogued, 320,000+ in electronic form, from 750+ collections worldwide|
+|**License**  |Free/open (image rights vary by contributing institution)                                                          |
+|**Metadata** |Scholar-verified by international Assyriologists                                                                   |
+
+**Why CDLI is foundational:** It is the single authoritative index for cuneiform artifacts across all museums worldwide.  Every tablet has a stable P-number (e.g., P254790). Advanced search at https://cdli.earth/search/advanced allows filtering by artifact type (tablet, seal, envelope), period, provenience, genre (“mathematical”), language, and collection. **For Project Euclid’s math tablets:** Search genre = “mathematical” to find all known mathematical cuneiform tablets.
+
+### ORACC (Open Richly Annotated Cuneiform Corpus)
+
+|Field              |Detail                                                                                            |
+|-------------------|--------------------------------------------------------------------------------------------------|
+|**URL**            |https://oracc.museum.upenn.edu/                                                                   |
+|**License**        |CC BY-SA 3.0                                                                                      |
+|**Images**         |Links to CDLI images; primarily a text corpus                                                     |
+|**Key sub-project**|**DCCMT** (Digital Corpus of Cuneiform Mathematical Texts) at http://oracc.museum.upenn.edu/dccmt/|
+
+ORACC complements CDLI: CDLI archives catalog records and images; ORACC provides rich linguistic annotation, translations, and glossaries.  Also hosts “Ancient Mesopotamian Gods and Goddesses”  — potentially useful for Sami’s deity-element pairings.
+
+### Europeana
+
+|Field       |Detail                                                                                                                             |
+|------------|-----------------------------------------------------------------------------------------------------------------------------------|
+|**URL**     |https://www.europeana.eu/                                                                                                          |
+|**API**     |Comprehensive suite (free API key required): Search, Record, IIIF, Entity, Annotations, Thumbnail APIs at https://api.europeana.eu/|
+|**Holdings**|50M+ items from 4,000+ European institutions                                                                                       |
+|**License** |Per-object (ranges from CC0 to restricted); metadata is CC0                                                                        |
+
+**Why it matters:** Europeana aggregates content from the Louvre, Vorderasiatisches Museum Berlin, and other European museums that lack their own APIs.  This is your best programmatic workaround for accessing SMB Berlin records (including Ishtar Gate material). Filter `&reusability=open` for openly licensed content, `&qf=TYPE:IMAGE` for images only.
+
+### Artstor on JSTOR
+
+|Field       |Detail                                                                 |
+|------------|-----------------------------------------------------------------------|
+|**URL**     |https://www.jstor.org/artstor                                          |
+|**Holdings**|2M+ curated, rights-cleared images                                     |
+|**License** |Institutional subscription required; free for educational/classroom use|
+|**API**     |No public bulk API                                                     |
+
+Specifically designed for educational contexts — testimonials mention use with middle schoolers. **Requires school/library JSTOR subscription.** If Sami’s school district has JSTOR access, this is a strong curated source with editorial quality control.
+
+### DPLA (Digital Public Library of America)
+
+|Field       |Detail                                                 |
+|------------|-------------------------------------------------------|
+|**URL**     |https://dp.la/                                         |
+|**API**     |REST API at `https://api.dp.la/v2/` — free key required|
+|**Holdings**|15M+ objects from US libraries, archives, museums      |
+|**License** |Free/open portal; individual item rights vary          |
+
+Limited Mesopotamian content but aggregates from Smithsonian and university collections. Python wrapper available: `pip install dpla`. 
+
+### Additional Tier 2 resources
+
+**ETANA** (https://etana.org/) — digitized out-of-copyright ANE monographs including 58 volumes of “Cuneiform Texts from Babylonian Tablets in the British Museum.” Text/bibliography focused, not an image database. Free for noncommercial research.
+
+**SEAL** (https://seal.huji.ac.il/) — Sources of Early Akkadian Literature. 916+ literary Akkadian compositions with high-res photos, transliterations, and translations. Free open access, scholar-verified.
+
+**Iconclass** (https://www.iconclass.org/) — classification taxonomy, not an image database. Limited Mesopotamian coverage (designed for Western European art). Data on GitHub under CC0. Potentially useful for building Project Euclid’s own classification system but not for sourcing images.
+
+-----
+
+## Tier 3 — Curated secondary sources (verify against Tier 1 when possible)
+
+### Smarthistory — BEST SECONDARY SOURCE
+
+**URL:** https://smarthistory.org/ → Ancient Mediterranean → Ancient Near East
+
+Content written by **PhD-holding art historians** (notably Dr. Senta German for ANE content) and produced in direct collaboration with the British Museum. Undergoes open peer review.  Covers Warka Vase, cylinder seals, Victory Stele of Naram-Sin, Ishtar Gate with video walkthroughs. **License: CC BY-NC-SA 4.0** — suitable for K-8 educational use.  **Caveat:** Individual embedded images carry their own licenses (some © Trustees of the British Museum). Smarthistory explicitly addresses Mesopotamian chronology complexity, which is good for RWI.
+
+### Wikimedia Commons — USEFUL BUT REQUIRES PER-IMAGE VERIFICATION
+
+Rich Mesopotamian categories: `Category:Art_of_Mesopotamia`, `Category:Cylinder_seals`, `Category:Ishtar_Gate`. Notable contributor **Osama Shukir Muhammed Amin FRCP(Glasg)** has uploaded hundreds of high-quality, properly attributed photographs under CC BY-SA 4.0. **However:** Anyone can upload and caption images. No editorial review for description accuracy. Verify every image by checking the “Source” field for a museum URL and cross-referencing the accession number against the museum’s own database.
+
+### World History Encyclopedia
+
+**URL:** https://www.worldhistory.org/
+
+All content editorially reviewed before publication.  **License: CC BY-NC-SA.** Images are frequently sourced from Wikimedia Commons, meaning the same verification challenges apply. Good text descriptions but not always original photography. The **Burney Relief article** is an excellent case study — it properly discusses scholarly debate (Ishtar vs. Ereshkigal vs. Lilith) that lesser sources flatten.  
+
+### University course pages and OER textbooks
+
+Highly variable quality. Pressbooks and LibreTexts pages that reuse Smarthistory content under CC license are generally reliable. Student-created content on university wikis may contain errors. Course pages go offline frequently. Images may be used under Fair Use claims that don’t transfer to Project Euclid.
+
+-----
+
+## Tier 4 — Use only with Tier 1 verification (or avoid entirely)
+
+**These sources are dangerous for RWI integrity** because they systematically introduce text-image mismatches through algorithmic captioning, metadata-stripping, keyword optimization, and uncredited reconstructions.
+
+**Google Images** generates captions algorithmically from surrounding page text, not from expert metadata. A Persepolis relief appearing on a page about “ancient Mesopotamian art” gets labeled Mesopotamian. Zero provenance guarantee. Mixes academic images, Pinterest repins, AI-generated content, and New Age conspiracy sites indiscriminately.
+
+**Pinterest** strips metadata through chain-of-reposting. A board titled “Mesopotamian civilization” with 879 pins mixes Sumerian, Akkadian, Babylonian, Assyrian, and Persian artifacts without attribution. Descriptions like “Sumerian priests of E-Abzu, Eridu” are attached to modern reconstructions.   No editorial oversight whatsoever.
+
+**Stock photo sites** (Shutterstock, Getty, Adobe Stock) optimize keywords for findability, not accuracy. Documented examples: Getty tags Persepolis Achaemenid reliefs as “ancient Mesopotamian art.”  Shutterstock returns cartoon ziggurat drawings, modern tattoo designs, and Persian ornaments alongside legitimate museum photographs for “Mesopotamia” queries. **26,000+ Shutterstock results for “Mesopotamia” — the vast majority are unusable for RWI.**
+
+**Tourism sites** present modern reconstructions as ancient originals. Saddam Hussein’s 1980s reconstruction of Babylon appears in travel photos as “ancient Babylon.” The Berlin Ishtar Gate reconstruction is routinely described without noting that **less than 20% of its bricks are original** (per curator Helen Gries, Vorderasiatisches Museum).
+
+-----
+
+## Automation guidance: APIs, IIIF, and verification pipelines
+
+### Sources with public APIs (ranked by utility for Project Euclid)
+
+|Source               |API Type   |Auth Required|License                 |Best For                                              |
+|---------------------|-----------|-------------|------------------------|------------------------------------------------------|
+|**Met Museum**       |REST       |None         |CC0                     |Primary image sourcing; ANE dept = departmentId 3     |
+|**CDLI**             |REST + LOD |None         |Open (image rights vary)|Cuneiform tablets, seals; mathematical genre filtering|
+|**Europeana**        |REST + IIIF|Free API key |Per-object              |European museum content (Louvre, Berlin)              |
+|**DPLA**             |REST       |Free API key |Per-object              |US institutional collections                          |
+|**Wikidata**         |SPARQL     |None         |CC0                     |Cross-referencing bridge between sources              |
+|**Wikimedia Commons**|MediaWiki  |None         |Per-file                |Image metadata extraction and verification            |
+
+### IIIF-supporting institutions
+
+The Met, British Museum, Yale Peabody, Walters (manuscripts), Europeana, and Smithsonian all support IIIF. IIIF Image API enables **programmatic extraction of regions** — critical for cropping geometric details (e.g., isolating a rosette border from a large Assyrian relief panel).   Use Mirador viewer (https://projectmirador.org/) to load manifests from multiple institutions side-by-side for comparison.
+
+### The cross-referencing pipeline: Wikidata as the bridge
+
+The verification pipeline flows: **Wikimedia Commons Image → Wikidata Item → Museum Accession Number → Museum API → Verify metadata match.**
+
+Wikidata properties essential for this pipeline: `P195` (collection/museum), `P217` (inventory/accession number), `P18` (canonical image), `P973` (described at URL → museum page), `P571` (inception date), `P186` (material). These properties link a Commons image back to its authoritative museum record.
+
+**Example SPARQL query — all cylinder seals with images and museum records:**
+
+```sparql
+SELECT ?item ?itemLabel ?image ?collection ?collectionLabel ?inventoryNumber WHERE {
+  ?item wdt:P31 wd:Q927436 .
+  ?item wdt:P18 ?image .
+  OPTIONAL { ?item wdt:P195 ?collection . }
+  OPTIONAL { ?item wdt:P217 ?inventoryNumber . }
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "en" . }
+} LIMIT 100
+```
+
+### Accession number formats for automated matching
+
+|Museum             |Format                    |Example     |
+|-------------------|--------------------------|------------|
+|British Museum     |BM + number or YYYY-MMDD-N|BM 89115    |
+|Metropolitan Museum|YY.NNN.N                  |31.13.1     |
+|Yale Babylonian    |YBC + number              |YBC 7289    |
+|Columbia (Plimpton)|Plimpton + number         |Plimpton 322|
+|Berlin VAM         |VA or VAT + number        |VAT 6598    |
+|Louvre             |AO + number               |AO 17264    |
+|CDLI               |P + 6 digits              |P254790     |
+
+### Escalation protocol for RWI verification
+
+When an image is found at Tier 3 or below, the system should automatically escalate:
+
+1. **Extract identifiers** from the image’s metadata or caption — artifact name, museum name, accession number, period, culture
+1. **Search CDLI** (for cuneiform objects) using the accession number or artifact description via `cdli.earth/docs/api`
+1. **Search Wikidata** via SPARQL using `P217` (inventory number) to find the canonical Wikidata item
+1. **Query museum API** (Met first, then BM collection search) using the accession number to pull the authoritative record
+1. **Compare fields:** title, date/period, culture, medium, dimensions between the Tier 3 source and Tier 1 record
+1. **Flag discrepancies** for human review — any mismatch in period, culture, deity attribution, or “reconstruction” status triggers a hold
+
+-----
+
+## Search strategies for Project Euclid’s geometric artifact categories
+
+### Cylinder seals and impressions
+
+**Primary sources:** British Museum (world’s largest collection), Met API (`departmentId=3&q=cylinder+seal`), CDLI (search artifact type = “seal”), Yale Babylonian (4,000 seals + 10,000 impressions), Morgan Library. **Search terms:** “cylinder seal” + “geometric,” “guilloche,” “rosette,” “interlocking circles,” “chevron.” Focus on seals showing rotational symmetry, nested shapes, and repeating border patterns for geometric curriculum use.
+
+### Mathematical cuneiform tablets
+
+**Plimpton 322** is at **Columbia University** (Rare Book & Manuscript Library),  not Yale — authoritative images at ISAW NYU exhibit: https://isaw.nyu.edu/exhibitions/before-pythagoras/items/plimpton-322/. **YBC 7289** (√2 tablet) is at Yale — 3D scan on Sketchfab. Use CDLI with genre filter “mathematical” to find all catalogued mathematical tablets.  ORACC sub-project DCCMT (http://oracc.museum.upenn.edu/dccmt/) provides annotated editions.
+
+### Ziggurat reconstructions and plans
+
+**Critical distinction for RWI:** Archaeological plans have scale bars, section markers, and grid references. Artistic reconstructions are attributed to specific illustrators (Balage Balogh, Jean-Claude Golvin). CGI reconstructions (e.g., Artefacts/DAI Uruk ziggurat) circulate without their digital-reconstruction status noted. **Best sources:** ISAC excavation archives for archaeological plans; Smarthistory for properly credited reconstructions. **Always label:** “reconstruction,” “archaeological plan,” or “photograph of extant remains.”
+
+### Ishtar Gate reliefs and rosettes
+
+**Primary collection:** Vorderasiatisches Museum Berlin (Pergamon, currently closed).  **Online access:** SMB collections at https://recherche.smb.museum/ (search “Ischtar-Tor”) or via Europeana API. The Met owns Processional Way striding lion panels (accession 31.13.1, 31.13.2). Wikimedia Commons `Category:Ishtar_Gate` has extensive CC-licensed photographs. **For rosette motifs:** search “rosette” + “Babylon” + “Nebuchadnezzar” across all platforms.
+
+### Sumerian geometric pottery patterns
+
+**Best periods:** Ubaid (5500–4000 BCE), Halaf (6100–5100 BCE), Samarra (5500–4800 BCE) — all feature distinctive geometric painted pottery. **Search terms:** “Ubaid pottery geometric,” “Halaf pottery pattern,” “Samarra ware.” **Best sources:** British Museum, Penn Museum (Ur excavation material), Louvre (Tello/Girsu, Susa pottery), ISAC (Nippur, Khafajah material).
+
+### Assyrian palace reliefs with geometric borders
+
+**Primary collection:** British Museum — the world’s largest collection from Nimrud, Nineveh, and Khorsabad. **Search for geometric elements:** “guilloche border” + “Assyrian,” “palmette” + “Nimrud,” “sacred tree” + “Ashurnasirpal.” Search by palace: Northwest Palace (Ashurnasirpal II), Southwest Palace (Sennacherib), North Palace (Ashurbanipal). Met API: `departmentId=3&q=assyrian+relief&hasImages=true`.
+
+### Star and rosette motifs (Ishtar’s 8-pointed star)
+
+The **8-pointed star of Ishtar/Inanna** demonstrates rotational symmetry, compass construction, and octagonal geometry — directly relevant to Sami’s Ishtar=8-Star pairing. **Best sources:** Kudurru stones (Kassite boundary markers) at the British Museum feature deity symbols including star motifs. Ishtar Gate rosette borders (Berlin/Europeana). **Search terms:** “eight pointed star Mesopotamia,” “star of Ishtar,” “kudurru star symbol.” Wikimedia: `Category:Star_of_Ishtar`, `Category:Kudurru`.
+
+-----
+
+## Known pitfalls: where text-image fidelity breaks down
+
+### Period misattribution is pervasive
+
+“Sumerian” is used as a catch-all for everything Mesopotamian. Neo-Assyrian reliefs (9th–7th c. BCE) get labeled “Babylonian.” Akkadian-period objects (c. 2334–2154 BCE) are mislabeled as Sumerian. The Burney Relief / Queen of the Night is sometimes called “Sumerian” despite being Old Babylonian (c. 1800–1750 BCE).  **For Project Euclid’s deity pairings:** Ensure period-correct attribution — Shamash, Ishtar, and Enlil span multiple periods, but their iconographic representations changed significantly across Sumerian, Akkadian, and Neo-Babylonian eras.
+
+### The reconstruction trap is everywhere
+
+**The Ishtar Gate in Berlin is less than 20% original Babylonian bricks** — the rest is modern reconstruction (per curator Helen Gries). The Processional Way is ~45% original; the Throne Room Façade only ~15%.  Saddam Hussein’s 1980s Babylon reconstruction added modern bricks stamped with his name atop ancient foundations — tourist photos show this modern layer, not antiquity. CGI ziggurat reconstructions circulate without their digital origin noted. **RWI rule: Every reconstruction image must be explicitly labeled as such.**
+
+### Cylinder seal mirror-image confusion
+
+Seals are carved in intaglio (negative) so impressions appear in positive relief. **The intended image is the impression, which is a mirror of the seal surface.** Images showing the seal itself display “backwards” cuneiform — this is correct but counter-intuitive. Well-meaning editors sometimes flip images, creating errors. Museums typically show both seal and impression side by side, but when only one circulates online, orientation confusion is inevitable. **For Project Euclid: Always specify whether showing “seal” or “impression” and note the reversal.**
+
+### Deity misidentification and the Burney Relief problem
+
+The Burney Relief is identified as Ishtar, Ereshkigal, OR Lilith depending on the source. The British Museum prefers Ereshkigal; Thorkild Jacobsen argued Ishtar; the Lilith identification is largely discredited but enormously popular online. On the Ishtar Gate: lions = Ishtar, **mušḫuššu dragons = Marduk** (not “Ishtar’s dragon”), aurochs = Adad.  Lamassu (winged bulls) are characteristically Assyrian, not Babylonian, despite frequent mislabeling.
+
+### Persian sites masquerade as Mesopotamian
+
+**This is one of the most common and pernicious errors.** Getty Images tags Persepolis reliefs as “ancient Mesopotamian art.” Achaemenid art deliberately adopted Mesopotamian motifs (lamassu-style figures, glazed brick techniques), making visual confusion understandable but factually wrong. **RWI rule: Anything from Persepolis (Iran), Susa (Iran), or Hattusa (Turkey) must be excluded from Mesopotamian content**, regardless of stylistic similarity.
+
+### AI-generated artifacts are an accelerating threat
+
+The Ure Museum of Greek Archaeology mounted an exhibition titled “Distorted History: AI’s Skewed Visions of the Ancient World” documenting the problem. AI-generated Mesopotamian images characteristically merge motifs from different periods, create impossibly well-preserved surfaces, invent plausible-looking but gibberish cuneiform, and blend Assyrian, Babylonian, and Persian elements indiscriminately. **RWI rule: Any image not traceable to a specific museum, excavation, or professional photographer should be treated as potentially AI-generated.**
+
+-----
+
+## Conclusion: the practical workflow for Sami
+
+The hierarchy works as a **funnel**. Start every image search at the Met API (CC0, automated, department 3) and CDLI (cuneiform-specific, genre-filterable). When those don’t have what you need, check the British Museum collection online and Europeana (which aggregates Berlin and Louvre). For secondary context, use Smarthistory first — its ANE content is British Museum-partnered and PhD-authored. If a Tier 3 image is the only option, run the Wikidata escalation protocol to verify the accession number against a Tier 1 record before allowing it into the curriculum.
+
+Three non-obvious insights emerged from this research. First, **Plimpton 322 is at Columbia, not Yale** — this misattribution is so widespread it will likely appear in Sami’s own source materials. Second, the Pergamon Museum’s complete closure until ~2037 means Berlin’s Ishtar Gate holdings are accessible only digitally via Europeana and SMB’s online portal — making programmatic access through Europeana’s API strategically important. Third, Wikidata’s structured properties (especially P217 for accession numbers and P973 for museum URLs) make it the most efficient cross-referencing bridge for automated verification — building Project Euclid’s RWI pipeline around Wikidata SPARQL queries will scale better than institution-by-institution verification.

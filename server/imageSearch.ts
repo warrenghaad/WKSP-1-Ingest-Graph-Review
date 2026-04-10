@@ -1,156 +1,154 @@
-import OpenAI from "openai";
-
-const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-});
-
 export interface ImageResult {
   url: string;
   title: string;
   source: string;
+  tier?: 1 | 2 | 3;
 }
 
-async function enhanceQuery(rawQuery: string): Promise<string> {
-  const response = await openai.chat.completions.create({
-    model: "gpt-5-mini",
-    messages: [
-      {
-        role: "system",
-        content: `You are a search query optimizer for finding images of ancient Mesopotamian artifacts and archaeological objects. Given a text selection or phrase, produce a concise, effective image search query. Focus on the most visually searchable terms. Output ONLY the search query, nothing else.`
-      },
-      {
-        role: "user",
-        content: `Create an image search query for: "${rawQuery}"`
-      }
-    ],
-    max_completion_tokens: 80,
-    temperature: 0.3,
-  });
+// RWI-safe institution list for prompts
+const RWI_SOURCES = `Metropolitan Museum of Art (metmuseum.org, CC0), CDLI (cdli.earth, cuneiform), British Museum (britishmuseum.org, CC BY-NC-SA), Penn Museum (penn.museum), Wikimedia Commons (verify license), Smarthistory (smarthistory.org, CC BY-NC-SA), World History Encyclopedia (worldhistory.org), Europeana (europeana.eu)`;
 
-  return response.choices[0]?.message?.content?.trim() || rawQuery;
+async function enhanceQueryWithGemini(rawQuery: string): Promise<string> {
+  const apiKey = process.env.Google_AI;
+  if (!apiKey) return rawQuery;
+  try {
+    const prompt = `You are a search query optimizer for finding images of ancient Mesopotamian artifacts and archaeological objects in museum collections. Given a phrase, produce a concise, effective search query for museum databases. Focus on visually searchable archaeological terms (artifact type, material, period, culture). Output ONLY the search query, nothing else.
+
+Phrase: "${rawQuery}"`;
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.2, maxOutputTokens: 80 },
+        }),
+      }
+    );
+    if (!res.ok) return rawQuery;
+    const data = await res.json() as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+    return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || rawQuery;
+  } catch {
+    return rawQuery;
+  }
 }
 
 async function searchWithPerplexity(query: string): Promise<ImageResult[]> {
   const apiKey = process.env.PERPLEXITY_API_KEY;
-  if (!apiKey) {
-    console.warn("PERPLEXITY_API_KEY not set, falling back to OpenAI search");
-    return [];
-  }
+  if (!apiKey) return [];
 
-  const response = await fetch("https://api.perplexity.ai/chat/completions", {
+  const res = await fetch("https://api.perplexity.ai/chat/completions", {
     method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
+    headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model: "sonar",
       messages: [
         {
           role: "system",
-          content: `You are a research image finder specializing in ancient Mesopotamian artifacts, archaeological objects, and museum collections. When asked about a topic, find real, publicly accessible image URLs from museums, academic sources, and reputable sites like Wikimedia Commons, the British Museum, the Metropolitan Museum of Art, the Louvre, the Penn Museum, etc.
+          content: `You are a museum image finder for a Mesopotamian artifact curriculum that enforces Reading With Integrity (RWI) standards. Find only curator-verified images from trusted institutions.
 
-Return ONLY a JSON array of objects with these fields:
-- "url": direct image URL (must be a real, working image URL ending in .jpg, .png, .gif, or from a known image CDN)
-- "title": descriptive title of the image
-- "source": the institution or website name
+ALLOWED sources: ${RWI_SOURCES}
+FORBIDDEN sources: Pinterest, Google Images, stock photo sites (Shutterstock, Getty Images, Adobe Stock), tourism blogs, AI-generated images, any image without a traceable museum/institution source.
 
-Return 4-8 results. Output ONLY the JSON array, no other text.`
+Return ONLY a JSON array:
+- "url": direct image URL ending in .jpg, .png, .gif, or .webp (real, working)
+- "title": curator-verified artifact name and period
+- "source": institution name
+
+Return 4–8 results. Output ONLY the JSON array, no other text.`,
         },
-        {
-          role: "user",
-          content: `Find real museum/academic images of: ${query}`
-        }
+        { role: "user", content: `Find RWI-safe museum images of: ${query}` },
       ],
       max_tokens: 1500,
       temperature: 0.2,
     }),
   });
 
-  if (!response.ok) {
-    console.error("Perplexity API error:", response.status, await response.text());
+  if (!res.ok) {
+    console.error("Perplexity API error:", res.status);
     return [];
   }
 
-  const data = await response.json();
-  const content = data.choices?.[0]?.message?.content || "";
-
+  const data = await res.json() as { choices?: { message?: { content?: string } }[] };
+  const content = data.choices?.[0]?.message?.content ?? "";
   try {
     const jsonMatch = content.match(/\[[\s\S]*\]/);
     if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-      return parsed.filter((item: any) =>
-        item.url && typeof item.url === "string" &&
-        item.title && typeof item.title === "string"
-      ).map((item: any) => ({
-        url: item.url,
-        title: item.title,
-        source: item.source || "Unknown",
-      }));
+      const parsed = JSON.parse(jsonMatch[0]) as { url?: unknown; title?: unknown; source?: unknown }[];
+      return parsed
+        .filter((item) => typeof item.url === "string" && typeof item.title === "string")
+        .map((item) => ({
+          url: String(item.url),
+          title: String(item.title),
+          source: String(item.source ?? "Unknown"),
+          tier: 2 as const,
+        }));
     }
   } catch (e) {
     console.error("Failed to parse Perplexity response:", e);
   }
-
   return [];
 }
 
-async function searchWithOpenAI(query: string): Promise<ImageResult[]> {
-  const response = await openai.chat.completions.create({
-    model: "gpt-5-mini",
-    messages: [
-      {
-        role: "system",
-        content: `You are a research image finder specializing in ancient Mesopotamian artifacts. Find real, publicly accessible image URLs from museums and academic sources like Wikimedia Commons, the British Museum, Metropolitan Museum, Louvre, Penn Museum, etc.
-
-Return ONLY a JSON array of objects with:
-- "url": a real, publicly accessible image URL (use Wikimedia Commons URLs when possible, format: https://upload.wikimedia.org/wikipedia/commons/...)
-- "title": descriptive title
-- "source": institution name
-
-Return 4-6 results. Output ONLY valid JSON.`
-      },
-      {
-        role: "user",
-        content: `Find real museum/academic images related to: ${query}`
-      }
-    ],
-    max_completion_tokens: 1500,
-    temperature: 0.3,
-  });
-
-  const content = response.choices[0]?.message?.content || "";
-
+async function searchWithGemini(query: string): Promise<ImageResult[]> {
+  const apiKey = process.env.Google_AI;
+  if (!apiKey) return [];
   try {
-    const jsonMatch = content.match(/\[[\s\S]*\]/);
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-      return parsed.filter((item: any) =>
-        item.url && typeof item.url === "string" &&
-        item.title && typeof item.title === "string"
-      ).map((item: any) => ({
-        url: item.url,
-        title: item.title,
-        source: item.source || "Unknown",
-      }));
-    }
-  } catch (e) {
-    console.error("Failed to parse OpenAI response:", e);
-  }
+    const prompt = `You are a museum image finder for a Mesopotamian artifact curriculum. Find real, publicly accessible image URLs from trusted institutions only.
 
-  return [];
+ALLOWED: ${RWI_SOURCES}
+FORBIDDEN: Pinterest, stock photos, AI-generated images, unverified blogs.
+
+For query: "${query}"
+
+Return a JSON array of 4–8 results:
+- "url": direct image URL (.jpg, .png, .webp)
+- "title": artifact name and period
+- "source": institution name
+- "tier": 1 (Tier-1 museum CC0) or 2 (academic/open) or 3 (curated secondary)
+
+Output ONLY the JSON array.`;
+
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.15, maxOutputTokens: 1500 },
+        }),
+      }
+    );
+    if (!res.ok) return [];
+    const data = await res.json() as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "[]";
+    const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+    const jsonMatch = cleaned.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) return [];
+    const images = JSON.parse(jsonMatch[0]) as { url?: unknown; title?: unknown; source?: unknown; tier?: unknown }[];
+    return images
+      .filter((img) => typeof img.url === "string")
+      .map((img) => ({
+        url: String(img.url),
+        title: String(img.title ?? "Untitled"),
+        source: String(img.source ?? "Gemini Research"),
+        tier: (img.tier === 1 || img.tier === 2 || img.tier === 3 ? img.tier : 3) as 1 | 2 | 3,
+      }));
+  } catch (err) {
+    console.error("Gemini fallback search error:", err);
+    return [];
+  }
 }
 
 export async function searchImages(rawQuery: string): Promise<ImageResult[]> {
-  const enhancedQuery = await enhanceQuery(rawQuery);
-  console.log(`Search: "${rawQuery}" → Enhanced: "${enhancedQuery}"`);
+  const enhancedQuery = await enhanceQueryWithGemini(rawQuery);
+  console.log(`[imageSearch] "${rawQuery}" → "${enhancedQuery}"`);
 
   let results = await searchWithPerplexity(enhancedQuery);
-
   if (results.length === 0) {
-    results = await searchWithOpenAI(enhancedQuery);
+    results = await searchWithGemini(enhancedQuery);
   }
-
   return results;
 }
