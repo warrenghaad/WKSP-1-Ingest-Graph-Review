@@ -172,6 +172,17 @@ Data files:
 - `GET /api/work/queue` - Get work queue summary (per-document counts of missing/qcFailed/readyToSave)
 - `POST /api/work/recompute` - Recompute all requirement statuses based on current candidate state
 
+## Deployment
+
+The app is deployed using Replit Autoscale:
+- **Build**: `npm run build`
+- **Run**: `node ./dist/index.cjs`
+- **Access**: Public (no authentication required)
+
+The deployment must be published as **Public** (not Private/Authenticated) so that
+visitors can access the app without a Replit account. If the login wall appears,
+re-publish from the Replit publishing UI and ensure visibility is set to Public.
+
 ## Environment Variables
 - `AI_INTEGRATIONS_OPENAI_API_KEY` - Set automatically by Replit AI Integrations
 - `AI_INTEGRATIONS_OPENAI_BASE_URL` - Set automatically by Replit AI Integrations
