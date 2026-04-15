@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { searchImages } from "./imageSearch";
+import { searchImages, enrichQueryWithOntologyTags } from "./imageSearch";
 import { searchAllMuseums, searchMetMuseum, searchWikimediaCommons, searchSmithsonian } from "./museumSearch";
 import { searchAllProviders, searchGoogleCSE, searchWikimediaProvider, searchMetMuseumProvider, searchOpenverse } from "./providers/index";
 import {
@@ -13,6 +13,7 @@ import { checkBackendStatus, sendResearchIngest, buildHandoffPacket, sendHandoff
 import { extractEntitiesFromText } from "./entityExtractor";
 import { seedTimelineArtifacts, TIMELINE_NODES, CONVERGENCE_LINKS } from "./artifactSeeder";
 import { seedBraidPoints } from "./braidSeeder";
+import { seedOntology } from "./ontologySeeder";
 import { generateGeminiImage, searchGeminiForArtifact } from "./providers/gemini";
 import { searchPerplexityForArtifact } from "./providers/perplexity";
 import { exec } from "child_process";
@@ -43,6 +44,9 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+
+  // Seed ontology on startup (idempotent)
+  seedOntology().catch(err => console.error("[routes] ontology seed failed:", err));
 
   app.get("/api/quick-search/images", async (req, res) => {
     try {
@@ -385,10 +389,14 @@ export async function registerRoutes(
 
       await storage.updateConceptCard(id, { state: "searching", sourceMode });
 
-      const queries = card.searchQueries || [card.label];
+      const rawQueries = card.searchQueries || [card.label];
+      const cardTags = (card.tags || []) as string[];
+      const queries = await Promise.all(
+        rawQueries.slice(0, 3).map(q => enrichQueryWithOntologyTags(q, cardTags, storage))
+      );
       const allCandidates = [];
 
-      for (const query of queries.slice(0, 3)) {
+      for (const query of queries) {
         try {
           let results: any[] = [];
 
@@ -2589,6 +2597,114 @@ Rules:
       console.error("[braid-analyze]", err);
       res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
     }
+  });
+
+  // ── Ontology API ──────────────────────────────────────────────────────────────
+
+  app.get("/api/ontology/dimensions", async (_req, res) => {
+    try { res.json(await storage.getOntologyDimensions()); }
+    catch (e) { res.status(500).json({ error: "Failed" }); }
+  });
+
+  app.get("/api/ontology/elements", async (req, res) => {
+    try {
+      const dimension = req.query.dimension as string | undefined;
+      res.json(await storage.getOntologyElements(dimension));
+    } catch (e) { res.status(500).json({ error: "Failed" }); }
+  });
+
+  app.get("/api/ontology/operations", async (_req, res) => {
+    try { res.json(await storage.getOntologyOperations()); }
+    catch (e) { res.status(500).json({ error: "Failed" }); }
+  });
+
+  app.get("/api/ontology/pattern-types", async (_req, res) => {
+    try { res.json(await storage.getOntologyPatternTypes()); }
+    catch (e) { res.status(500).json({ error: "Failed" }); }
+  });
+
+  app.get("/api/ontology/materials", async (_req, res) => {
+    try { res.json(await storage.getOntologyMaterials()); }
+    catch (e) { res.status(500).json({ error: "Failed" }); }
+  });
+
+  app.get("/api/ontology/techniques", async (_req, res) => {
+    try { res.json(await storage.getOntologyTechniques()); }
+    catch (e) { res.status(500).json({ error: "Failed" }); }
+  });
+
+  app.get("/api/ontology/arch-elements", async (_req, res) => {
+    try { res.json(await storage.getOntologyArchElements()); }
+    catch (e) { res.status(500).json({ error: "Failed" }); }
+  });
+
+  app.get("/api/ontology/math-concepts", async (_req, res) => {
+    try { res.json(await storage.getOntologyMathConcepts()); }
+    catch (e) { res.status(500).json({ error: "Failed" }); }
+  });
+
+  app.get("/api/ontology/cultures", async (_req, res) => {
+    try { res.json(await storage.getOntologyCultures()); }
+    catch (e) { res.status(500).json({ error: "Failed" }); }
+  });
+
+  app.get("/api/ontology/manifestations", async (req, res) => {
+    try {
+      const culture = req.query.culture as string | undefined;
+      const dimensionMapping = req.query.dimension_mapping as string | undefined;
+      const material = req.query.material as string | undefined;
+      res.json(await storage.getOntologyManifestations({ culture, dimensionMapping, material }));
+    } catch (e) { res.status(500).json({ error: "Failed" }); }
+  });
+
+  app.get("/api/ontology/manifestations/:id", async (req, res) => {
+    try {
+      const item = await storage.getOntologyManifestation(req.params.id);
+      if (!item) return res.status(404).json({ error: "Not found" });
+      res.json(item);
+    } catch (e) { res.status(500).json({ error: "Failed" }); }
+  });
+
+  app.get("/api/ontology/arch-translations", async (_req, res) => {
+    try { res.json(await storage.getOntologyArchTranslations()); }
+    catch (e) { res.status(500).json({ error: "Failed" }); }
+  });
+
+  app.get("/api/ontology/deities", async (req, res) => {
+    try {
+      const culture = req.query.culture as string | undefined;
+      res.json(await storage.getOntologyDeities(culture));
+    } catch (e) { res.status(500).json({ error: "Failed" }); }
+  });
+
+  app.get("/api/ontology/symbols", async (_req, res) => {
+    try { res.json(await storage.getOntologySymbols()); }
+    catch (e) { res.status(500).json({ error: "Failed" }); }
+  });
+
+  app.get("/api/ontology/all", async (_req, res) => {
+    try {
+      const [dimensions, elements, operations, patternTypes, materials, techniques,
+        archElements, mathConcepts, cultures, manifestations, archTranslations,
+        deities, symbols] = await Promise.all([
+        storage.getOntologyDimensions(),
+        storage.getOntologyElements(),
+        storage.getOntologyOperations(),
+        storage.getOntologyPatternTypes(),
+        storage.getOntologyMaterials(),
+        storage.getOntologyTechniques(),
+        storage.getOntologyArchElements(),
+        storage.getOntologyMathConcepts(),
+        storage.getOntologyCultures(),
+        storage.getOntologyManifestations(),
+        storage.getOntologyArchTranslations(),
+        storage.getOntologyDeities(),
+        storage.getOntologySymbols(),
+      ]);
+      res.json({ dimensions, elements, operations, patternTypes, materials, techniques,
+        archElements, mathConcepts, cultures, manifestations, archTranslations,
+        deities, symbols });
+    } catch (e) { res.status(500).json({ error: "Failed" }); }
   });
 
   return httpServer;

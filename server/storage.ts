@@ -6,6 +6,10 @@ import {
   visualRequirements, imageSearchJobs, imageCandidates, qcAssessments, docAssetLinks,
   rwiNeeds, rwiImageCandidateSets, imageProviderCache, imageSearchLog,
   imageQualityScores, imageReviewQueue, rwiImageApprovals, mediaAssets, graphNodes,
+  ontologyDimensions, ontologyGeometricElements, ontologyOperations, ontologyPatternTypes,
+  ontologyMaterials, ontologyTechniques, ontologyArchitecturalElements, ontologyMathConcepts,
+  ontologyCulturalContexts, ontologyManifestations, ontologyArchitectureTranslations,
+  ontologyDeities, ontologySymbols,
   type User, type InsertUser,
   type SavedImage, type InsertSavedImage,
   type TextreaderSession, type InsertTextreaderSession,
@@ -36,6 +40,11 @@ import {
   type BraidPoint, type InsertBraidPoint,
   lessonSectionContributions,
   type LessonSectionContribution, type InsertLessonSectionContribution,
+  type OntologyDimension, type OntologyGeometricElement, type OntologyOperation,
+  type OntologyPatternType, type OntologyMaterial, type OntologyTechnique,
+  type OntologyArchitecturalElement, type OntologyMathConcept, type OntologyCulturalContext,
+  type OntologyManifestation, type OntologyArchitectureTranslation, type OntologyDeity,
+  type OntologySymbol,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -165,6 +174,22 @@ export interface IStorage {
 
   createLessonContributions(rows: InsertLessonSectionContribution[]): Promise<LessonSectionContribution[]>;
   getLessonContributionsForPoint(braidPointId: number): Promise<LessonSectionContribution[]>;
+
+  // Ontology
+  getOntologyDimensions(): Promise<OntologyDimension[]>;
+  getOntologyElements(dimension?: string): Promise<OntologyGeometricElement[]>;
+  getOntologyOperations(): Promise<OntologyOperation[]>;
+  getOntologyPatternTypes(): Promise<OntologyPatternType[]>;
+  getOntologyMaterials(): Promise<OntologyMaterial[]>;
+  getOntologyTechniques(): Promise<OntologyTechnique[]>;
+  getOntologyArchElements(): Promise<OntologyArchitecturalElement[]>;
+  getOntologyMathConcepts(): Promise<OntologyMathConcept[]>;
+  getOntologyCultures(): Promise<OntologyCulturalContext[]>;
+  getOntologyManifestations(filters?: { culture?: string; dimensionMapping?: string; material?: string }): Promise<OntologyManifestation[]>;
+  getOntologyManifestation(id: string): Promise<OntologyManifestation | undefined>;
+  getOntologyArchTranslations(): Promise<OntologyArchitectureTranslation[]>;
+  getOntologyDeities(culture?: string): Promise<OntologyDeity[]>;
+  getOntologySymbols(): Promise<OntologySymbol[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -676,6 +701,57 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(lessonSectionContributions)
       .where(eq(lessonSectionContributions.braidPointId, braidPointId))
       .orderBy(lessonSectionContributions.sectionId);
+  }
+
+  async getOntologyDimensions(): Promise<OntologyDimension[]> {
+    return db.select().from(ontologyDimensions).orderBy(ontologyDimensions.name);
+  }
+  async getOntologyElements(dimension?: string): Promise<OntologyGeometricElement[]> {
+    let q = db.select().from(ontologyGeometricElements).$dynamic();
+    if (dimension) q = q.where(eq(ontologyGeometricElements.dimension, dimension));
+    return q.orderBy(ontologyGeometricElements.name);
+  }
+  async getOntologyOperations(): Promise<OntologyOperation[]> {
+    return db.select().from(ontologyOperations).orderBy(ontologyOperations.name);
+  }
+  async getOntologyPatternTypes(): Promise<OntologyPatternType[]> {
+    return db.select().from(ontologyPatternTypes).orderBy(ontologyPatternTypes.name);
+  }
+  async getOntologyMaterials(): Promise<OntologyMaterial[]> {
+    return db.select().from(ontologyMaterials).orderBy(ontologyMaterials.name);
+  }
+  async getOntologyTechniques(): Promise<OntologyTechnique[]> {
+    return db.select().from(ontologyTechniques).orderBy(ontologyTechniques.name);
+  }
+  async getOntologyArchElements(): Promise<OntologyArchitecturalElement[]> {
+    return db.select().from(ontologyArchitecturalElements).orderBy(ontologyArchitecturalElements.name);
+  }
+  async getOntologyMathConcepts(): Promise<OntologyMathConcept[]> {
+    return db.select().from(ontologyMathConcepts).orderBy(ontologyMathConcepts.name);
+  }
+  async getOntologyCultures(): Promise<OntologyCulturalContext[]> {
+    return db.select().from(ontologyCulturalContexts).orderBy(ontologyCulturalContexts.name);
+  }
+  async getOntologyManifestations(filters?: { culture?: string; dimensionMapping?: string; material?: string }): Promise<OntologyManifestation[]> {
+    let q = db.select().from(ontologyManifestations).$dynamic();
+    if (filters?.culture) q = q.where(eq(ontologyManifestations.culture, filters.culture));
+    else if (filters?.dimensionMapping) q = q.where(eq(ontologyManifestations.dimensionMapping, filters.dimensionMapping));
+    return q.orderBy(ontologyManifestations.title);
+  }
+  async getOntologyManifestation(id: string): Promise<OntologyManifestation | undefined> {
+    const [row] = await db.select().from(ontologyManifestations).where(eq(ontologyManifestations.id, id));
+    return row;
+  }
+  async getOntologyArchTranslations(): Promise<OntologyArchitectureTranslation[]> {
+    return db.select().from(ontologyArchitectureTranslations).orderBy(ontologyArchitectureTranslations.title);
+  }
+  async getOntologyDeities(culture?: string): Promise<OntologyDeity[]> {
+    let q = db.select().from(ontologyDeities).$dynamic();
+    if (culture) q = q.where(eq(ontologyDeities.culture, culture));
+    return q.orderBy(ontologyDeities.name);
+  }
+  async getOntologySymbols(): Promise<OntologySymbol[]> {
+    return db.select().from(ontologySymbols).orderBy(ontologySymbols.symbol);
   }
 
   async getWorkQueue(): Promise<Array<{

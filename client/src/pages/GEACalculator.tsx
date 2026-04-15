@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { Link } from "wouter";
 
 // ═══════════════════════════════════════════════════════════════════
@@ -386,6 +386,15 @@ const DIM_COLORS = ["#556", "#3b82f6", "#22c55e", "#a855f7"];
 const COG_COLOR  = (level: number) =>
   level <= 1 ? "#22c55e" : level <= 2 ? "#3b82f6" : level <= 3 ? "#eab308" : level <= 4 ? "#f97316" : "#ef4444";
 
+// ── Ontology-backed extension helpers ───────────────────────────────
+
+function dimNameToNumber(dim: string): 0 | 1 | 2 | 3 {
+  if (dim === "0D") return 0;
+  if (dim === "1D") return 1;
+  if (dim === "2D") return 2;
+  return 3;
+}
+
 // ── Component ───────────────────────────────────────────────────────
 export default function GEACalculator() {
   const [prim, setPrim] = useState<string | null>(null);
@@ -395,6 +404,54 @@ export default function GEACalculator() {
   const [tab,  setTab]  = useState<"calc" | "combine" | "protocol">("calc");
   const [copied, setCopied] = useState(false);
   const [hovCombo, setHovCombo] = useState<number | null>(null);
+  const [apiPrimitives, setApiPrimitives] = useState<Record<string, Primitive>>({});
+  const [apiOperations, setApiOperations] = useState<Record<string, Operation>>({});
+
+  useEffect(() => {
+    Promise.all([
+      fetch("/api/ontology/elements").then(r => r.ok ? r.json() : []),
+      fetch("/api/ontology/operations").then(r => r.ok ? r.json() : []),
+    ]).then(([elements, operations]) => {
+      const newPrims: Record<string, Primitive> = {};
+      for (const el of (elements as any[])) {
+        const key = el.id as string;
+        if (!PRIMITIVES[key]) {
+          newPrims[key] = {
+            name: el.name,
+            dim: dimNameToNumber(el.dimension ?? "2D"),
+            type: "GEA.Onto",
+            symbol: "◇",
+            physics: el.variants ? `Variants: ${(el.variants as string[]).join(", ")}` : el.name,
+            canDo: [],
+            cannotDo: [],
+          };
+        }
+      }
+      setApiPrimitives(newPrims);
+      const newOps: Record<string, Operation> = {};
+      for (const op of (operations as any[])) {
+        const key = op.id as string;
+        if (!OPERATIONS[key]) {
+          newOps[key] = {
+            name: op.name,
+            desc: op.description ?? op.name,
+            icon: "⊙",
+          };
+        }
+      }
+      setApiOperations(newOps);
+    }).catch(() => {});
+  }, []);
+
+  const allPrimitives = useMemo(
+    () => ({ ...PRIMITIVES, ...apiPrimitives }),
+    [apiPrimitives],
+  );
+
+  const allOperations = useMemo(
+    () => ({ ...OPERATIONS, ...apiOperations }),
+    [apiOperations],
+  );
 
   const result = useMemo(
     () => computeResult(prim ?? "", op ?? "", dur ?? "", vec ?? ""),
@@ -429,6 +486,11 @@ export default function GEACalculator() {
           GEA CONSTRUCTION GRAMMAR
         </span>
         <span style={{ flex:1 }}/>
+        <Link href="/ontology" style={{ color:"#3b82f6", fontSize:10, textDecoration:"none",
+                                        letterSpacing:1, border:"1px solid #3b82f633",
+                                        padding:"3px 8px", borderRadius:3 }}>
+          ONTOLOGY EXPLORER
+        </Link>
         <span style={{ fontSize:9, color:"#1e2a40" }}>
           PRIMITIVE + MOTION + DURATION + VECTOR = F(ge)
         </span>
@@ -467,8 +529,8 @@ export default function GEACalculator() {
           <>
             {/* Step 1: Primitive */}
             <Section title="1 · SELECT PRIMITIVE (GEA)">
-              <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:6 }}>
-                {Object.entries(PRIMITIVES).map(([k, v]) => (
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(90px,1fr))", gap:6 }}>
+                {Object.entries(allPrimitives).map(([k, v]) => (
                   <Tile key={k} active={prim===k} onClick={() => setPrim(k)}>
                     <div style={{ fontSize:22, marginBottom:4 }}>{v.symbol}</div>
                     <div style={{ fontSize:10, color: prim===k ? "#f5c518" : "#94a3b8" }}>{v.name}</div>
@@ -479,34 +541,36 @@ export default function GEACalculator() {
               </div>
 
               {/* Primitive detail */}
-              {prim && (
+              {prim && allPrimitives[prim] && (
                 <div style={{ marginTop:12, padding:"10px 14px", background:"#060e20",
                               border:"1px solid #0b1828", borderRadius:4 }}>
                   <div style={{ fontSize:10, color:"#64748b", marginBottom:4 }}>
-                    {PRIMITIVES[prim].physics}
+                    {allPrimitives[prim].physics}
                   </div>
-                  <div style={{ display:"flex", gap:24 }}>
-                    <div>
-                      <div style={{ fontSize:8, color:"#22c55e", marginBottom:2 }}>CAN DO</div>
-                      {PRIMITIVES[prim].canDo.map((c,i) => (
-                        <div key={i} style={{ fontSize:8, color:"#334155" }}>· {c}</div>
-                      ))}
+                  {(allPrimitives[prim].canDo.length > 0 || allPrimitives[prim].cannotDo.length > 0) && (
+                    <div style={{ display:"flex", gap:24 }}>
+                      <div>
+                        <div style={{ fontSize:8, color:"#22c55e", marginBottom:2 }}>CAN DO</div>
+                        {allPrimitives[prim].canDo.map((c,i) => (
+                          <div key={i} style={{ fontSize:8, color:"#334155" }}>· {c}</div>
+                        ))}
+                      </div>
+                      <div>
+                        <div style={{ fontSize:8, color:"#ef4444", marginBottom:2 }}>CANNOT DO</div>
+                        {allPrimitives[prim].cannotDo.map((c,i) => (
+                          <div key={i} style={{ fontSize:8, color:"#334155" }}>· {c}</div>
+                        ))}
+                      </div>
                     </div>
-                    <div>
-                      <div style={{ fontSize:8, color:"#ef4444", marginBottom:2 }}>CANNOT DO</div>
-                      {PRIMITIVES[prim].cannotDo.map((c,i) => (
-                        <div key={i} style={{ fontSize:8, color:"#334155" }}>· {c}</div>
-                      ))}
-                    </div>
-                  </div>
+                  )}
                 </div>
               )}
             </Section>
 
             {/* Step 2: Operation */}
             <Section title="2 · SELECT OPERATION">
-              <div style={{ display:"grid", gridTemplateColumns:"repeat(9,1fr)", gap:6 }}>
-                {Object.entries(OPERATIONS).map(([k, v]) => (
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(90px,1fr))", gap:6 }}>
+                {Object.entries(allOperations).map(([k, v]) => (
                   <Tile key={k} active={op===k} onClick={() => setOp(k)}>
                     <div style={{ fontSize:20, marginBottom:4 }}>{v.icon}</div>
                     <div style={{ fontSize:9, color: op===k ? "#f5c518" : "#94a3b8" }}>{v.name}</div>

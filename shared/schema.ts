@@ -543,6 +543,132 @@ export const insertDocAssetLinkSchema = createInsertSchema(docAssetLinks).omit({
   createdAt: true,
 });
 
+// ── Geometric Ontology Tables ─────────────────────────────────────────────────
+
+export const ontologyDimensions = pgTable("ontology_dimensions", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+});
+
+export const ontologyGeometricElements = pgTable("ontology_geometric_elements", {
+  id: text("id").primaryKey(),
+  dimension: text("dimension").notNull(),
+  name: text("name").notNull(),
+  variants: text("variants").array(),
+});
+
+export const ontologyOperations = pgTable("ontology_operations", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+});
+
+export const ontologyPatternTypes = pgTable("ontology_pattern_types", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  groups: text("groups"),
+});
+
+export const ontologyMaterials = pgTable("ontology_materials", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  classes: text("classes").array(),
+});
+
+export const ontologyTechniques = pgTable("ontology_techniques", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+});
+
+export const ontologyArchitecturalElements = pgTable("ontology_architectural_elements", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+});
+
+export const ontologyMathConcepts = pgTable("ontology_math_concepts", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  topics: text("topics").array(),
+});
+
+export const ontologyCulturalContexts = pgTable("ontology_cultural_contexts", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+});
+
+export const ontologyManifestations = pgTable("ontology_manifestations", {
+  id: text("id").primaryKey(),
+  title: text("title").notNull(),
+  dimensionMapping: text("dimension_mapping"),
+  elements: text("elements").array(),
+  materials: text("materials").array(),
+  techniques: text("techniques").array(),
+  culture: text("culture"),
+  patternType: text("pattern_type"),
+  mathLinks: text("math_links").array(),
+  description: text("description"),
+  metadata: jsonb("metadata"),
+});
+
+export const ontologyArchitectureTranslations = pgTable("ontology_architecture_translations", {
+  id: text("id").primaryKey(),
+  title: text("title").notNull(),
+  from2dPattern: text("from_2d_pattern"),
+  to3dElement: text("to_3d_element"),
+  operations: text("operations").array(),
+  benefits: text("benefits").array(),
+  mathLinks: text("math_links").array(),
+});
+
+export const ontologyDeities = pgTable("ontology_deities", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  culture: text("culture"),
+  domains: text("domains").array(),
+  symbols: text("symbols").array(),
+  geometricAssociations: text("geometric_associations").array(),
+  stories: text("stories").array(),
+});
+
+export const ontologySymbols = pgTable("ontology_symbols", {
+  symbol: text("symbol").primaryKey(),
+  linkedTo: text("linked_to").array(),
+  geometric: text("geometric").array(),
+});
+
+// ── Ontology Insert Schemas ───────────────────────────────────────────────────
+
+export const insertOntologyDimensionSchema = createInsertSchema(ontologyDimensions);
+export const insertOntologyElementSchema = createInsertSchema(ontologyGeometricElements);
+export const insertOntologyOperationSchema = createInsertSchema(ontologyOperations);
+export const insertOntologyPatternTypeSchema = createInsertSchema(ontologyPatternTypes);
+export const insertOntologyMaterialSchema = createInsertSchema(ontologyMaterials);
+export const insertOntologyTechniqueSchema = createInsertSchema(ontologyTechniques);
+export const insertOntologyArchElementSchema = createInsertSchema(ontologyArchitecturalElements);
+export const insertOntologyMathConceptSchema = createInsertSchema(ontologyMathConcepts);
+export const insertOntologyCulturalContextSchema = createInsertSchema(ontologyCulturalContexts);
+export const insertOntologyManifestationSchema = createInsertSchema(ontologyManifestations);
+export const insertOntologyArchTranslationSchema = createInsertSchema(ontologyArchitectureTranslations);
+export const insertOntologyDeitySchema = createInsertSchema(ontologyDeities);
+export const insertOntologySymbolSchema = createInsertSchema(ontologySymbols);
+
+// ── Ontology Select Types ─────────────────────────────────────────────────────
+
+export type OntologyDimension = typeof ontologyDimensions.$inferSelect;
+export type OntologyGeometricElement = typeof ontologyGeometricElements.$inferSelect;
+export type OntologyOperation = typeof ontologyOperations.$inferSelect;
+export type OntologyPatternType = typeof ontologyPatternTypes.$inferSelect;
+export type OntologyMaterial = typeof ontologyMaterials.$inferSelect;
+export type OntologyTechnique = typeof ontologyTechniques.$inferSelect;
+export type OntologyArchitecturalElement = typeof ontologyArchitecturalElements.$inferSelect;
+export type OntologyMathConcept = typeof ontologyMathConcepts.$inferSelect;
+export type OntologyCulturalContext = typeof ontologyCulturalContexts.$inferSelect;
+export type OntologyManifestation = typeof ontologyManifestations.$inferSelect;
+export type OntologyArchitectureTranslation = typeof ontologyArchitectureTranslations.$inferSelect;
+export type OntologyDeity = typeof ontologyDeities.$inferSelect;
+export type OntologySymbol = typeof ontologySymbols.$inferSelect;
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type SavedImage = typeof savedImages.$inferSelect;

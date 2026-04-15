@@ -142,6 +142,44 @@ Output ONLY the JSON array.`;
   }
 }
 
+export async function enrichQueryWithOntologyTags(
+  baseQuery: string,
+  tags: string[],
+  _storage?: unknown
+): Promise<string> {
+  const terms: string[] = [baseQuery];
+  const MATERIAL_NAMES: Record<string, string> = {
+    "mat-stone": "stone", "mat-clay": "ceramic clay", "mat-wood": "wood",
+    "mat-metal": "metal", "mat-textile": "textile fabric", "mat-glass": "glass",
+    "mat-papyrus": "papyrus paper",
+  };
+  const CULTURE_NAMES: Record<string, string> = {
+    "civ-egypt": "Egyptian ancient Egypt", "civ-greece": "Greek classical Greece",
+    "civ-islam": "Islamic", "civ-india": "Indian South Asian", "civ-china": "Chinese",
+    "civ-meso": "Mesoamerican", "civ-medieval-eu": "Medieval European",
+    "civ-renaissance": "Renaissance", "civ-andes": "Andean",
+  };
+  const TECH_NAMES: Record<string, string> = {
+    "tech-incision": "engraved", "tech-carving": "carved", "tech-casting": "cast metal",
+    "tech-weaving": "woven textile", "tech-mosaic": "mosaic", "tech-tiling": "tiled",
+    "tech-painting": "painted", "tech-masonry": "masonry stone",
+  };
+
+  let cultureAdded = false;
+  for (const tag of tags) {
+    if (MATERIAL_NAMES[tag]) {
+      terms.push(MATERIAL_NAMES[tag]);
+    } else if (!cultureAdded && CULTURE_NAMES[tag]) {
+      terms.push(CULTURE_NAMES[tag]);
+      cultureAdded = true;
+    } else if (TECH_NAMES[tag]) {
+      terms.push(TECH_NAMES[tag]);
+    }
+  }
+
+  return terms.join(" ");
+}
+
 export async function searchImages(rawQuery: string): Promise<ImageResult[]> {
   const enhancedQuery = await enhanceQueryWithGemini(rawQuery);
   console.log(`[imageSearch] "${rawQuery}" → "${enhancedQuery}"`);

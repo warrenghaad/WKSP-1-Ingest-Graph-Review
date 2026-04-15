@@ -88,6 +88,27 @@ Data files:
 - `MAGICRadar.tsx`: Pentagon radar chart + horizontal bar chart for weight vectors
 - `LessonArc.tsx`: Interactive lesson architecture viewer with section bars and detail panel
 
+## Geometric Ontology (Task #13)
+A comprehensive ontology of 0D–4D geometric knowledge, seeded from JSON asset at startup.
+
+### Database Tables (13 new tables)
+`dimensions`, `geometric_elements`, `operations`, `pattern_types`, `materials`, `techniques`, `architectural_elements`, `math_concepts`, `cultural_contexts`, `manifestations`, `architecture_translations`, `deities`, `symbols`
+
+### API Endpoints (`/api/ontology/*`)
+14 REST endpoints: dimensions, elements, operations, patterns, materials, techniques, architectural-elements, math-concepts, cultures, manifestations, architecture-translations, deities, symbols, plus `/api/ontology/all` aggregate.
+
+### Ontology Explorer (`/ontology`)
+Interactive explorer with left sidebar filters (dimension, culture, material), four tabs (Manifestations, Mythology, Architecture, Reference), expandable ManifestationCards with linked deities/symbols/architecture translations.
+
+### GEA Calculator Integration
+Fetches `/api/ontology/elements` and `/api/ontology/operations` on mount; merges DB-backed entries (tagged `GEA.Onto`) not already in hardcoded PRIMITIVES/OPERATIONS. Link to Ontology Explorer added to nav.
+
+### Image Search Enrichment
+`enrichQueryWithOntologyTags()` in `server/imageSearch.ts` maps material/culture/technique ontology IDs (e.g. `mat-stone`, `civ-egypt`, `tech-carving`) to human-readable search terms appended to concept card image search queries.
+
+### Seeder
+`server/ontologySeeder.ts` — idempotently upserts all records from `attached_assets/Pasted--version-1-0-about-title-Geometric-Dimensionality-Combi_1776241354166.txt` at app startup.
+
 ## Key Features
 1. **3D Timeline** (`/`): Interactive 3D visualization of 18 Mesopotamian artifacts spanning 12 eras (Ubaid through Achaemenid). Features:
    - Artifacts placed on a scaled horizontal axis (year-to-x mapping)
