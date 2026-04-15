@@ -2,6 +2,7 @@ import { eq, desc, ilike, and, sql, lt, gt, asc } from "drizzle-orm";
 import { db } from "./db";
 import {
   users, savedImages, textreaderSessions, conceptCards, conceptCandidates,
+  candidateGecdTags, licensedImageResources,
   entities, assets, entityAssets, mentions, documents, docChunks, imagePrompts,
   visualRequirements, imageSearchJobs, imageCandidates, qcAssessments, docAssetLinks,
   rwiNeeds, rwiImageCandidateSets, imageProviderCache, imageSearchLog,
@@ -15,6 +16,8 @@ import {
   type TextreaderSession, type InsertTextreaderSession,
   type ConceptCard, type InsertConceptCard,
   type ConceptCandidate, type InsertConceptCandidate,
+  type CandidateGecdTags, type InsertCandidateGecdTags,
+  type LicensedImageResource, type InsertLicensedImageResource,
   type Entity, type InsertEntity,
   type Asset, type InsertAsset,
   type EntityAsset, type InsertEntityAsset,
@@ -69,8 +72,17 @@ export interface IStorage {
 
   createCandidate(candidate: InsertConceptCandidate): Promise<ConceptCandidate>;
   getCandidates(conceptCardId: number): Promise<ConceptCandidate[]>;
+  getCandidate(id: number): Promise<ConceptCandidate | undefined>;
   updateCandidate(id: number, updates: Partial<InsertConceptCandidate>): Promise<ConceptCandidate | undefined>;
   deleteCandidate(id: number): Promise<void>;
+  getCandidatesWithGecdFilter(filters: { dimensionMapping?: string; culture?: string; material?: string; element?: string }): Promise<ConceptCandidate[]>;
+
+  getGecdTags(candidateId: number): Promise<CandidateGecdTags | undefined>;
+  upsertGecdTags(candidateId: number, tags: Omit<InsertCandidateGecdTags, "candidateId">): Promise<CandidateGecdTags>;
+
+  getLicensedImageResources(): Promise<LicensedImageResource[]>;
+  findLicensedResourcesByTerms(terms: string[]): Promise<LicensedImageResource[]>;
+  upsertLicensedResource(resource: InsertLicensedImageResource): Promise<LicensedImageResource>;
 
   createEntity(entity: InsertEntity): Promise<Entity>;
   getEntity(id: number): Promise<Entity | undefined>;
@@ -300,6 +312,86 @@ export class DatabaseStorage implements IStorage {
 
   async deleteCandidate(id: number): Promise<void> {
     await db.delete(conceptCandidates).where(eq(conceptCandidates.id, id));
+  }
+
+  async getCandidate(id: number): Promise<ConceptCandidate | undefined> {
+    const [row] = await db.select().from(conceptCandidates).where(eq(conceptCandidates.id, id));
+    return row;
+  }
+
+  async getCandidatesWithGecdFilter(filters: { dimensionMapping?: string; culture?: string; material?: string; element?: string }): Promise<ConceptCandidate[]> {
+    const tagged = await db.select().from(candidateGecdTags);
+    let tagIds = tagged.map(t => t.candidateId);
+    if (filters.dimensionMapping) {
+      tagIds = tagged.filter(t => t.dimensionMapping === filters.dimensionMapping).map(t => t.candidateId);
+    }
+    if (filters.culture) {
+      const subset = tagged.filter(t => t.culturalContext === filters.culture).map(t => t.candidateId);
+      tagIds = tagIds.filter(id => subset.includes(id));
+    }
+    if (filters.material) {
+      const subset = tagged.filter(t => (t.materials ?? []).includes(filters.material!)).map(t => t.candidateId);
+      tagIds = tagIds.filter(id => subset.includes(id));
+    }
+    if (filters.element) {
+      const subset = tagged.filter(t => (t.geometricElements ?? []).includes(filters.element!)).map(t => t.candidateId);
+      tagIds = tagIds.filter(id => subset.includes(id));
+    }
+    if (tagIds.length === 0) return [];
+    return db.select().from(conceptCandidates)
+      .where(sql`${conceptCandidates.id} = ANY(ARRAY[${sql.join(tagIds.map(id => sql`${id}`), sql`, `)}]::int[])`)
+      .orderBy(desc(conceptCandidates.createdAt));
+  }
+
+  async getGecdTags(candidateId: number): Promise<CandidateGecdTags | undefined> {
+    const [row] = await db.select().from(candidateGecdTags)
+      .where(eq(candidateGecdTags.candidateId, candidateId))
+      .orderBy(desc(candidateGecdTags.createdAt))
+      .limit(1);
+    return row;
+  }
+
+  async upsertGecdTags(candidateId: number, tags: Omit<InsertCandidateGecdTags, "candidateId">): Promise<CandidateGecdTags> {
+    const existing = await this.getGecdTags(candidateId);
+    if (existing) {
+      const [updated] = await db.update(candidateGecdTags)
+        .set({ ...tags })
+        .where(eq(candidateGecdTags.id, existing.id))
+        .returning();
+      return updated;
+    }
+    const [created] = await db.insert(candidateGecdTags)
+      .values({ candidateId, ...tags })
+      .returning();
+    return created;
+  }
+
+  async getLicensedImageResources(): Promise<LicensedImageResource[]> {
+    return db.select().from(licensedImageResources).orderBy(licensedImageResources.section, licensedImageResources.title);
+  }
+
+  async findLicensedResourcesByTerms(terms: string[]): Promise<LicensedImageResource[]> {
+    if (terms.length === 0) return [];
+    const all = await db.select().from(licensedImageResources);
+    const lower = terms.map(t => t.toLowerCase());
+    return all.filter(r => {
+      const searchable = [r.title, r.section, r.description, ...(r.searchTerms ?? [])].filter(Boolean).join(" ").toLowerCase();
+      return lower.some(t => searchable.includes(t));
+    });
+  }
+
+  async upsertLicensedResource(resource: InsertLicensedImageResource): Promise<LicensedImageResource> {
+    const [existing] = await db.select().from(licensedImageResources)
+      .where(eq(licensedImageResources.title, resource.title));
+    if (existing) {
+      const [updated] = await db.update(licensedImageResources)
+        .set(resource)
+        .where(eq(licensedImageResources.id, existing.id))
+        .returning();
+      return updated;
+    }
+    const [created] = await db.insert(licensedImageResources).values(resource).returning();
+    return created;
   }
 
   async createEntity(entity: InsertEntity): Promise<Entity> {

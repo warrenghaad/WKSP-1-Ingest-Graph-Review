@@ -13,11 +13,12 @@ import { checkBackendStatus, sendResearchIngest, buildHandoffPacket, sendHandoff
 import { extractEntitiesFromText } from "./entityExtractor";
 import { seedTimelineArtifacts, TIMELINE_NODES, CONVERGENCE_LINKS } from "./artifactSeeder";
 import { seedBraidPoints } from "./braidSeeder";
-import { seedOntology } from "./ontologySeeder";
+import { seedOntology, seedLicensedImageResources } from "./ontologySeeder";
 import { generateGeminiImage, searchGeminiForArtifact } from "./providers/gemini";
 import { searchPerplexityForArtifact } from "./providers/perplexity";
 import { exec } from "child_process";
 import { promisify } from "util";
+import { safeFetch, SsrfBlockedError } from "./safeFetch";
 import OpenAI from "openai";
 import multer from "multer";
 
@@ -45,8 +46,9 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
 
-  // Seed ontology on startup (idempotent)
+  // Seed ontology + licensed resources on startup (idempotent)
   seedOntology().catch(err => console.error("[routes] ontology seed failed:", err));
+  seedLicensedImageResources().catch(err => console.error("[routes] licensed resource seed failed:", err));
 
   app.get("/api/quick-search/images", async (req, res) => {
     try {
@@ -434,6 +436,45 @@ export async function registerRoutes(
         } catch (err) {
           console.error(`Search failed for query "${query}":`, err);
         }
+      }
+
+      // Also surface matching pre-vetted licensed resources as high-confidence pre-tagged candidates
+      try {
+        const cardTerms = [...(card.searchQueries || [card.label]), ...(card.tags || [] as string[])].flatMap(q => q.split(/\s+/)).filter(w => w.length > 3);
+        if (cardTerms.length > 0) {
+          const licResources = await storage.findLicensedResourcesByTerms(cardTerms.slice(0, 8));
+          for (const lr of licResources) {
+            // Skip resources without a usable image URL
+            if (!lr.imageUrl) continue;
+            // Create candidate from licensed resource
+            const lrCandidate = await storage.createCandidate({
+              conceptCardId: id,
+              imageUrl: lr.imageUrl,
+              title: `[Licensed] ${lr.title}`,
+              source: lr.source,
+              objectUrl: null,
+              sourceType: "museum",
+              accuracyStatus: "historically_grounded",
+              approved: "pending",
+              metadata: { licensedResourceId: lr.id, license: lr.license, section: lr.section } as unknown as null,
+            });
+            // Pre-tag with all available GECD ontology data from the licensed resource
+            const preTags: GecdSuggestedTag[] = [];
+            if (lr.dimensionMapping) preTags.push({ category: "dimension", tagId: lr.dimensionMapping, label: lr.dimensionMapping, confidence: 1 });
+            (lr.geometricElements || []).forEach((e: string) => preTags.push({ category: "element", tagId: e, label: e, confidence: 1 }));
+            (lr.materials || []).forEach((m: string) => preTags.push({ category: "material", tagId: m, label: m, confidence: 1 }));
+            (lr.techniques || []).forEach((t: string) => preTags.push({ category: "technique", tagId: t, label: t, confidence: 1 }));
+            if (lr.culture) preTags.push({ category: "culture", tagId: lr.culture, label: lr.culture, confidence: 1 });
+            // Qualify when any GECD tag category is present (not only dimension/elements)
+            if (preTags.length > 0) {
+              await storage.upsertGecdTags(lrCandidate.id, { ...tagsToRecord(preTags), confirmedAt: new Date() });
+              await storage.updateCandidate(lrCandidate.id, { gecdStatus: "qualified", gecdScore: 90 });
+            }
+            allCandidates.push(lrCandidate);
+          }
+        }
+      } catch (lrErr) {
+        console.error("[GECD] Licensed resource cross-reference failed:", lrErr);
       }
 
       await storage.updateConceptCard(id, {
@@ -2680,6 +2721,267 @@ Rules:
   app.get("/api/ontology/symbols", async (_req, res) => {
     try { res.json(await storage.getOntologySymbols()); }
     catch (e) { res.status(500).json({ error: "Failed" }); }
+  });
+
+  // ── GECD Qualification Pipeline ──────────────────────────────────────────────
+
+  interface GecdSuggestedTag {
+    category: "element" | "dimension" | "material" | "technique" | "culture" | "operation" | "mathLink";
+    tagId: string | null;
+    label: string;
+    confidence: number;
+  }
+
+  interface GecdAnalysisResult {
+    gecdScore: number;
+    gecdStatus: "qualified" | "insufficient";
+    summary: string;
+    suggestedTags: GecdSuggestedTag[];
+  }
+
+  function tagsToRecord(tags: GecdSuggestedTag[], summary?: string) {
+    return {
+      dimensionMapping: tags.find(t => t.category === "dimension")?.tagId || null,
+      geometricElements: tags.filter(t => t.category === "element").map(t => t.tagId || t.label).filter(Boolean) as string[],
+      operations: tags.filter(t => t.category === "operation").map(t => t.tagId || t.label).filter(Boolean) as string[],
+      materials: tags.filter(t => t.category === "material").map(t => t.tagId || t.label).filter(Boolean) as string[],
+      techniques: tags.filter(t => t.category === "technique").map(t => t.tagId || t.label).filter(Boolean) as string[],
+      culturalContext: tags.find(t => t.category === "culture")?.tagId || null,
+      mathLinks: tags.filter(t => t.category === "mathLink").map(t => t.tagId || t.label).filter(Boolean) as string[],
+      notes: summary || null,
+    };
+  }
+
+  // POST /api/candidates/:id/gecd-qualify — run multimodal vision AI to score & tag a candidate
+  app.post("/api/candidates/:id/gecd-qualify", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+
+      const candidate = await storage.getCandidate(id);
+      if (!candidate) return res.status(404).json({ error: "Candidate not found" });
+
+      const apiKey = process.env.Google_AI;
+      if (!apiKey) return res.status(500).json({ error: "Google AI key not configured — cannot run GECD vision analysis" });
+
+      const [dimensions, elements, operations, materials, techniques, cultures, mathConcepts] = await Promise.all([
+        storage.getOntologyDimensions(),
+        storage.getOntologyElements(),
+        storage.getOntologyOperations(),
+        storage.getOntologyMaterials(),
+        storage.getOntologyTechniques(),
+        storage.getOntologyCultures(),
+        storage.getOntologyMathConcepts(),
+      ]);
+
+      const elementIds = elements.map(e => e.id).join(", ");
+      const dimensionIds = dimensions.map(d => d.id).join(", ");
+      const operationIds = operations.map(o => o.id).join(", ");
+      const materialIds = materials.map(m => m.id).join(", ");
+      const techniqueIds = techniques.map(t => t.id).join(", ");
+      const cultureIds = cultures.map(c => c.id).join(", ");
+      const mathIds = mathConcepts.map(m => m.id).join(", ");
+
+      const prompt = `You are a GECD (Geometric Elements, Cultural context, Dimensionality) ontology analyst for a Mesopotamian geometric elements curriculum.
+
+Evaluate this image on the following GECD dimensions:
+1. GEOMETRIC ELEMENT present (base geometric form of the motif)
+2. DIMENSIONALITY (1D line/mark, 2D pattern/surface, 3D form, or 2D decoration on a 3D surface)
+3. CULTURAL CONTEXT (civilization, period, ritual/administrative/aesthetic function)
+4. MATERIAL & TECHNIQUE used
+5. GEOMETRIC OPERATIONS applied (repetition, symmetry, rotation, translation, scaling, tessellation)
+
+Use only IDs from these ontology vocabularies:
+- Geometric elements: ${elementIds}
+- Dimension mappings: ${dimensionIds}
+- Geometric operations: ${operationIds}
+- Materials: ${materialIds}
+- Techniques: ${techniqueIds}
+- Cultures: ${cultureIds}
+- Math/educational concepts (optional, only if clearly relevant): ${mathIds}
+
+Respond ONLY with valid JSON (no markdown, no explanation):
+{
+  "gecdScore": <integer 0-100: how well does this image illustrate GECD geometric principles>,
+  "summary": "<1-2 sentence curator assessment>",
+  "suggestedTags": [
+    { "category": "element", "tagId": "<id or null>", "label": "<name>", "confidence": <0.0-1.0> },
+    { "category": "dimension", "tagId": "<id or null>", "label": "<name>", "confidence": <0.0-1.0> },
+    { "category": "operation", "tagId": "<id or null>", "label": "<name>", "confidence": <0.0-1.0> },
+    { "category": "material", "tagId": "<id or null>", "label": "<name>", "confidence": <0.0-1.0> },
+    { "category": "technique", "tagId": "<id or null>", "label": "<name>", "confidence": <0.0-1.0> },
+    { "category": "culture", "tagId": "<id or null>", "label": "<name>", "confidence": <0.0-1.0> }
+  ],
+  "mathLinks": ["<math concept id if applicable>"]
+}`;
+
+      // Fetch image using SSRF-hardened safeFetch (DNS-resolves hostname, blocks private CIDRs, no redirects)
+      let imagePart: Record<string, unknown>;
+      if (candidate.imageUrl) {
+        try {
+          const imgRes = await safeFetch(candidate.imageUrl, { timeoutMs: 8000 });
+          if (imgRes.ok) {
+            const imgBuffer = await imgRes.arrayBuffer();
+            const base64Data = Buffer.from(imgBuffer).toString("base64");
+            const mimeType = imgRes.headers.get("content-type")?.split(";")[0] || "image/jpeg";
+            imagePart = { inlineData: { mimeType, data: base64Data } };
+          } else {
+            imagePart = { text: `Image URL for visual analysis: ${candidate.imageUrl}` };
+          }
+        } catch (fetchErr) {
+          if (fetchErr instanceof SsrfBlockedError) {
+            console.warn(`[GECD qualify] SSRF blocked for candidate ${id}: ${fetchErr.message}`);
+          }
+          imagePart = { text: `Image URL for visual analysis (fetch blocked or failed): ${candidate.imageUrl}` };
+        }
+      } else {
+        imagePart = { text: `No image URL available for this candidate.` };
+      }
+
+      const geminiRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [imagePart, { text: prompt }] }],
+            generationConfig: { temperature: 0.1, maxOutputTokens: 1024 },
+          }),
+        }
+      );
+
+      if (!geminiRes.ok) {
+        const errText = await geminiRes.text();
+        return res.status(502).json({ error: `Gemini API error: ${errText.slice(0, 200)}` });
+      }
+
+      const geminiData = await geminiRes.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
+      const rawText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
+      const cleaned = rawText.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+
+      let parsed: Partial<GecdAnalysisResult>;
+      try {
+        const attempt = JSON.parse(cleaned);
+        parsed = attempt;
+      } catch {
+        const objMatch = cleaned.match(/\{[\s\S]*\}/);
+        try { parsed = objMatch ? JSON.parse(objMatch[0]) : {}; } catch { parsed = {}; }
+      }
+
+      const score = Math.min(100, Math.max(0, parseInt(String(parsed.gecdScore)) || 0));
+      const status: "qualified" | "insufficient" = score >= 60 ? "qualified" : "insufficient";
+      // Extract mathLinks from the top-level field (separate from suggestedTags)
+      const parsedWithMath = parsed as Partial<GecdAnalysisResult> & { mathLinks?: string[] };
+      const mathLinkIds: string[] = Array.isArray(parsedWithMath.mathLinks) ? parsedWithMath.mathLinks.filter(Boolean) : [];
+      const mathLinkTags: GecdSuggestedTag[] = mathLinkIds.map(id => ({ category: "mathLink" as const, tagId: id, label: id, confidence: 0.8 }));
+
+      const tags: GecdSuggestedTag[] = [
+        ...(Array.isArray(parsed.suggestedTags)
+          ? parsed.suggestedTags.map(t => ({
+              category: (["element","dimension","material","technique","culture","operation","mathLink"].includes(t.category) ? t.category : "element") as GecdSuggestedTag["category"],
+              tagId: t.tagId || null,
+              label: t.label || "Unknown",
+              confidence: Math.min(1, Math.max(0, Number(t.confidence) || 0.5)),
+            }))
+          : []),
+        ...mathLinkTags,
+      ];
+
+      const updated = await storage.updateCandidate(id, { gecdScore: score, gecdStatus: status });
+
+      if (tags.length > 0) {
+        await storage.upsertGecdTags(id, tagsToRecord(tags, parsed.summary));
+      }
+
+      res.json({ candidate: updated, gecdScore: score, gecdStatus: status, summary: parsed.summary || "", suggestedTags: tags });
+    } catch (err: unknown) {
+      console.error("[GECD qualify] error:", err);
+      res.status(500).json({ error: err instanceof Error ? err.message : "GECD qualification failed" });
+    }
+  });
+
+  // GET /api/candidates/:id/gecd-tags — fetch GECD tags for a candidate (as flat label array)
+  app.get("/api/candidates/:id/gecd-tags", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+      const row = await storage.getGecdTags(id);
+      if (!row) return res.json([]);
+      // Expand flat row into array of {category, tagId, label} for frontend
+      const expanded: GecdSuggestedTag[] = [];
+      if (row.dimensionMapping) expanded.push({ category: "dimension", tagId: row.dimensionMapping, label: row.dimensionMapping, confidence: 1 });
+      (row.geometricElements || []).forEach(e => expanded.push({ category: "element", tagId: e, label: e, confidence: 1 }));
+      (row.operations || []).forEach(o => expanded.push({ category: "operation", tagId: o, label: o, confidence: 1 }));
+      (row.materials || []).forEach(m => expanded.push({ category: "material", tagId: m, label: m, confidence: 1 }));
+      (row.techniques || []).forEach(t => expanded.push({ category: "technique", tagId: t, label: t, confidence: 1 }));
+      if (row.culturalContext) expanded.push({ category: "culture", tagId: row.culturalContext, label: row.culturalContext, confidence: 1 });
+      (row.mathLinks || []).forEach(ml => expanded.push({ category: "mathLink", tagId: ml, label: ml, confidence: 1 }));
+      res.json(expanded);
+    } catch (err) {
+      res.status(500).json({ error: "Failed to fetch GECD tags" });
+    }
+  });
+
+  // POST /api/candidates/:id/gecd-tags — save/update curator-confirmed GECD tags
+  app.post("/api/candidates/:id/gecd-tags", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid ID" });
+      const { tags } = req.body;
+      if (!Array.isArray(tags)) return res.status(400).json({ error: "tags array required" });
+
+      const typedTags: GecdSuggestedTag[] = (tags as Array<{ category: string; tagId: string | null; label: string; confidence?: number }>).map(t => ({
+        category: (["element","dimension","material","technique","culture","operation","mathLink"].includes(t.category) ? t.category : "element") as GecdSuggestedTag["category"],
+        tagId: t.tagId || null,
+        label: t.label || "",
+        confidence: Number(t.confidence) || 1.0,
+      }));
+      const tagRecord = { ...tagsToRecord(typedTags), confirmedAt: new Date() };
+      await storage.upsertGecdTags(id, tagRecord);
+      await storage.updateCandidate(id, { gecdStatus: "qualified" });
+
+      const updated = await storage.getCandidate(id);
+      res.json({ candidate: updated, tagCount: tags.length });
+    } catch (err: unknown) {
+      console.error("[GECD tags] error:", err);
+      res.status(500).json({ error: err instanceof Error ? err.message : "Failed to save GECD tags" });
+    }
+  });
+
+  // GET /api/licensed-resources — list all licensed image resources (pre-vetted catalog)
+  app.get("/api/licensed-resources", async (req, res) => {
+    try {
+      const { terms, section } = req.query;
+      const allResources = await storage.getLicensedImageResources();
+      let resources = allResources;
+      if (terms) {
+        const termList = (terms as string).split(",").map(t => t.trim()).filter(Boolean);
+        resources = await storage.findLicensedResourcesByTerms(termList);
+      } else if (section) {
+        const sectionStr = section as string;
+        resources = allResources.filter(r => r.section === sectionStr);
+      }
+      res.json(resources);
+    } catch (err) {
+      res.status(500).json({ error: "Failed to fetch licensed resources" });
+    }
+  });
+
+  // GET /api/candidates/gecd-filter — filter candidates by GECD tag dimensions
+  app.get("/api/candidates/gecd-filter", async (req, res) => {
+    try {
+      const { dimensionMapping, culture, material, element } = req.query;
+      const filters = {
+        dimensionMapping: dimensionMapping as string | undefined,
+        culture: culture as string | undefined,
+        material: material as string | undefined,
+        element: element as string | undefined,
+      };
+      const candidates = await storage.getCandidatesWithGecdFilter(filters);
+      res.json(candidates);
+    } catch (err) {
+      res.status(500).json({ error: "Failed to filter candidates by GECD tags" });
+    }
   });
 
   app.get("/api/ontology/all", async (_req, res) => {

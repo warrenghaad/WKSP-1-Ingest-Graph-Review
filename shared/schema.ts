@@ -68,8 +68,43 @@ export const conceptCandidates = pgTable("concept_candidates", {
   sourceType: text("source_type").default("open_web").notNull(),
   accuracyStatus: text("accuracy_status").default("unreviewed").notNull(),
   approved: text("approved").default("pending").notNull(),
+  gecdStatus: text("gecd_status").default("unscored").notNull(),
+  gecdScore: real("gecd_score"),
   metadata: jsonb("metadata"),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export const candidateGecdTags = pgTable("candidate_gecd_tags", {
+  id: serial("id").primaryKey(),
+  candidateId: integer("candidate_id").notNull(),
+  dimensionMapping: text("dimension_mapping"),
+  geometricElements: text("geometric_elements").array(),
+  operations: text("operations").array(),
+  materials: text("materials").array(),
+  techniques: text("techniques").array(),
+  culturalContext: text("cultural_context"),
+  mathLinks: text("math_links").array(),
+  patternType: text("pattern_type"),
+  notes: text("notes"),
+  confirmedAt: timestamp("confirmed_at"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export const licensedImageResources = pgTable("licensed_image_resources", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  section: text("section").notNull(),
+  imageUrl: text("image_url"),
+  source: text("source"),
+  license: text("license"),
+  dimensionMapping: text("dimension_mapping"),
+  geometricElements: text("geometric_elements").array(),
+  materials: text("materials").array(),
+  techniques: text("techniques").array(),
+  culture: text("culture"),
+  description: text("description"),
+  gecdScore: real("gecd_score").default(1.0),
+  searchTerms: text("search_terms").array(),
 });
 
 export const entities = pgTable("entities", {
@@ -480,6 +515,15 @@ export const insertCandidateSchema = createInsertSchema(conceptCandidates).omit(
   createdAt: true,
 });
 
+export const insertCandidateGecdTagsSchema = createInsertSchema(candidateGecdTags).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertLicensedImageResourceSchema = createInsertSchema(licensedImageResources).omit({
+  id: true,
+});
+
 export const insertEntitySchema = createInsertSchema(entities).omit({
   id: true,
   createdAt: true,
@@ -679,6 +723,10 @@ export type ConceptCard = typeof conceptCards.$inferSelect;
 export type InsertConceptCard = z.infer<typeof insertConceptCardSchema>;
 export type ConceptCandidate = typeof conceptCandidates.$inferSelect;
 export type InsertConceptCandidate = z.infer<typeof insertCandidateSchema>;
+export type CandidateGecdTags = typeof candidateGecdTags.$inferSelect;
+export type InsertCandidateGecdTags = z.infer<typeof insertCandidateGecdTagsSchema>;
+export type LicensedImageResource = typeof licensedImageResources.$inferSelect;
+export type InsertLicensedImageResource = z.infer<typeof insertLicensedImageResourceSchema>;
 export type Entity = typeof entities.$inferSelect;
 export type InsertEntity = z.infer<typeof insertEntitySchema>;
 export type Asset = typeof assets.$inferSelect;

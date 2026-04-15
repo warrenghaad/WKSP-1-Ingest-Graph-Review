@@ -7,11 +7,24 @@ A 3D interactive timeline for exploring Mesopotamian artifacts (~6500 BCE – 33
 - **Frontend**: React + TypeScript with Vite, Tailwind CSS v4, shadcn/ui, Framer Motion, React Three Fiber (3D timeline)
 - **Backend**: Express.js with TypeScript
 - **Routing**: wouter (frontend SPA routing), Express (API)
-- **AI Integration**: OpenAI (via Replit AI Integrations) for query enhancement and image generation (gpt-image-1), Perplexity API for web-powered image search
+- **AI Integration**: OpenAI (via Replit AI Integrations) for query enhancement and image generation (gpt-image-1), Perplexity API for web-powered image search, Gemini for GECD vision analysis
 - **Museum APIs**: Metropolitan Museum (CC0, no key), Smithsonian Open Access (DEMO_KEY), Wikimedia Commons (free)
-- **Database**: PostgreSQL with Drizzle ORM (sessions, concept cards, candidates, saved images)
+- **Database**: PostgreSQL with Drizzle ORM (sessions, concept cards, candidates, saved images, GECD tags, licensed resources)
 - **Storage**: DatabaseStorage backed by PostgreSQL
 - **Notion Integration**: Connected via MCP for reading Project Euclid databases (Geometric Element Atomics, Primitives × Civilizations, GEM Production Matrix)
+
+## GECD Qualification Pipeline (Task #15)
+**GECD** = Geometric Elements, Cultural context, Dimensionality.
+
+A qualification gate added between "candidate found" and "candidate approved":
+- **Schema**: `conceptCandidates` now has `gecdStatus` (unscored/qualified/insufficient) and `gecdScore` fields; `candidateGecdTags` junction table stores ontology tags per candidate; `licensedImageResources` holds 25 pre-vetted curated catalog entries seeded from the Licensed Image Resource Guide.
+- **API Endpoints**:
+  - `POST /api/candidates/:id/gecd-qualify` — runs Gemini vision analysis against the candidate image URL, scores 0-100, sets status, and stores suggested tags
+  - `GET /api/candidates/:id/gecd-tags` — returns GECD tags for a candidate as array of `{category, tagId, label, confidence}`
+  - `POST /api/candidates/:id/gecd-tags` — saves curator-confirmed tags and sets status to "qualified"
+  - `GET /api/licensed-resources?section=&terms=` — lists pre-vetted licensed image resources with optional section/search filtering
+- **UI**: Candidate cards in Textreader now show GECD status badge (gray/emerald/red), expandable GECD panel with "Run GECD" and "Confirm Tags" buttons, GECD status filter dropdown, and ontology-backed per-dimension add/remove tag dropdowns
+- **OntologyExplorer**: "Licensed (25)" tab groups pre-vetted resources by section with GECD dimension badges; "GECD Dimension" filter dropdown on manifestations sidebar; `GECD_DIM_COLORS` for visual consistency across both pages
 
 ## MAGIC Framework
 Five variables plotted on the Braid graph — each is a scored float (0–1) per research instantiation:

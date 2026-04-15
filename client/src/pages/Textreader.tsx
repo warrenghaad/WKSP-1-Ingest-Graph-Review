@@ -34,7 +34,19 @@ interface Candidate {
   id: number; conceptCardId: number; imageUrl: string; title: string | null;
   source: string | null; objectUrl: string | null; sourceType: string;
   accuracyStatus: string; approved: string;
+  gecdStatus?: string | null; gecdScore?: number | null;
 }
+
+interface GecdTag {
+  id?: number; candidateId: number; category: string; tagId: string | null;
+  label: string; confidence: number;
+}
+
+const GECD_STATUS_BADGES: Record<string, { label: string; color: string; icon: string }> = {
+  unscored: { label: "GECD?", color: "bg-gray-100 text-gray-500 border-gray-300", icon: "◯" },
+  qualified: { label: "GECD✓", color: "bg-emerald-100 text-emerald-700 border-emerald-300", icon: "✓" },
+  insufficient: { label: "GECD✕", color: "bg-red-100 text-red-700 border-red-300", icon: "✕" },
+};
 
 interface QuickResult {
   url: string; title: string; source: string;
@@ -289,6 +301,91 @@ export default function Textreader() {
       }
     },
   });
+
+  const [gecdLoading, setGecdLoading] = useState<number | null>(null);
+  const [gecdPanelId, setGecdPanelId] = useState<number | null>(null);
+  const [gecdTagsMap, setGecdTagsMap] = useState<Record<number, GecdTag[]>>({});
+  const [gecdSummaryMap, setGecdSummaryMap] = useState<Record<number, string>>({});
+  const [gecdFilter, setGecdFilter] = useState<"all" | "unscored" | "qualified" | "insufficient">("all");
+  const [gecdTagDimFilter, setGecdTagDimFilter] = useState<string>("");
+  const [gecdTagCultureFilter, setGecdTagCultureFilter] = useState<string>("");
+  const [gecdTagMaterialFilter, setGecdTagMaterialFilter] = useState<string>("");
+  const [gecdTagElementFilter, setGecdTagElementFilter] = useState<string>("");
+  const [editingGecdTags, setEditingGecdTags] = useState<Record<number, GecdTag[]>>({}); // per-candidate edited tag state
+
+  const ontologyQuery = useQuery({
+    queryKey: ["ontology-all"],
+    queryFn: () => fetch("/api/ontology/all").then(r => r.json()),
+    staleTime: 60 * 60 * 1000,
+  });
+
+  const runGecdQualify = async (candidateId: number) => {
+    setGecdLoading(candidateId);
+    try {
+      const res = await apiRequest("POST", `/api/candidates/${candidateId}/gecd-qualify`, {});
+      const data = await res.json() as { suggestedTags?: GecdTag[]; summary?: string; gecdStatus?: string; gecdScore?: number };
+      if (data.suggestedTags) {
+        setGecdTagsMap(prev => ({ ...prev, [candidateId]: data.suggestedTags! }));
+        setEditingGecdTags(prev => ({ ...prev, [candidateId]: data.suggestedTags! }));
+      }
+      if (data.summary) setGecdSummaryMap(prev => ({ ...prev, [candidateId]: data.summary! }));
+      setGecdPanelId(candidateId);
+      queryClient.invalidateQueries({ queryKey: ["candidates", selectedConceptId] });
+      toast({ title: `GECD: ${data.gecdStatus === "qualified" ? "Qualified ✓" : "Insufficient ✕"}`, description: `Score: ${data.gecdScore}/100` });
+    } catch {
+      toast({ title: "GECD analysis failed", variant: "destructive" });
+    } finally {
+      setGecdLoading(null);
+    }
+  };
+
+  const fetchGecdTags = async (candidateId: number) => {
+    try {
+      const res = await fetch(`/api/candidates/${candidateId}/gecd-tags`);
+      const tags = await res.json() as GecdTag[];
+      if (Array.isArray(tags) && tags.length > 0) {
+        setGecdTagsMap(prev => ({ ...prev, [candidateId]: tags }));
+        setEditingGecdTags(prev => ({ ...prev, [candidateId]: tags }));
+      }
+    } catch { /* silent */ }
+  };
+
+  // When any GECD tag filter is activated, preload tags for all scored candidates
+  // so filtering works reliably across all candidates, not just those whose panel was opened
+  const hasAnyTagFilter = !!(gecdTagDimFilter || gecdTagCultureFilter || gecdTagMaterialFilter || gecdTagElementFilter);
+  useEffect(() => {
+    if (!hasAnyTagFilter) return;
+    const unloaded = candidates.filter(c => c.gecdStatus && c.gecdStatus !== "unscored" && !gecdTagsMap[c.id]);
+    if (unloaded.length === 0) return;
+    unloaded.forEach((c, i) => setTimeout(() => fetchGecdTags(c.id), i * 80));
+  }, [hasAnyTagFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const addGecdTag = (candidateId: number, tag: GecdTag) => {
+    setEditingGecdTags(prev => {
+      const existing = prev[candidateId] || [];
+      const filtered = existing.filter(t => !(t.category === tag.category && t.tagId === tag.tagId));
+      return { ...prev, [candidateId]: [...filtered, tag] };
+    });
+  };
+
+  const removeGecdTag = (candidateId: number, category: string, tagId: string | null) => {
+    setEditingGecdTags(prev => ({
+      ...prev,
+      [candidateId]: (prev[candidateId] || []).filter(t => !(t.category === category && t.tagId === tagId)),
+    }));
+  };
+
+  const saveGecdTags = async (candidateId: number) => {
+    const tags = editingGecdTags[candidateId] || [];
+    try {
+      const res = await apiRequest("POST", `/api/candidates/${candidateId}/gecd-tags`, { tags });
+      await res.json();
+      queryClient.invalidateQueries({ queryKey: ["candidates", selectedConceptId] });
+      toast({ title: "GECD tags confirmed", description: `${tags.length} tag(s) saved` });
+    } catch {
+      toast({ title: "Failed to save GECD tags", variant: "destructive" });
+    }
+  };
 
   const handoffMutation = useMutation({
     mutationFn: async () => {
@@ -1323,15 +1420,79 @@ export default function Textreader() {
 
                   {/* Candidates */}
                   <div className="p-3">
-                    <h3 className="text-xs font-semibold text-gray-700 mb-2">Candidates ({candidates.length})</h3>
+                    <div className="mb-1">
+                      <div className="flex items-center justify-between gap-1 mb-1">
+                        <h3 className="text-xs font-semibold text-gray-700 shrink-0">Candidates ({candidates.length})</h3>
+                        <select
+                          value={gecdFilter}
+                          onChange={e => setGecdFilter(e.target.value as typeof gecdFilter)}
+                          className="text-[8px] border border-gray-200 rounded px-1 py-0.5 bg-white text-gray-600"
+                          data-testid="select-gecd-filter"
+                          title="Filter by GECD status">
+                          <option value="all">All GECD</option>
+                          <option value="unscored">Unscored</option>
+                          <option value="qualified">Qualified ✓</option>
+                          <option value="insufficient">Insuff ✕</option>
+                        </select>
+                      </div>
+                      {(() => {
+                        const ont = ontologyQuery.data as { dimensions?: Array<{id: string; name: string}>; cultures?: Array<{id: string; name: string}>; materials?: Array<{id: string; name: string}>; elements?: Array<{id: string; name: string}> } | undefined;
+                        const hasTagFilters = !!(gecdTagDimFilter || gecdTagCultureFilter || gecdTagMaterialFilter || gecdTagElementFilter);
+                        return (
+                          <div className="flex flex-wrap gap-0.5">
+                            <select value={gecdTagDimFilter} onChange={e => setGecdTagDimFilter(e.target.value)}
+                              className="text-[7px] border border-blue-200 rounded px-0.5 py-0.5 bg-white text-blue-700"
+                              data-testid="select-gecd-tag-dim-filter" title="Filter by GECD dimension">
+                              <option value="">Dim: All</option>
+                              {ont?.dimensions?.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                            </select>
+                            <select value={gecdTagCultureFilter} onChange={e => setGecdTagCultureFilter(e.target.value)}
+                              className="text-[7px] border border-orange-200 rounded px-0.5 py-0.5 bg-white text-orange-700"
+                              data-testid="select-gecd-tag-culture-filter" title="Filter by culture">
+                              <option value="">Civ: All</option>
+                              {ont?.cultures?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                            </select>
+                            <select value={gecdTagMaterialFilter} onChange={e => setGecdTagMaterialFilter(e.target.value)}
+                              className="text-[7px] border border-amber-200 rounded px-0.5 py-0.5 bg-white text-amber-700"
+                              data-testid="select-gecd-tag-material-filter" title="Filter by material">
+                              <option value="">Mat: All</option>
+                              {ont?.materials?.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                            </select>
+                            <select value={gecdTagElementFilter} onChange={e => setGecdTagElementFilter(e.target.value)}
+                              className="text-[7px] border border-purple-200 rounded px-0.5 py-0.5 bg-white text-purple-700"
+                              data-testid="select-gecd-tag-element-filter" title="Filter by geometric element">
+                              <option value="">Elem: All</option>
+                              {ont?.elements?.map(el => <option key={el.id} value={el.id}>{el.name}</option>)}
+                            </select>
+                            {hasTagFilters && (
+                              <button onClick={() => { setGecdTagDimFilter(""); setGecdTagCultureFilter(""); setGecdTagMaterialFilter(""); setGecdTagElementFilter(""); }}
+                                className="text-[7px] px-0.5 py-0.5 bg-gray-100 text-gray-500 rounded hover:bg-gray-200"
+                                data-testid="button-clear-gecd-tag-filters" title="Clear tag filters">✕</button>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
                     {candidatesQuery.isLoading ? (
                       <p className="text-xs text-gray-400">Loading...</p>
                     ) : candidates.length === 0 ? (
                       <p className="text-xs text-gray-400 italic">Run search or generate AI image</p>
                     ) : (
                       <div className="grid grid-cols-2 gap-2">
-                        {candidates.map((c) => {
+                        {candidates.filter(c => {
+                          if (gecdFilter !== "all" && (c.gecdStatus || "unscored") !== gecdFilter) return false;
+                          if (gecdTagDimFilter || gecdTagCultureFilter || gecdTagMaterialFilter || gecdTagElementFilter) {
+                            const tags = editingGecdTags[c.id] || gecdTagsMap[c.id] || [];
+                            if (gecdTagDimFilter && !tags.some(t => t.category === "dimension" && t.tagId === gecdTagDimFilter)) return false;
+                            if (gecdTagCultureFilter && !tags.some(t => t.category === "culture" && t.tagId === gecdTagCultureFilter)) return false;
+                            if (gecdTagMaterialFilter && !tags.some(t => t.category === "material" && t.tagId === gecdTagMaterialFilter)) return false;
+                            if (gecdTagElementFilter && !tags.some(t => t.category === "element" && t.tagId === gecdTagElementFilter)) return false;
+                          }
+                          return true;
+                        }).map((c) => {
                           const d = c.approved;
+                          const gStatus = c.gecdStatus || "unscored";
+                          const gBadge = GECD_STATUS_BADGES[gStatus] || GECD_STATUS_BADGES.unscored;
                           const cardBorder =
                             d === "approve_reference" ? "border-green-400 ring-1 ring-green-200" :
                             d === "reject" ? "border-red-300 opacity-50" :
@@ -1340,20 +1501,27 @@ export default function Textreader() {
                             d === "needs_crop_or_resize" ? "border-yellow-400 ring-1 ring-yellow-100" :
                             d === "needs_better_source" ? "border-gray-400 ring-1 ring-gray-200" :
                             "border-gray-200";
+                          const isGecdOpen = gecdPanelId === c.id;
+                          const gecdTags = gecdTagsMap[c.id] || [];
+                          const gecdSummary = gecdSummaryMap[c.id] || "";
                           return (
                           <div key={c.id}
-                            className={`rounded border overflow-hidden ${cardBorder}`}
+                            className={`rounded border overflow-hidden ${cardBorder} col-span-1`}
                             data-testid={`candidate-${c.id}`}>
                             <div className="relative bg-gray-100" style={{ aspectRatio: "1/1", maxHeight: 120 }}>
                               <img src={c.imageUrl} alt={c.title || ""}
                                 className="w-full h-full object-contain"
                                 onError={(e) => { (e.target as HTMLImageElement).src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect width='100' height='100' fill='%23eee'/%3E%3Ctext x='50' y='55' text-anchor='middle' fill='%23999' font-size='10'%3ENo img%3C/text%3E%3C/svg%3E"; }} />
-                              <div className="absolute top-1 left-1 flex gap-0.5">
+                              <div className="absolute top-1 left-1 flex gap-0.5 flex-wrap">
                                 {SOURCE_TYPE_BADGES[c.sourceType] && (
                                   <span className={`text-[8px] px-1 py-0.5 rounded ${SOURCE_TYPE_BADGES[c.sourceType].color}`}>
                                     {SOURCE_TYPE_BADGES[c.sourceType].label}
                                   </span>
                                 )}
+                                <span className={`text-[8px] px-1 py-0.5 rounded border font-medium ${gBadge.color}`}
+                                  data-testid={`gecd-badge-${c.id}`} title={`GECD: ${gStatus}${c.gecdScore != null ? ` (${c.gecdScore}/100)` : ""}`}>
+                                  {gBadge.label}
+                                </span>
                               </div>
                               <div className="absolute bottom-1 left-1">
                                 {ACCURACY_BADGES[c.accuracyStatus] && (
@@ -1385,6 +1553,109 @@ export default function Textreader() {
                             <div className="p-1.5">
                               <p className="text-[10px] text-gray-700 font-medium line-clamp-1">{c.title || "Untitled"}</p>
                               <p className="text-[9px] text-gray-400 mb-1">{c.source || "?"}</p>
+                              {/* GECD Qualify button */}
+                              <button
+                                onClick={() => {
+                                  if (isGecdOpen) { setGecdPanelId(null); } else {
+                                    if (gecdTags.length === 0 && gStatus !== "unscored") fetchGecdTags(c.id);
+                                    setGecdPanelId(c.id);
+                                  }
+                                }}
+                                className={`w-full text-[8px] py-0.5 px-1 rounded font-medium mb-1 border flex items-center justify-between ${isGecdOpen ? "bg-indigo-100 text-indigo-700 border-indigo-300" : "bg-gray-50 text-gray-600 border-gray-200 hover:bg-indigo-50 hover:text-indigo-600"}`}
+                                data-testid={`button-gecd-panel-${c.id}`}>
+                                <span>GECD {gStatus === "qualified" ? "✓" : gStatus === "insufficient" ? "✕" : "?"}</span>
+                                <span>{isGecdOpen ? "▲" : "▼"}</span>
+                              </button>
+
+                              {/* GECD Panel */}
+                              {isGecdOpen && (() => {
+                                const ontology = ontologyQuery.data as { elements?: Array<{id: string; name: string}>; dimensions?: Array<{id: string; name: string}>; operations?: Array<{id: string; name: string}>; materials?: Array<{id: string; name: string}>; techniques?: Array<{id: string; name: string}>; cultures?: Array<{id: string; name: string}>; mathConcepts?: Array<{id: string; name: string}> } | undefined;
+                                const currentEdits = editingGecdTags[c.id] || [];
+                                const hasByCategory = (cat: string) => currentEdits.some(t => t.category === cat);
+                                return (
+                                <div className="mb-1 p-1.5 bg-indigo-50 rounded border border-indigo-200 text-[8px]" data-testid={`gecd-panel-${c.id}`}>
+                                  <div className="flex items-center justify-between mb-1">
+                                    <span className="font-semibold text-indigo-700">GECD Analysis</span>
+                                    {c.gecdScore != null && (
+                                      <span className={`px-1 py-0.5 rounded font-bold ${c.gecdScore >= 60 ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
+                                        {c.gecdScore}/100
+                                      </span>
+                                    )}
+                                  </div>
+                                  {gecdSummary && <p className="text-gray-600 italic mb-1.5 text-[7px] leading-tight">{gecdSummary}</p>}
+
+                                  {/* Current tag chips (editable) */}
+                                  {currentEdits.length > 0 && (
+                                    <div className="flex flex-wrap gap-0.5 mb-1.5">
+                                      {currentEdits.map((tag, i) => (
+                                        <span key={i} className="inline-flex items-center gap-0.5 px-1 py-0.5 bg-white border border-indigo-200 rounded text-indigo-700"
+                                          title={`${tag.category}`}>
+                                          <span className="text-[6px] text-indigo-400 uppercase">{tag.category.slice(0,3)}</span>
+                                          <span>{tag.label}</span>
+                                          <button onClick={() => removeGecdTag(c.id, tag.category, tag.tagId)}
+                                            className="text-red-400 hover:text-red-600 ml-0.5" title="Remove tag">×</button>
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+
+                                  {/* Ontology-backed tag selectors */}
+                                  <div className="space-y-0.5 mb-1.5">
+                                    {ontology && ([
+                                      { key: "dimension", label: "Dim", items: ontology.dimensions || [], color: "border-blue-200" },
+                                      { key: "element", label: "Elem", items: ontology.elements || [], color: "border-purple-200" },
+                                      { key: "operation", label: "Op", items: ontology.operations || [], color: "border-fuchsia-200" },
+                                      { key: "material", label: "Mat", items: ontology.materials || [], color: "border-amber-200" },
+                                      { key: "technique", label: "Tech", items: ontology.techniques || [], color: "border-teal-200" },
+                                      { key: "culture", label: "Civ", items: ontology.cultures || [], color: "border-orange-200" },
+                                      { key: "mathLink", label: "Math", items: ontology.mathConcepts || [], color: "border-green-200" },
+                                    ] as const).map(({ key, label, items, color }) => (
+                                      <div key={key} className="flex items-center gap-0.5">
+                                        <span className="text-[7px] text-gray-400 w-6 shrink-0">{label}</span>
+                                        <select
+                                          className={`flex-1 text-[8px] bg-white border ${color} rounded px-0.5 py-0.5 text-gray-700`}
+                                          data-testid={`gecd-select-${key}-${c.id}`}
+                                          onChange={e => {
+                                            const val = e.target.value;
+                                            if (!val) return;
+                                            const item = items.find(i => i.id === val);
+                                            addGecdTag(c.id, { candidateId: c.id, category: key, tagId: val, label: item?.name || val, confidence: 1 });
+                                            e.target.value = "";
+                                          }}>
+                                          <option value="">+ Add {label.toLowerCase()}…</option>
+                                          {items.map(item => {
+                                            const already = currentEdits.some(t => t.category === key && t.tagId === item.id);
+                                            return <option key={item.id} value={item.id} disabled={already}>{item.name}{already ? " ✓" : ""}</option>;
+                                          })}
+                                        </select>
+                                      </div>
+                                    ))}
+                                  </div>
+
+                                  {!hasByCategory("element") && !hasByCategory("dimension") && !gecdSummary && (
+                                    <p className="text-gray-400 italic mb-1 text-[7px]">Run GECD to auto-tag, or use dropdowns above</p>
+                                  )}
+
+                                  <div className="flex gap-1">
+                                    <button
+                                      onClick={() => runGecdQualify(c.id)}
+                                      disabled={gecdLoading === c.id}
+                                      className="flex-1 py-0.5 px-1 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50 font-medium"
+                                      data-testid={`button-run-gecd-${c.id}`}>
+                                      {gecdLoading === c.id ? "Analyzing…" : "Run GECD"}
+                                    </button>
+                                    <button
+                                      onClick={() => saveGecdTags(c.id)}
+                                      disabled={currentEdits.length === 0}
+                                      className="flex-1 py-0.5 px-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 disabled:opacity-40 font-medium"
+                                      data-testid={`button-confirm-gecd-${c.id}`}>
+                                      Confirm ({currentEdits.length})
+                                    </button>
+                                  </div>
+                                </div>
+                                );
+                              })()}
+
                               <div className="grid grid-cols-3 gap-0.5">
                                 <button
                                   onClick={() => updateCandidate.mutate({ id: c.id, updates: { approved: "approve_reference", accuracyStatus: "historically_grounded" } })}

@@ -280,11 +280,31 @@ function DeityCard({ deity }: { deity: OntologyDeity }) {
   );
 }
 
+interface LicensedResource {
+  id: number; title: string; section: string; imageUrl: string | null;
+  source: string; license: string; dimensionMapping: string | null;
+  geometricElements: string[] | null; materials: string[] | null;
+  techniques: string[] | null; culture: string | null;
+  description: string | null; searchTerms: string[] | null;
+}
+
+const GECD_DIM_COLORS: Record<string, string> = {
+  "map-1d-on-2d": "#3b82f6",
+  "map-1d-on-3d": "#6366f1",
+  "map-1d-builds-2d-on-2d": "#8b5cf6",
+  "map-2d-on-2d": "#0ea5e9",
+  "map-2d-on-3d": "#14b8a6",
+  "map-2d-to-3d": "#16a34a",
+  "map-3d-objects": "#f97316",
+  "map-3d-versions-of-2d": "#eab308",
+};
+
 export default function OntologyExplorer() {
-  const [activeTab, setActiveTab] = useState<"manifestations" | "mythology" | "architecture" | "reference">("manifestations");
+  const [activeTab, setActiveTab] = useState<"manifestations" | "mythology" | "architecture" | "reference" | "licensed">("manifestations");
   const [filterCulture, setFilterCulture] = useState("");
   const [filterDimension, setFilterDimension] = useState("");
   const [filterMaterial, setFilterMaterial] = useState("");
+  const [filterGecdDim, setFilterGecdDim] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const { data, isLoading, error } = useQuery<OntologyAll>({
@@ -296,15 +316,22 @@ export default function OntologyExplorer() {
     },
   });
 
+  const { data: licensedResources } = useQuery<LicensedResource[]>({
+    queryKey: ["/api/licensed-resources"],
+    queryFn: () => fetch("/api/licensed-resources").then(r => r.json()),
+    staleTime: 10 * 60 * 1000,
+  });
+
   const filteredManifestations = useMemo(() => {
     if (!data) return [];
     return data.manifestations.filter(m => {
       if (filterCulture && m.culture !== filterCulture) return false;
       if (filterDimension && m.dimensionMapping !== filterDimension) return false;
       if (filterMaterial && !(m.materials ?? []).includes(filterMaterial)) return false;
+      if (filterGecdDim && m.dimensionMapping !== filterGecdDim) return false;
       return true;
     });
-  }, [data, filterCulture, filterDimension, filterMaterial]);
+  }, [data, filterCulture, filterDimension, filterMaterial, filterGecdDim]);
 
   const dimMappingOptions = useMemo(() => {
     if (!data) return [];
@@ -409,11 +436,26 @@ export default function OntologyExplorer() {
                   </select>
                 </div>
 
-                {(filterCulture || filterDimension || filterMaterial) && (
+                <div style={{ marginTop: 10 }}>
+                  <label style={{ fontSize: 12, color: "#94a3b8", display: "block", marginBottom: 4 }}>GECD Dimension</label>
+                  <select
+                    data-testid="filter-gecd-dimension"
+                    value={filterGecdDim}
+                    onChange={e => setFilterGecdDim(e.target.value)}
+                    style={{ width: "100%", background: "#1e293b", color: "#f1f5f9", border: "1px solid #334155", borderRadius: 6, padding: "6px 8px", fontSize: 12 }}
+                  >
+                    <option value="">All GECD Dims</option>
+                    {Object.entries(DIM_MAP_LABELS).map(([id, label]) => (
+                      <option key={id} value={id}>{label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {(filterCulture || filterDimension || filterMaterial || filterGecdDim) && (
                   <button
                     data-testid="button-clear-filters"
-                    onClick={() => { setFilterCulture(""); setFilterDimension(""); setFilterMaterial(""); }}
-                    style={{ width: "100%", background: "#1e293b", color: "#94a3b8", border: "1px solid #334155", borderRadius: 6, padding: "6px 8px", fontSize: 12, cursor: "pointer" }}
+                    onClick={() => { setFilterCulture(""); setFilterDimension(""); setFilterMaterial(""); setFilterGecdDim(""); }}
+                    style={{ width: "100%", background: "#1e293b", color: "#94a3b8", border: "1px solid #334155", borderRadius: 6, padding: "6px 8px", fontSize: 12, cursor: "pointer", marginTop: 8 }}
                   >
                     Clear Filters
                   </button>
@@ -446,6 +488,7 @@ export default function OntologyExplorer() {
                   { key: "manifestations", label: `Manifestations (${filteredManifestations.length})` },
                   { key: "mythology", label: `Mythology (${data.deities.length})` },
                   { key: "architecture", label: `Architecture (${data.archTranslations.length})` },
+                  { key: "licensed", label: `Licensed (${licensedResources?.length ?? 0})` },
                   { key: "reference", label: "Reference" },
                 ] as const).map(tab => (
                   <button
@@ -556,6 +599,64 @@ export default function OntologyExplorer() {
                       </div>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {activeTab === "licensed" && (
+                <div>
+                  <div style={{ fontSize: 13, color: "#64748b", marginBottom: 16 }}>
+                    Pre-vetted licensed image resources from the GECD curriculum guide. All images are cleared for educational use.
+                  </div>
+                  {!licensedResources || licensedResources.length === 0 ? (
+                    <div style={{ textAlign: "center", padding: "40px 0", color: "#64748b" }}>
+                      <div style={{ fontSize: 24, marginBottom: 8 }}>📋</div>
+                      <div>No licensed resources loaded yet.</div>
+                    </div>
+                  ) : (
+                    (() => {
+                      const sections = Array.from(new Set(licensedResources.map(r => r.section)));
+                      return (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+                          {sections.map(section => (
+                            <div key={section}>
+                              <h3 style={{ margin: "0 0 12px", fontSize: 14, fontWeight: 700, color: "#f1f5f9", borderBottom: "1px solid #1e293b", paddingBottom: 6 }}>
+                                {section}
+                              </h3>
+                              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 10 }}>
+                                {licensedResources.filter(r => r.section === section).map(r => {
+                                  const dimColor = r.dimensionMapping ? (GECD_DIM_COLORS[r.dimensionMapping] ?? "#64748b") : "#64748b";
+                                  const dimLabel = r.dimensionMapping ? (DIM_MAP_LABELS[r.dimensionMapping] ?? r.dimensionMapping) : null;
+                                  return (
+                                    <div key={r.id} data-testid={`card-licensed-${r.id}`}
+                                      style={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 10, padding: 12, display: "flex", flexDirection: "column", gap: 6 }}>
+                                      {r.imageUrl && (
+                                        <img src={r.imageUrl} alt={r.title}
+                                          style={{ width: "100%", height: 80, objectFit: "cover", borderRadius: 6, background: "#1e293b" }}
+                                          onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                                      )}
+                                      <div style={{ fontWeight: 600, fontSize: 13, color: "#f1f5f9", lineHeight: 1.3 }}>{r.title}</div>
+                                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                                        {dimLabel && <Badge label={dimLabel} color={dimColor} />}
+                                        {r.culture && <Badge label={r.culture.replace("civ-", "")} color={CULTURE_COLORS[r.culture] ?? "#64748b"} />}
+                                        <Badge label={r.license} color="#64748b" />
+                                      </div>
+                                      {r.description && <p style={{ color: "#64748b", fontSize: 11, margin: 0, lineHeight: 1.4 }}>{r.description}</p>}
+                                      <div style={{ fontSize: 10, color: "#475569" }}>Source: {r.source}</div>
+                                      {r.geometricElements && r.geometricElements.length > 0 && (
+                                        <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
+                                          {r.geometricElements.map(el => <Badge key={el} label={el.replace("geo-", "")} color="#8b5cf6" />)}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()
+                  )}
                 </div>
               )}
 
