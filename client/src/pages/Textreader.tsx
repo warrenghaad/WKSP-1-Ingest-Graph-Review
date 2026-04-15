@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "../lib/queryClient";
 import { Link } from "wouter";
+import { useToast } from "@/hooks/use-toast";
 
 const SESSION_STORAGE_KEY = "chronos_textreader_session_id";
 
@@ -96,6 +97,7 @@ const NEXT_STATE: Partial<Record<ConceptState, ConceptState>> = {
 
 export default function Textreader() {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [sessionId, setSessionId] = useState<number | null>(() => {
     const stored = localStorage.getItem(SESSION_STORAGE_KEY);
     return stored ? parseInt(stored, 10) || null : null;
@@ -122,6 +124,14 @@ export default function Textreader() {
   const [autoImages, setAutoImages] = useState<QuickResult[]>([]);
   const [autoSearching, setAutoSearching] = useState(false);
   const [autoTerms, setAutoTerms] = useState<string[]>([]);
+
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
+  const [fileUploadLoading, setFileUploadLoading] = useState(false);
+  const [fileUploadError, setFileUploadError] = useState<string | null>(null);
+  const [fileUploadSummary, setFileUploadSummary] = useState<string | null>(null);
+  const [detectedUrl, setDetectedUrl] = useState<string | null>(null);
+  const [urlFetchLoading, setUrlFetchLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [editingQueries, setEditingQueries] = useState(false);
   const [draftQueries, setDraftQueries] = useState<string[]>([]);
@@ -356,9 +366,132 @@ export default function Textreader() {
     active: false, seen: new Set(), done: 0, total: 0,
   });
 
+  const uploadFiles = useCallback(async (files: File[]) => {
+    if (!files.length) return;
+    setFileUploadLoading(true);
+    setFileUploadError(null);
+    setFileUploadSummary(null);
+    try {
+      const formData = new FormData();
+      for (const file of files) formData.append("files", file);
+      const res = await fetch("/api/ingest/file", { method: "POST", body: formData });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Upload failed" }));
+        const msg = err.error || "Upload failed";
+        setFileUploadError(msg);
+        toast({ title: "Upload failed", description: msg, variant: "destructive" });
+        return;
+      }
+      const data = await res.json();
+      const results: Array<{ filename: string; text: string; error?: string }> = data.results || [];
+      const successful = results.filter(r => r.text && !r.error);
+      const failed = results.filter(r => r.error);
+      if (successful.length === 0) {
+        const msg = failed.map(f => `${f.filename}: ${f.error}`).join("; ") || "No text could be extracted";
+        setFileUploadError(msg);
+        toast({ title: "No text extracted", description: msg.slice(0, 120), variant: "destructive" });
+        return;
+      }
+
+      if (successful.length === 1) {
+        // Single file: populate the textarea for the user to review and extract
+        const r = successful[0];
+        setTitle(r.filename.replace(/\.[^.]+$/, "").replace(/[-_]/g, " "));
+        setRawText(r.text);
+        setFileUploadSummary("1 file extracted — review and click Extract Concepts");
+        if (failed.length > 0) {
+          setFileUploadError(failed.map(f => `${f.filename}: ${f.error}`).join("; "));
+        }
+      } else {
+        // Multiple files: ingest each as a separate document through the pipeline
+        let ingested = 0;
+        const ingestErrors: string[] = [];
+        for (const r of successful) {
+          try {
+            const ingestRes = await fetch("/api/ingest/text", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                title: r.filename.replace(/\.[^.]+$/, "").replace(/[-_]/g, " "),
+                text: r.text,
+              }),
+            });
+            if (ingestRes.ok) {
+              ingested++;
+            } else {
+              ingestErrors.push(r.filename);
+            }
+          } catch {
+            ingestErrors.push(r.filename);
+          }
+        }
+        const summaryParts = [`${ingested} document${ingested !== 1 ? "s" : ""} ingested`];
+        if (failed.length > 0) summaryParts.push(`${failed.length} extraction failed`);
+        if (ingestErrors.length > 0) summaryParts.push(`${ingestErrors.length} ingest failed`);
+        setFileUploadSummary(summaryParts.join(", "));
+        if (failed.length > 0 || ingestErrors.length > 0) {
+          const errs = [
+            ...failed.map(f => `${f.filename}: ${f.error}`),
+            ...ingestErrors.map(f => `${f}: ingest failed`),
+          ];
+          setFileUploadError(errs.join("; "));
+        }
+      }
+
+    } catch {
+      const msg = "Upload failed. Please try again.";
+      setFileUploadError(msg);
+      toast({ title: "Upload failed", description: msg, variant: "destructive" });
+    } finally {
+      setFileUploadLoading(false);
+    }
+  }, [toast]);
+
+  const fetchUrl = useCallback(async (url: string) => {
+    setUrlFetchLoading(true);
+    setFileUploadError(null);
+    try {
+      const res = await fetch("/api/ingest/url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Fetch failed" }));
+        const msg = err.error || "Could not fetch URL";
+        setFileUploadError(msg);
+        toast({ title: "URL fetch failed", description: msg, variant: "destructive" });
+        return;
+      }
+      const data = await res.json();
+      if (data.document) {
+        setTitle(data.document.title || url);
+        setRawText(data.document.rawText || "");
+        setSourceUrl(url);
+        setFileUploadSummary(`Fetched from URL — ${data.chunkCount || 0} chunks, ${data.entities?.length || 0} entities extracted`);
+      }
+      setDetectedUrl(null);
+    } catch {
+      const msg = "Could not fetch URL. Make sure it is publicly accessible.";
+      setFileUploadError(msg);
+      toast({ title: "URL fetch failed", description: msg, variant: "destructive" });
+    } finally {
+      setUrlFetchLoading(false);
+    }
+  }, [toast]);
+
   const handlePaste = useCallback((e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const pasted = e.clipboardData.getData("text");
-    if (!pasted || pasted.trim().length < 30) return;
+    if (!pasted) return;
+
+    // Detect URL pastes
+    const trimmed = pasted.trim();
+    if (/^https?:\/\/\S+$/.test(trimmed)) {
+      setDetectedUrl(trimmed);
+      return;
+    }
+
+    if (pasted.trim().length < 30) return;
 
     const terms = extractKeywords(pasted);
     if (!terms.length) return;
@@ -579,6 +712,89 @@ export default function Textreader() {
               )}
             </div>
 
+            {/* File Drop Zone */}
+            <div
+              className={`rounded-lg border-2 border-dashed transition-colors p-3 text-center cursor-pointer ${
+                isDraggingFile
+                  ? "border-amber-400 bg-amber-50"
+                  : "border-gray-200 bg-gray-50 hover:border-amber-300 hover:bg-amber-50/50"
+              }`}
+              data-testid="file-drop-zone"
+              onDragOver={(e) => { e.preventDefault(); setIsDraggingFile(true); }}
+              onDragLeave={() => setIsDraggingFile(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDraggingFile(false);
+                const files = Array.from(e.dataTransfer.files);
+                if (files.length) uploadFiles(files);
+              }}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                data-testid="input-file-picker"
+                accept=".pdf,.doc,.docx,.txt,.md,.json,.js,.ts,.jsx,.tsx,.py,.java,.cpp,.c,.cs,.go,.rs,.rb,.php,.swift,.kt,.sh,.yaml,.yml,.xml,.html,.css,.sql"
+                onChange={(e) => {
+                  const files = Array.from(e.target.files || []);
+                  if (files.length) uploadFiles(files);
+                  e.target.value = "";
+                }}
+              />
+              {fileUploadLoading ? (
+                <div className="flex items-center justify-center gap-1.5 py-1">
+                  <div className="w-3 h-3 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
+                  <span className="text-xs text-amber-700">Extracting text…</span>
+                </div>
+              ) : (
+                <>
+                  <p className="text-xs font-medium text-gray-500">Drop files or click to browse</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">PDF, DOCX, TXT, MD, JSON, code files</p>
+                </>
+              )}
+            </div>
+
+            {/* File upload feedback */}
+            {fileUploadSummary && !fileUploadError && (
+              <div className="rounded px-2 py-1.5 bg-emerald-50 border border-emerald-200 text-[11px] text-emerald-700 flex items-center justify-between" data-testid="file-upload-summary">
+                <span>✓ {fileUploadSummary}</span>
+                <button onClick={() => setFileUploadSummary(null)} className="text-emerald-400 hover:text-emerald-700 ml-2">×</button>
+              </div>
+            )}
+            {fileUploadError && (
+              <div className="rounded px-2 py-1.5 bg-red-50 border border-red-200 text-[11px] text-red-700 flex items-center justify-between" data-testid="file-upload-error">
+                <span>{fileUploadError}</span>
+                <button onClick={() => setFileUploadError(null)} className="text-red-400 hover:text-red-700 ml-2">×</button>
+              </div>
+            )}
+
+            {/* URL detection prompt */}
+            {detectedUrl && (
+              <div className="rounded-lg border border-blue-200 bg-blue-50 p-2.5" data-testid="url-detected-banner">
+                <p className="text-[10px] font-semibold text-blue-800 mb-1.5 uppercase tracking-wide">URL Detected</p>
+                <p className="text-[10px] text-blue-600 mb-2 truncate">{detectedUrl}</p>
+                <div className="flex gap-1.5">
+                  <button
+                    onClick={() => fetchUrl(detectedUrl)}
+                    disabled={urlFetchLoading}
+                    className="flex-1 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 font-medium"
+                    data-testid="button-fetch-url"
+                  >
+                    {urlFetchLoading ? "Fetching…" : "Fetch & Extract"}
+                  </button>
+                  <button
+                    onClick={() => setDetectedUrl(null)}
+                    className="px-2 py-1 text-xs border border-blue-200 text-blue-600 rounded hover:bg-blue-100"
+                    data-testid="button-dismiss-url"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Title</label>
               <input value={title} onChange={(e) => setTitle(e.target.value)}
@@ -592,9 +808,18 @@ export default function Textreader() {
                 <label className="block text-xs font-medium text-gray-500 mb-1">Raw Text</label>
                 <textarea
                   value={rawText}
-                  onChange={(e) => setRawText(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setRawText(val);
+                    const trimmed = val.trim();
+                    if (/^https?:\/\/\S+$/.test(trimmed)) {
+                      setDetectedUrl(trimmed);
+                    } else if (detectedUrl && !trimmed.startsWith("http")) {
+                      setDetectedUrl(null);
+                    }
+                  }}
                   onPaste={handlePaste}
-                  placeholder="Paste research text — images load instantly..."
+                  placeholder="Paste research text or drop a file above…"
                   rows={12}
                   className="w-full text-sm border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-amber-400 resize-none leading-relaxed"
                   data-testid="input-raw-text"

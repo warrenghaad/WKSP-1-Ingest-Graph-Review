@@ -18,6 +18,7 @@ import { searchPerplexityForArtifact } from "./providers/perplexity";
 import { exec } from "child_process";
 import { promisify } from "util";
 import OpenAI from "openai";
+import multer from "multer";
 
 const execAsync = promisify(exec);
 
@@ -27,6 +28,11 @@ const openai = new OpenAI({
 });
 
 const OVERLAY_TYPES = new Set(["geometry", "math", "motif", "ritual", "GEOMETRY", "MATH", "MOTIF", "RITUAL"]);
+
+const uploadMiddleware = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024, files: 10 },
+});
 
 function inferRequirementKind(entityType: string): "SOURCE_ONLY" | "SOURCE_PLUS_OVERLAY" {
   if (OVERLAY_TYPES.has(entityType)) return "SOURCE_PLUS_OVERLAY";
@@ -926,36 +932,57 @@ export async function registerRoutes(
       let fetchedText = "";
       let fetchedTitle = title || url;
 
+      // Detect Google Sheets public links and fetch as CSV
+      const isGoogleSheets = parsedUrl.hostname === "docs.google.com" &&
+        parsedUrl.pathname.includes("/spreadsheets/");
+
       try {
+        let fetchUrl = url;
+        if (isGoogleSheets) {
+          const sheetIdMatch = parsedUrl.pathname.match(/\/spreadsheets\/d\/([^/]+)/);
+          if (sheetIdMatch) {
+            const gid = parsedUrl.searchParams.get("gid") || "0";
+            fetchUrl = `https://docs.google.com/spreadsheets/d/${sheetIdMatch[1]}/export?format=csv&gid=${gid}`;
+            fetchedTitle = title || "Google Sheet";
+          }
+        }
+
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 10000);
-        const fetchRes = await fetch(url, {
+        const fetchRes = await fetch(fetchUrl, {
           headers: { "User-Agent": "EUCLID-DAM/1.0" },
           signal: controller.signal,
-          redirect: "manual",
+          redirect: isGoogleSheets ? "follow" : "manual",
         });
         clearTimeout(timeout);
-        if (fetchRes.status >= 300 && fetchRes.status < 400) {
+        if (!isGoogleSheets && fetchRes.status >= 300 && fetchRes.status < 400) {
           return res.status(400).json({ error: "URL redirects are not followed for security reasons" });
         }
         if (fetchRes.ok) {
           const contentType = fetchRes.headers.get("content-type") ?? "";
-          if (!contentType.includes("text/")) {
-            return res.status(400).json({ error: "URL did not return text content" });
-          }
-          const html = await fetchRes.text();
-          if (html.length > 500_000) {
+          const rawContent = await fetchRes.text();
+          if (rawContent.length > 500_000) {
             return res.status(400).json({ error: "Response too large (max 500KB)" });
           }
-          fetchedText = html
-            .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
-            .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
-            .replace(/<[^>]+>/g, " ")
-            .replace(/\s+/g, " ")
-            .trim()
-            .slice(0, 8000);
-          const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-          if (titleMatch) fetchedTitle = titleMatch[1].trim() || fetchedTitle;
+          if (isGoogleSheets || contentType.includes("text/csv") || contentType.includes("text/plain")) {
+            // For Google Sheets: detect if we got an HTML login page instead of CSV
+            if (isGoogleSheets && (rawContent.trimStart().startsWith("<!DOCTYPE") || rawContent.trimStart().startsWith("<html"))) {
+              return res.status(400).json({ error: "Could not fetch Google Sheet — make sure it is shared publicly (File > Share > Anyone with link)" });
+            }
+            fetchedText = rawContent.replace(/\r\n/g, "\n").trim().slice(0, 8000);
+          } else if (contentType.includes("text/")) {
+            fetchedText = rawContent
+              .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+              .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+              .replace(/<[^>]+>/g, " ")
+              .replace(/\s+/g, " ")
+              .trim()
+              .slice(0, 8000);
+            const titleMatch = rawContent.match(/<title[^>]*>([^<]+)<\/title>/i);
+            if (titleMatch) fetchedTitle = titleMatch[1].trim() || fetchedTitle;
+          } else {
+            return res.status(400).json({ error: "URL did not return text content" });
+          }
         }
       } catch (fetchErr) {
         console.warn("Could not fetch URL:", fetchErr);
@@ -1027,6 +1054,75 @@ export async function registerRoutes(
     } catch (error: unknown) {
       console.error("URL ingestion error:", error);
       res.status(500).json({ error: "URL ingestion failed" });
+    }
+  });
+
+  // ====== FILE INTAKE ENDPOINT ======
+
+  app.post("/api/ingest/file", uploadMiddleware.array("files", 10), async (req, res) => {
+    try {
+      const files = req.files as Express.Multer.File[];
+      if (!files || files.length === 0) {
+        return res.status(400).json({ error: "No files uploaded" });
+      }
+
+      const results: Array<{ filename: string; text: string; mimeType: string; size: number; error?: string }> = [];
+
+      for (const file of files) {
+        const ext = (file.originalname.split(".").pop() ?? "").toLowerCase();
+        const mime = file.mimetype.toLowerCase();
+
+        try {
+          let text = "";
+
+          if (ext === "pdf" || mime === "application/pdf") {
+            const { PDFParse } = await import("pdf-parse");
+            const parser = new PDFParse({ data: file.buffer });
+            const data = await parser.getText();
+            text = data.text.trim();
+          } else if (ext === "docx" || mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
+            const mammoth = await import("mammoth");
+            const result = await mammoth.extractRawText({ buffer: file.buffer });
+            text = result.value.trim();
+          } else if (ext === "doc" || mime === "application/msword") {
+            try {
+              const mammoth = await import("mammoth");
+              const result = await mammoth.extractRawText({ buffer: file.buffer });
+              text = result.value.trim();
+            } catch {
+              results.push({ filename: file.originalname, text: "", mimeType: file.mimetype, size: file.size, error: "Could not extract text from .doc file. Try saving as .docx and uploading again." });
+              continue;
+            }
+          } else if (ext === "json" || mime === "application/json") {
+            const raw = file.buffer.toString("utf-8");
+            const parsed = JSON.parse(raw);
+            text = JSON.stringify(parsed, null, 2);
+          } else {
+            // Plain text, markdown, code files, etc.
+            const textExts = ["txt", "md", "markdown", "js", "ts", "jsx", "tsx", "py", "java", "cpp", "c", "cs", "go", "rs", "rb", "php", "swift", "kt", "sh", "yaml", "yml", "toml", "ini", "cfg", "xml", "html", "htm", "css", "scss", "sql", "r", "scala", "vue", "svelte"];
+            if (textExts.includes(ext) || mime.startsWith("text/") || mime === "application/javascript" || mime === "application/typescript" || mime === "application/xml") {
+              text = file.buffer.toString("utf-8").trim();
+            } else {
+              results.push({ filename: file.originalname, text: "", mimeType: file.mimetype, size: file.size, error: `Unsupported file type: .${ext}` });
+              continue;
+            }
+          }
+
+          if (!text) {
+            results.push({ filename: file.originalname, text: "", mimeType: file.mimetype, size: file.size, error: "No text could be extracted from this file" });
+          } else {
+            results.push({ filename: file.originalname, text: text.slice(0, 50000), mimeType: file.mimetype, size: file.size });
+          }
+        } catch (parseErr) {
+          console.error(`Error parsing file ${file.originalname}:`, parseErr);
+          results.push({ filename: file.originalname, text: "", mimeType: file.mimetype, size: file.size, error: `Failed to parse file: ${(parseErr as Error).message}` });
+        }
+      }
+
+      res.json({ results });
+    } catch (error: unknown) {
+      console.error("File ingestion error:", error);
+      res.status(500).json({ error: "File ingestion failed" });
     }
   });
 
