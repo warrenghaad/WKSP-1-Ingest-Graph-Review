@@ -14,6 +14,7 @@ import {
 } from "@react-three/drei";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import * as THREE from "three";
+import { useLocation } from "wouter";
 import { artifacts, sortedArtifacts, ERAS, Artifact } from "@/lib/artifacts";
 
 interface Timeline3DProps {
@@ -23,6 +24,7 @@ interface Timeline3DProps {
   filterEra: string | null;
   searchQuery: string;
   filterSection?: string | null;
+  navigate?: (path: string) => void;
 }
 
 const YEAR_SCALE = 0.003;
@@ -64,6 +66,7 @@ const ArtifactNodeInner = ({
   isFiltered,
   onClick,
   index,
+  onNavigate,
 }: {
   artifact: Artifact;
   position: [number, number, number];
@@ -71,6 +74,7 @@ const ArtifactNodeInner = ({
   isFiltered: boolean;
   onClick: () => void;
   index: number;
+  onNavigate?: (path: string) => void;
 }) => {
   const groupRef = useRef<THREE.Group>(null);
   const [hovered, setHovered] = useState(false);
@@ -185,7 +189,7 @@ const ArtifactNodeInner = ({
           position={[0, staggerY + 1.2, 0]}
           center
           distanceFactor={8}
-          style={{ pointerEvents: "none" }}
+          style={{ pointerEvents: isSelected ? "auto" : "none" }}
         >
           <div className="bg-black/90 backdrop-blur-md border border-white/10 rounded-lg px-4 py-2.5 whitespace-nowrap shadow-xl">
             <p className="text-white text-sm font-medium leading-tight">
@@ -194,6 +198,18 @@ const ArtifactNodeInner = ({
             <p className="text-white/50 text-[11px] mt-0.5">
               {artifact.location}
             </p>
+            {isSelected && artifact.magic && onNavigate && (
+              <button
+                data-testid={`link-tetrahedron-${artifact.id}`}
+                className="inline-flex items-center gap-1.5 mt-2 px-2.5 py-1 text-[11px] font-medium rounded-md border border-purple-400/20 bg-purple-400/10 text-purple-300 hover:bg-purple-400/20 transition-colors cursor-pointer"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onNavigate(`/node/${artifact.id}`);
+                }}
+              >
+                ▲ View Tetrahedron
+              </button>
+            )}
           </div>
         </Html>
       )}
@@ -208,6 +224,7 @@ const ArtifactNode = (props: {
   isFiltered: boolean;
   onClick: () => void;
   index: number;
+  onNavigate?: (path: string) => void;
 }) => {
   return (
     <React.Suspense fallback={null}>
@@ -426,6 +443,7 @@ const Scene = ({
   filterEra,
   searchQuery,
   filterSection,
+  navigate,
 }: Timeline3DProps) => {
   const filteredIds = useMemo(() => {
     const q = searchQuery.toLowerCase();
@@ -484,6 +502,7 @@ const Scene = ({
             )
           }
           index={index}
+          onNavigate={navigate}
         />
       ))}
 
@@ -492,8 +511,9 @@ const Scene = ({
   );
 };
 
-export default function Timeline3D(props: Timeline3DProps) {
+export default function Timeline3D(props: Omit<Timeline3DProps, 'navigate'>) {
   const [initFailed, setInitFailed] = useState(false);
+  const [, navigate] = useLocation();
 
   if (initFailed) {
     return (
@@ -520,7 +540,7 @@ export default function Timeline3D(props: Timeline3DProps) {
         }}
         gl={{ failIfMajorPerformanceCaveat: false }}
       >
-        <Scene {...props} />
+        <Scene {...props} navigate={navigate} />
       </Canvas>
     </div>
   );
