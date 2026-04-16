@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Search, Database, BookOpen, ExternalLink, Hexagon, FileText,
-  ArrowLeft, ArrowRight, Calendar, MapPin, Tag, Filter, Layers,
+  ArrowLeft, Calendar, MapPin, Tag, Layers,
   Fingerprint, X, Globe, Calculator, Compass, Triangle,
 } from "lucide-react";
 
