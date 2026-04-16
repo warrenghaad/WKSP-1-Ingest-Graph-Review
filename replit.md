@@ -1,7 +1,7 @@
 # Chronos - Mesopotamian Artifact Research Archive
 
 ## Overview
-A 3D interactive timeline for exploring Mesopotamian artifacts (~6500 BCE – 331 BCE), structured around the MAGIC theoretical framework (Mathematics, Aesthetics/Art, Geometry, Institutionalization/Internalization, Control/Power). Includes a reader mode for text-to-image search and an automation lab for batch museum API searches and AI image generation.
+A Mesopotamian artifact research platform (~6500 BCE – 331 BCE), structured around the MAGIC theoretical framework (Mathematics, Aesthetics/Art, Geometry, Institutionalization/Internalization, Control/Power). Features a 2D-first home page with tool navigation grid, artifact browser with search/filters, and opt-in 3D Timeline. Includes a reader mode for text-to-image search and an automation lab for batch museum API searches and AI image generation.
 
 ## Architecture
 - **Frontend**: React + TypeScript with Vite, Tailwind CSS v4, shadcn/ui, Framer Motion, React Three Fiber (3D timeline)
