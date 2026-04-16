@@ -437,7 +437,7 @@ export default function Home() {
                       </div>
                     </div>
 
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 flex-wrap">
                       <Button data-testid="button-open-in-lab" size="sm" className="flex-1 gap-1.5 bg-amber-400/10 hover:bg-amber-400/20 text-amber-300 border border-amber-400/20 rounded-lg"
                         onClick={() => navigate(`/lab?q=${encodeURIComponent(selectedArtifact.name)}`)}>
                         <Search className="w-3.5 h-3.5" /> Search in Lab
@@ -446,6 +446,12 @@ export default function Home() {
                         onClick={() => navigate("/reader")}>
                         <BookOpen className="w-3.5 h-3.5" /> Open Reader
                       </Button>
+                      {selectedArtifact.magic && (
+                        <Button data-testid="button-view-tetrahedron" size="sm" variant="outline" className="flex-1 gap-1.5 border-purple-400/20 bg-purple-400/10 text-purple-300 hover:bg-purple-400/20 rounded-lg"
+                          onClick={() => navigate(`/node/${selectedArtifact.id}`)}>
+                          <Triangle className="w-3.5 h-3.5" /> View Tetrahedron
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </ScrollArea>
