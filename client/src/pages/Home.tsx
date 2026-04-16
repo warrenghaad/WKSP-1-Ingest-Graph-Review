@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import {
   Search, Database, BookOpen, ExternalLink, Hexagon, FileText,
   ArrowLeft, ArrowRight, Calendar, MapPin, Tag, Filter, Layers,
-  Fingerprint, X, Globe, Calculator, Compass,
+  Fingerprint, X, Globe, Calculator, Compass, Triangle,
 } from "lucide-react";
 
 const Timeline3D = lazy(() => import("@/components/Timeline3D"));
@@ -38,6 +38,7 @@ const TOOLS = [
   { href: "/timeline", icon: Layers, label: "3D Timeline", sub: "R3F braided Sankey through Mesopotamian history", color: "#60a5fa" },
   { href: "/gea", icon: Calculator, label: "GEA Calculator", sub: "Construction grammar calculator for geometric analysis", color: "#c084fc" },
   { href: "/ontology", icon: Compass, label: "Ontology Explorer", sub: "Geometric elements, deities, materials, patterns", color: "#f472b6" },
+  { href: "/node/plimpton-322", icon: Triangle, label: "BraidNode", sub: "MAGIC tetrahedron view for individual artifacts", color: "#e879f9" },
   { href: "/reader", icon: BookOpen, label: "Reader", sub: "Artifact reader with research papers", color: "#fb923c" },
 ] as const;
 
@@ -226,7 +227,7 @@ export default function Home() {
             ))}
           </div>
           <div className="flex gap-1.5 flex-wrap">
-            {ERAS.slice(0, 6).map((era) => (
+            {ERAS.map((era) => (
               <button
                 key={era.id}
                 data-testid={`filter-era-${era.id}`}
@@ -240,11 +241,6 @@ export default function Home() {
                 {era.name}
               </button>
             ))}
-            {filterEra && ERAS.findIndex(e => e.id === filterEra) >= 6 && (
-              <span className="text-[11px] px-2.5 py-1.5 rounded-lg border border-amber-400/40 bg-amber-400/10 text-amber-300">
-                {ERAS.find(e => e.id === filterEra)?.name}
-              </span>
-            )}
           </div>
         </div>
 
