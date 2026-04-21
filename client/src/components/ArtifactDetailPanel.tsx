@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
 import { Artifact } from "@/lib/artifacts";
@@ -8,16 +9,18 @@ import { Button } from "@/components/ui/button";
 import {
   Search, BookOpen, ExternalLink, Hexagon,
   Calendar, MapPin, Tag,
-  Fingerprint, X, Triangle,
+  Fingerprint, X, Triangle, ChevronDown, ChevronRight,
 } from "lucide-react";
 
 interface ArtifactDetailPanelProps {
   artifact: Artifact | null;
   onClose: () => void;
+  compact?: boolean;
 }
 
-export default function ArtifactDetailPanel({ artifact, onClose }: ArtifactDetailPanelProps) {
+export default function ArtifactDetailPanel({ artifact, onClose, compact = false }: ArtifactDetailPanelProps) {
   const [, navigate] = useLocation();
+  const [researchOpen, setResearchOpen] = useState(false);
 
   const selectedVector = artifact?.magic
     ? artifact.magic.primaryVector ||
@@ -42,7 +45,7 @@ export default function ArtifactDetailPanel({ artifact, onClose }: ArtifactDetai
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", damping: 30, stiffness: 250 }}
-            className="absolute top-0 right-0 w-full max-w-lg h-full bg-[#0a0e18] border-l border-white/[0.06] shadow-2xl"
+            className={`absolute top-0 right-0 w-full ${compact ? "max-w-sm" : "max-w-lg"} h-full bg-[#0a0e18] border-l border-white/[0.06] shadow-2xl`}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="h-full flex flex-col">
@@ -71,7 +74,7 @@ export default function ArtifactDetailPanel({ artifact, onClose }: ArtifactDetai
               </div>
 
               <ScrollArea className="flex-1">
-                <div className="p-6 space-y-6">
+                <div className={`${compact ? "p-4 space-y-4" : "p-6 space-y-6"}`}>
                   <div>
                     <div className="flex gap-1.5 mb-3 flex-wrap">
                       <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-amber-400/10 text-amber-300 border border-amber-400/20 flex items-center gap-1">
@@ -84,14 +87,16 @@ export default function ArtifactDetailPanel({ artifact, onClose }: ArtifactDetai
                         <Tag className="w-3 h-3" /> {artifact.category}
                       </span>
                     </div>
-                    <h2 className="text-2xl font-serif font-medium text-white mb-3 leading-tight" data-testid="text-detail-name">{artifact.name}</h2>
-                    <div className="relative rounded-xl overflow-hidden mb-4 border border-white/[0.06]">
-                      <img src={artifact.image} alt={artifact.name} className="w-full h-48 object-cover" data-testid={`img-artifact-${artifact.id}`} />
-                      <span className="absolute bottom-2 right-2 text-[9px] text-white/40 bg-black/60 px-2 py-0.5 rounded">
-                        Discovered {artifact.discoveryYear}
-                      </span>
-                    </div>
-                    <p className="text-sm text-white/50 leading-relaxed border-l-2 border-amber-400/30 pl-4">
+                    <h2 className={`${compact ? "text-xl" : "text-2xl"} font-serif font-medium text-white mb-3 leading-tight`} data-testid="text-detail-name">{artifact.name}</h2>
+                    {!compact && (
+                      <div className="relative rounded-xl overflow-hidden mb-4 border border-white/[0.06]">
+                        <img src={artifact.image} alt={artifact.name} className="w-full h-48 object-cover" data-testid={`img-artifact-${artifact.id}`} />
+                        <span className="absolute bottom-2 right-2 text-[9px] text-white/40 bg-black/60 px-2 py-0.5 rounded">
+                          Discovered {artifact.discoveryYear}
+                        </span>
+                      </div>
+                    )}
+                    <p className={`${compact ? "text-xs" : "text-sm"} text-white/50 leading-relaxed border-l-2 border-amber-400/30 pl-4`}>
                       {artifact.description}
                     </p>
                   </div>
@@ -148,21 +153,35 @@ export default function ArtifactDetailPanel({ artifact, onClose }: ArtifactDetai
                   <div className="h-px bg-gradient-to-r from-white/10 to-transparent" />
 
                   <div>
-                    <h3 className="text-sm font-medium text-white/70 flex items-center gap-2 mb-3">
-                      <BookOpen className="w-4 h-4 text-amber-400" /> Research ({artifact.research.length})
-                    </h3>
-                    <div className="space-y-2">
-                      {artifact.research.map((paper) => (
-                        <div key={paper.id} className="bg-white/[0.02] border border-white/[0.06] rounded-lg p-3 hover:bg-white/[0.04] transition-colors">
-                          <div className="flex justify-between text-[10px] text-white/30 mb-1">
-                            <span className="font-mono text-amber-400/50">{new Date(paper.date).getFullYear()}</span>
-                            <span>{paper.author}</span>
+                    {compact ? (
+                      <button
+                        type="button"
+                        onClick={() => setResearchOpen(o => !o)}
+                        className="w-full text-sm font-medium text-white/70 flex items-center gap-2 mb-3 hover:text-white"
+                        data-testid="button-toggle-research"
+                      >
+                        {researchOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                        <BookOpen className="w-4 h-4 text-amber-400" /> Research ({artifact.research.length})
+                      </button>
+                    ) : (
+                      <h3 className="text-sm font-medium text-white/70 flex items-center gap-2 mb-3">
+                        <BookOpen className="w-4 h-4 text-amber-400" /> Research ({artifact.research.length})
+                      </h3>
+                    )}
+                    {(!compact || researchOpen) && (
+                      <div className="space-y-2">
+                        {artifact.research.map((paper) => (
+                          <div key={paper.id} className="bg-white/[0.02] border border-white/[0.06] rounded-lg p-3 hover:bg-white/[0.04] transition-colors">
+                            <div className="flex justify-between text-[10px] text-white/30 mb-1">
+                              <span className="font-mono text-amber-400/50">{new Date(paper.date).getFullYear()}</span>
+                              <span>{paper.author}</span>
+                            </div>
+                            <h4 className="text-xs font-medium text-white/80 mb-1">{paper.title}</h4>
+                            <p className="text-[11px] text-white/40 leading-relaxed">{paper.summary}</p>
                           </div>
-                          <h4 className="text-xs font-medium text-white/80 mb-1">{paper.title}</h4>
-                          <p className="text-[11px] text-white/40 leading-relaxed">{paper.summary}</p>
-                        </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex gap-2 flex-wrap">

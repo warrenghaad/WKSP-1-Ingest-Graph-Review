@@ -103,6 +103,7 @@ export default function Home() {
         <ArtifactDetailPanel
           artifact={selectedArtifact}
           onClose={() => setSelectedArtifact(null)}
+          compact
         />
       </div>
     );
