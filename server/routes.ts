@@ -16,6 +16,8 @@ import { seedBraidPoints } from "./braidSeeder";
 import { seedOntology, seedLicensedImageResources } from "./ontologySeeder";
 import { generateGeminiImage, searchGeminiForArtifact } from "./providers/gemini";
 import { searchPerplexityForArtifact } from "./providers/perplexity";
+import { researchWithClaude } from "./providers/anthropic";
+import { insertLessonSchema } from "@shared/schema";
 import { exec } from "child_process";
 import { promisify } from "util";
 import { safeFetch, SsrfBlockedError } from "./safeFetch";
@@ -3007,6 +3009,129 @@ Respond ONLY with valid JSON (no markdown, no explanation):
         archElements, mathConcepts, cultures, manifestations, archTranslations,
         deities, symbols });
     } catch (e) { res.status(500).json({ error: "Failed" }); }
+  });
+
+  // ── Lessons (Builder / Face surface) ─────────────────────────────────────
+  app.get("/api/lessons", async (_req, res) => {
+    try {
+      const rows = await storage.listLessons();
+      res.json(rows);
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || "Failed to list lessons" });
+    }
+  });
+
+  app.get("/api/lessons/:id", async (req, res) => {
+    try {
+      const row = await storage.getLesson(req.params.id);
+      if (!row) return res.status(404).json({ error: "Lesson not found" });
+      res.json(row);
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || "Failed to load lesson" });
+    }
+  });
+
+  app.post("/api/lessons", async (req, res) => {
+    try {
+      const parsed = insertLessonSchema.parse(req.body);
+      const row = await storage.createLesson(parsed);
+      res.status(201).json(row);
+    } catch (e: any) {
+      res.status(400).json({ error: e?.message || "Invalid lesson" });
+    }
+  });
+
+  app.put("/api/lessons/:id", async (req, res) => {
+    try {
+      const updates = insertLessonSchema.partial().omit({ id: true }).parse(req.body);
+      const row = await storage.updateLesson(req.params.id, updates);
+      if (!row) return res.status(404).json({ error: "Lesson not found" });
+      res.json(row);
+    } catch (e: any) {
+      res.status(400).json({ error: e?.message || "Failed to update lesson" });
+    }
+  });
+
+  app.delete("/api/lessons/:id", async (req, res) => {
+    try {
+      await storage.deleteLesson(req.params.id);
+      res.json({ ok: true });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || "Failed to delete lesson" });
+    }
+  });
+
+  app.get("/api/lessons/:id/research", async (req, res) => {
+    try {
+      const rows = await storage.getLessonResearch(req.params.id);
+      res.json(rows);
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || "Failed to load research log" });
+    }
+  });
+
+  // ── Research endpoints (Claude / Perplexity) ─────────────────────────────
+  app.post("/api/research/anthropic", async (req, res) => {
+    try {
+      const { lessonId, prompt, selection, lessonTitle, lessonContext } = req.body ?? {};
+      if (!prompt || typeof prompt !== "string" || prompt.trim().length === 0) {
+        return res.status(400).json({ error: "prompt is required" });
+      }
+      const result = await researchWithClaude({
+        prompt: prompt.trim(),
+        selection: typeof selection === "string" ? selection : undefined,
+        lessonTitle: typeof lessonTitle === "string" ? lessonTitle : undefined,
+        lessonContext: typeof lessonContext === "string" ? lessonContext : undefined,
+      });
+      if (!result) {
+        return res.status(502).json({ error: "Anthropic call failed — check 'anthropic' secret" });
+      }
+      if (lessonId && typeof lessonId === "string") {
+        await storage.logLessonResearch({
+          lessonId,
+          provider: "anthropic",
+          prompt: prompt.trim(),
+          selection: typeof selection === "string" ? selection : null,
+          response: result.content,
+          citations: null,
+        }).catch((e) => console.warn("[research log] failed:", e?.message));
+      }
+      res.json(result);
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || "Research failed" });
+    }
+  });
+
+  app.post("/api/research/perplexity", async (req, res) => {
+    try {
+      const { lessonId, prompt, selection } = req.body ?? {};
+      const query = (selection && typeof selection === "string" && selection.trim().length > 0)
+        ? selection.trim()
+        : (typeof prompt === "string" ? prompt.trim() : "");
+      if (!query) return res.status(400).json({ error: "prompt or selection required" });
+
+      const result = await searchPerplexityForArtifact(query);
+      if (!result) {
+        return res.status(502).json({ error: "Perplexity call failed — check 'Perplexity' secret" });
+      }
+      const citationsMd = result.citations.length
+        ? "\n\n**Sources:**\n" + result.citations.map((c, i) => `${i + 1}. [${c.source}](${c.url})`).join("\n")
+        : "";
+      const content = result.answer + citationsMd;
+      if (lessonId && typeof lessonId === "string") {
+        await storage.logLessonResearch({
+          lessonId,
+          provider: "perplexity",
+          prompt: query,
+          selection: typeof selection === "string" ? selection : null,
+          response: content,
+          citations: result.citations as any,
+        }).catch((e) => console.warn("[research log] failed:", e?.message));
+      }
+      res.json({ content, model: "sonar", citations: result.citations });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || "Research failed" });
+    }
   });
 
   return httpServer;

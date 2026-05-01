@@ -13,6 +13,7 @@ import Timeline from "@/pages/Timeline";
 import GEACalculator from "@/pages/GEACalculator";
 import BraidNode from "@/pages/BraidNode";
 import OntologyExplorer from "@/pages/OntologyExplorer";
+import Builder from "@/pages/Builder";
 
 function Router() {
   return (
@@ -25,6 +26,7 @@ function Router() {
       <Route path="/timeline" component={Timeline}/>
       <Route path="/gea" component={GEACalculator}/>
       <Route path="/ontology" component={OntologyExplorer}/>
+      <Route path="/builder" component={Builder}/>
       <Route path="/node/:id" component={BraidNode}/>
       <Route component={NotFound} />
     </Switch>

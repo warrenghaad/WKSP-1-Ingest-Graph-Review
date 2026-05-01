@@ -9,7 +9,7 @@ import ArtifactDetailPanel from "@/components/ArtifactDetailPanel";
 import {
   Search, Database, BookOpen, Hexagon, FileText,
   ArrowLeft, MapPin, Layers,
-  Globe, Calculator, Compass, Triangle,
+  Globe, Calculator, Compass, Triangle, Sparkles,
 } from "lucide-react";
 
 const Timeline3D = lazy(() => import("@/components/Timeline3D"));
@@ -32,6 +32,7 @@ class WebGLErrorBoundary extends Component<{ children: ReactNode; onError: () =>
 }
 
 const TOOLS = [
+  { href: "/builder", icon: Sparkles, label: "Lesson Builder", sub: "Editor + Claude/Perplexity research → lessons", color: "#fbbf24" },
   { href: "/textreader", icon: FileText, label: "Textreader", sub: "Ingest & extract concepts from research texts", color: "#f59e0b" },
   { href: "/braid", icon: Hexagon, label: "MAGIC Braid", sub: "2D SVG braid — five MAGIC ribbons over time", color: "#34d399" },
   { href: "/timeline", icon: Layers, label: "3D Timeline", sub: "R3F braided Sankey through Mesopotamian history", color: "#60a5fa" },

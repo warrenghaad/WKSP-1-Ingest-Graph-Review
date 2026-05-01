@@ -41,8 +41,10 @@ import {
   type GraphNode, type InsertGraphNode,
   braidPoints,
   type BraidPoint, type InsertBraidPoint,
-  lessonSectionContributions,
+  lessonSectionContributions, lessons, lessonResearch,
   type LessonSectionContribution, type InsertLessonSectionContribution,
+  type Lesson, type InsertLesson,
+  type LessonResearch, type InsertLessonResearch,
   type OntologyDimension, type OntologyGeometricElement, type OntologyOperation,
   type OntologyPatternType, type OntologyMaterial, type OntologyTechnique,
   type OntologyArchitecturalElement, type OntologyMathConcept, type OntologyCulturalContext,
@@ -844,6 +846,38 @@ export class DatabaseStorage implements IStorage {
   }
   async getOntologySymbols(): Promise<OntologySymbol[]> {
     return db.select().from(ontologySymbols).orderBy(ontologySymbols.symbol);
+  }
+
+  // ── Lessons ──────────────────────────────────────────────────────────────
+  async listLessons(): Promise<Lesson[]> {
+    return db.select().from(lessons).orderBy(desc(lessons.updatedAt));
+  }
+  async getLesson(id: string): Promise<Lesson | undefined> {
+    const [row] = await db.select().from(lessons).where(eq(lessons.id, id));
+    return row;
+  }
+  async createLesson(lesson: InsertLesson): Promise<Lesson> {
+    const [row] = await db.insert(lessons).values(lesson).returning();
+    return row;
+  }
+  async updateLesson(id: string, updates: Partial<InsertLesson>): Promise<Lesson | undefined> {
+    const [row] = await db.update(lessons)
+      .set({ ...updates, updatedAt: sql`CURRENT_TIMESTAMP` })
+      .where(eq(lessons.id, id))
+      .returning();
+    return row;
+  }
+  async deleteLesson(id: string): Promise<void> {
+    await db.delete(lessons).where(eq(lessons.id, id));
+  }
+  async logLessonResearch(entry: InsertLessonResearch): Promise<LessonResearch> {
+    const [row] = await db.insert(lessonResearch).values(entry).returning();
+    return row;
+  }
+  async getLessonResearch(lessonId: string): Promise<LessonResearch[]> {
+    return db.select().from(lessonResearch)
+      .where(eq(lessonResearch.lessonId, lessonId))
+      .orderBy(desc(lessonResearch.createdAt));
   }
 
   async getWorkQueue(): Promise<Array<{

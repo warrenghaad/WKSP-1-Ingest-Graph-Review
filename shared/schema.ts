@@ -450,6 +450,29 @@ export const lessonSectionContributions = pgTable("lesson_section_contributions"
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
+// ── Lessons (Builder / Face engine surface) ───────────────────────────────────
+export const lessons = pgTable("lessons", {
+  id: varchar("id").primaryKey(),
+  title: text("title").notNull(),
+  description: text("description"),
+  bodyMd: text("body_md").notNull().default(""),
+  status: text("status").notNull().default("draft"),
+  tags: text("tags").array().default([]),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export const lessonResearch = pgTable("lesson_research", {
+  id: serial("id").primaryKey(),
+  lessonId: varchar("lesson_id").notNull(),
+  provider: text("provider").notNull(),
+  prompt: text("prompt").notNull(),
+  selection: text("selection"),
+  response: text("response").notNull(),
+  citations: jsonb("citations"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
 // ── Insert schemas ────────────────────────────────────────────────────────────
 
 export const insertRwiNeedsSchema = createInsertSchema(rwiNeeds).omit({ id: true, createdAt: true, updatedAt: true });
@@ -463,6 +486,8 @@ export const insertMediaAssetSchema = createInsertSchema(mediaAssets).omit({ id:
 export const insertGraphNodeSchema = createInsertSchema(graphNodes).omit({ id: true, createdAt: true });
 export const insertBraidPointSchema = createInsertSchema(braidPoints).omit({ id: true, createdAt: true });
 export const insertLessonSectionContributionSchema = createInsertSchema(lessonSectionContributions).omit({ id: true, createdAt: true });
+export const insertLessonSchema = createInsertSchema(lessons).omit({ createdAt: true, updatedAt: true });
+export const insertLessonResearchSchema = createInsertSchema(lessonResearch).omit({ id: true, createdAt: true });
 
 // ── Select types ──────────────────────────────────────────────────────────────
 
@@ -488,6 +513,10 @@ export type BraidPoint = typeof braidPoints.$inferSelect;
 export type InsertBraidPoint = z.infer<typeof insertBraidPointSchema>;
 export type LessonSectionContribution = typeof lessonSectionContributions.$inferSelect;
 export type InsertLessonSectionContribution = z.infer<typeof insertLessonSectionContributionSchema>;
+export type Lesson = typeof lessons.$inferSelect;
+export type InsertLesson = z.infer<typeof insertLessonSchema>;
+export type LessonResearch = typeof lessonResearch.$inferSelect;
+export type InsertLessonResearch = z.infer<typeof insertLessonResearchSchema>;
 
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,

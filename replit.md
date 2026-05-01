@@ -220,10 +220,21 @@ re-publish from the Replit publishing UI and ensure visibility is set to Public.
 ## Environment Variables
 - `AI_INTEGRATIONS_OPENAI_API_KEY` - Set automatically by Replit AI Integrations
 - `AI_INTEGRATIONS_OPENAI_BASE_URL` - Set automatically by Replit AI Integrations
-- `PERPLEXITY_API_KEY` - Required for Perplexity web search (optional)
+- `Perplexity` - Perplexity API key (used by `server/providers/perplexity.ts` and `server/imageSearch.ts` and `/api/research/perplexity`)
+- `Google_AI` - Google Gemini API key
+- `anthropic` - Anthropic Claude API key (used by `server/providers/anthropic.ts` and `/api/research/anthropic`)
 - `DATABASE_URL` - PostgreSQL connection string (auto-configured by Replit)
 - `APP_API_BASE` - External backend URL for handoff (optional, enables backend adapter)
 - `APP_API_KEY` - External backend auth key (optional)
+
+## Lesson Builder (EUCLID Phase 1 — "Face" output surface)
+- Route: `/builder` (added to `client/src/App.tsx`)
+- Page: `client/src/pages/Builder.tsx` — three-column layout (lessons sidebar | markdown editor + live preview | research panel)
+- Data: `lessons` and `lesson_research` tables in `shared/schema.ts`
+- Storage: `listLessons`, `getLesson`, `createLesson`, `updateLesson`, `deleteLesson`, `logLessonResearch`, `getLessonResearch` in `server/storage.ts`
+- API: `GET/POST/PUT/DELETE /api/lessons[/:id]`, `GET /api/lessons/:id/research`, `POST /api/research/anthropic`, `POST /api/research/perplexity`
+- LLM provider: `server/providers/anthropic.ts` (Claude Sonnet 4.5)
+- Workflow: highlight text in editor OR type a prompt → pick Claude/Perplexity → result inserts at cursor as a quoted block. Existing prose is never overwritten. Each call is logged to `lesson_research`.
 
 ## File Structure
 - `client/src/pages/Home.tsx` - 3D timeline page with MAGIC framework integration
