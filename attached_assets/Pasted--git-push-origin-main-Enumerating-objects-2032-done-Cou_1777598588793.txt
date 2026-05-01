@@ -1,0 +1,42 @@
+$ git push origin main
+Enumerating objects: 2032, done.
+Counting objects: 100% (2032/2032), done.
+Delta compression using up to 8 threads
+Compressing objects: 100% (1961/1961), done.
+Writing objects: 100% (2032/2032), 26.14 MiB | 5.69 MiB/s, done.
+Total 2032 (delta 721), reused 303 (delta 19), pack-reused 0 (from 0)
+remote: Resolving deltas: 100% (721/721), done.
+remote: error: GH013: Repository rule violations found for refs/heads/main.
+remote: 
+remote: - GITHUB PUSH PROTECTION
+remote:   —————————————————————————————————————————
+remote:     Resolve the following violations before pushing again
+remote: 
+remote:     - Push cannot contain secrets
+remote: 
+remote:     
+remote:      (?) Learn how to resolve a blocked push
+remote:      https://docs.github.com/code-security/secret-scanning/working-with-secret-scanning-and-push-protection/working-with-push-protection-from-the-command-line#resolving-a-blocked-push
+remote:     
+remote:     
+remote:       —— Perplexity API Key ————————————————————————————————
+remote:        locations:
+remote:          - commit: fcdb45a9134b239e35bcb9041b48d0f550372da3
+remote:            path: .replit:57
+remote:          - commit: ed2f763191942dccd7fbe489695d0f6531831787
+remote:            path: .replit:57
+remote:          - commit: 2ebbf64ca4d85fe1d78421d3220eff6b7410dbbf
+remote:            path: .replit:57
+remote:          - commit: 10f05c5089a26ba2b6c3a4ab49a94f5b78bda2d9
+remote:            path: .replit:57
+remote:          - commit: c0c32fdf908f3bd1038bb46f013025485b435fa0
+remote:            path: .replit:58
+remote:     
+remote:        (?) To push, remove secret from commit(s) or follow this URL to allow the secret.
+remote:        https://github.com/warrenghaad/WKSP-1-Ingest-Graph-Review/security/secret-scanning/unblock-secret/3D4DasoahE1XDp4Ly9DDZK3JS8b
+remote:     
+remote: 
+remote: 
+To https://github.com/warrenghaad/WKSP-1-Ingest-Graph-Review
+ ! [remote rejected] main -> main (push declined due to repository rule violations)
+error: failed to push some refs to 'https://github.com/warrenghaad/WKSP-1-Ingest-Graph-Review'
