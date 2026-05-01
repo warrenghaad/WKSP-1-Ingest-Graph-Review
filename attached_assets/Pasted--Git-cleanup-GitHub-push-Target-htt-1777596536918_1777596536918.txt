@@ -1,0 +1,104 @@
+==========================================================
+  Git cleanup + GitHub push
+  Target: https://github.com/warrenghaad/WKSP-1-Ingest-Graph-Review
+==========================================================
+
+Step 1/6 — pre-flight check
+  GitHub repo confirmed empty — safe to push.
+
+Step 2/6 — switching to main
+Switched to branch 'main'
+  local main HEAD: 7193e5ef8311cb60de3c0b6930de854ac2eb3f45
+
+Step 3/6 — removing Replit-internal SSH remotes
+  removing subrepl-30qbiwn9
+  removing subrepl-3v5l5jdn
+  removing subrepl-4227wkrl
+  removing subrepl-4v4wjp26
+  removing subrepl-9j1975lz
+  removing subrepl-faywwhtt
+  removing subrepl-h8nmes82
+  removing subrepl-jts2acam
+  removing subrepl-n8djfzws
+  removing subrepl-u7973s82
+  removing subrepl-w5z20v24
+
+Step 4/6 — making sure 'origin' points at GitHub
+  renaming subrepl-0klzqbun → origin
+
+Step 5/6 — deleting duplicate local branches
+  deleting Art
+Deleted branch Art (was 7193e5e).
+  deleting Artif
+Deleted branch Artif (was 7193e5e).
+  deleting Warrenghaad
+Deleted branch Warrenghaad (was 50c4e6e).
+  deleting replit-agent
+Deleted branch replit-agent (was bd5ff96).
+  deleting subrepl-0klzqbun
+Deleted branch subrepl-0klzqbun (was 8c60cd6).
+  deleting subrepl-30qbiwn9
+Deleted branch subrepl-30qbiwn9 (was 4a76fc1).
+  deleting subrepl-3v5l5jdn
+Deleted branch subrepl-3v5l5jdn (was 1c5cde6).
+  deleting subrepl-4227wkrl
+Deleted branch subrepl-4227wkrl (was 00d4de2).
+  deleting subrepl-4v4wjp26
+Deleted branch subrepl-4v4wjp26 (was 93ac934).
+  deleting subrepl-9j1975lz
+Deleted branch subrepl-9j1975lz (was a6f80b3).
+  deleting subrepl-faywwhtt
+Deleted branch subrepl-faywwhtt (was 02a4fcb).
+  deleting subrepl-h8nmes82
+Deleted branch subrepl-h8nmes82 (was 64e3429).
+  deleting subrepl-jts2acam
+Deleted branch subrepl-jts2acam (was a4e3d59).
+  deleting subrepl-n8djfzws
+Deleted branch subrepl-n8djfzws (was ad4e228).
+  deleting subrepl-u7973s82
+Deleted branch subrepl-u7973s82 (was 67cd750).
+  deleting subrepl-w5z20v24
+Deleted branch subrepl-w5z20v24 (was 10099bc).
+
+Step 6/6 — pushing main to origin
+Enumerating objects: 2021, done.
+Counting objects: 100% (2021/2021), done.
+Delta compression using up to 8 threads
+Compressing objects: 100% (1950/1950), done.
+Writing objects: 100% (2021/2021), 26.13 MiB | 5.66 MiB/s, done.
+Total 2021 (delta 714), reused 303 (delta 19), pack-reused 0 (from 0)
+remote: Resolving deltas: 100% (714/714), done.
+remote: error: GH013: Repository rule violations found for refs/heads/main.
+remote: 
+remote: - GITHUB PUSH PROTECTION
+remote:   —————————————————————————————————————————
+remote:     Resolve the following violations before pushing again
+remote: 
+remote:     - Push cannot contain secrets
+remote: 
+remote:     
+remote:      (?) Learn how to resolve a blocked push
+remote:      https://docs.github.com/code-security/secret-scanning/working-with-secret-scanning-and-push-protection/working-with-push-protection-from-the-command-line#resolving-a-blocked-push
+remote:     
+remote:     
+remote:       —— Perplexity API Key ————————————————————————————————
+remote:        locations:
+remote:          - commit: fcdb45a9134b239e35bcb9041b48d0f550372da3
+remote:            path: .replit:57
+remote:          - commit: ed2f763191942dccd7fbe489695d0f6531831787
+remote:            path: .replit:57
+remote:          - commit: 2ebbf64ca4d85fe1d78421d3220eff6b7410dbbf
+remote:            path: .replit:57
+remote:          - commit: 10f05c5089a26ba2b6c3a4ab49a94f5b78bda2d9
+remote:            path: .replit:57
+remote:          - commit: c0c32fdf908f3bd1038bb46f013025485b435fa0
+remote:            path: .replit:58
+remote:     
+remote:        (?) To push, remove secret from commit(s) or follow this URL to allow the secret.
+remote:        https://github.com/warrenghaad/WKSP-1-Ingest-Graph-Review/security/secret-scanning/unblock-secret/3D4DasoahE1XDp4Ly9DDZK3JS8b
+remote:     
+remote: 
+remote: 
+To https://github.com/warrenghaad/WKSP-1-Ingest-Graph-Review
+ ! [remote rejected] main -> main (push declined due to repository rule violations)
+error: failed to push some refs to 'https://github.com/warrenghaad/WKSP-1-Ingest-Graph-Review'
