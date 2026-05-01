@@ -16,9 +16,9 @@ export async function searchPerplexityForArtifact(
   artifactTitle: string,
   context?: string
 ): Promise<PerplexitySearchResult | null> {
-  const apiKey = process.env.perplexity;
+  const apiKey = process.env.Perplexity;
   if (!apiKey) {
-    console.log("[Perplexity] Skipped: perplexity key not set");
+    console.log("[Perplexity] Skipped: Perplexity secret not set");
     return null;
   }
 
@@ -78,7 +78,7 @@ export async function searchPerplexityForArtifact(
 }
 
 export async function extractArticleText(url: string): Promise<string | null> {
-  const apiKey = process.env.perplexity;
+  const apiKey = process.env.Perplexity;
   if (!apiKey) return null;
 
   try {

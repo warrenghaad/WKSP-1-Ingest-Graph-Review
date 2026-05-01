@@ -54,7 +54,6 @@ integrations = ["perplexity_v0:1.0.0", "javascript_openai_ai_integrations:2.0.0"
 [userenv]
 
 [userenv.shared]
-perplexity = "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"
 
 [postMerge]
 path = "scripts/post-merge.sh"

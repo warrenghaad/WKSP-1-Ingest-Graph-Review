@@ -35,7 +35,7 @@ Phrase: "${rawQuery}"`;
 }
 
 async function searchWithPerplexity(query: string): Promise<ImageResult[]> {
-  const apiKey = process.env.PERPLEXITY_API_KEY;
+  const apiKey = process.env.Perplexity;
   if (!apiKey) return [];
 
   const res = await fetch("https://api.perplexity.ai/chat/completions", {
