@@ -49,7 +49,7 @@ waitForPort = 5000
 [agent]
 stack = "MOCKUP_JS"
 mockupState = "FULLSTACK"
-integrations = ["perplexity_v0:1.0.0", "javascript_openai_ai_integrations:2.0.0"]
+integrations = ["perplexity_v0:1.0.0", "javascript_openai_ai_integrations:2.0.0", "google-drive:1.0.0"]
 
 [userenv]
 
