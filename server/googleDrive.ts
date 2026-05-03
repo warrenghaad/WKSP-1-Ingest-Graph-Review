@@ -79,6 +79,72 @@ export async function downloadFileText(fileId: string, maxBytes = 1_000_000): Pr
   return new TextDecoder("utf-8", { fatal: false }).decode(slice);
 }
 
+export async function searchDrive(
+  query: string,
+  rootFolderId?: string,
+  pageSize = 50,
+  pageToken?: string,
+): Promise<{ files: DriveFile[]; nextPageToken?: string }> {
+  const escaped = query.replace(/'/g, "\\'");
+  const clauses: string[] = [
+    `(name contains '${escaped}' or fullText contains '${escaped}')`,
+    `trashed=false`,
+  ];
+  const fields = "nextPageToken,files(id,name,mimeType,size,modifiedTime,parents,webViewLink,thumbnailLink,iconLink)";
+  const params = new URLSearchParams({
+    q: clauses.join(" and "),
+    fields,
+    pageSize: String(pageSize),
+    orderBy: "modifiedTime desc",
+    supportsAllDrives: "true",
+    includeItemsFromAllDrives: "true",
+  });
+  if (pageToken) params.set("pageToken", pageToken);
+  const res = await driveFetch(`/drive/v3/files?${params.toString()}`);
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(`Drive search failed (${res.status}): ${txt.slice(0, 300)}`);
+  }
+  const data = (await res.json()) as { files?: DriveFile[]; nextPageToken?: string };
+  let files = data.files ?? [];
+  if (rootFolderId) {
+    const rid = parseFolderId(rootFolderId);
+    const allowed = await collectDescendantFolderIds(rid);
+    allowed.add(rid);
+    files = files.filter((f) => (f.parents ?? []).some((p) => allowed.has(p)));
+  }
+  return { files, nextPageToken: data.nextPageToken };
+}
+
+const folderCache = new Map<string, { ids: Set<string>; expires: number }>();
+async function collectDescendantFolderIds(rootId: string): Promise<Set<string>> {
+  const cached = folderCache.get(rootId);
+  if (cached && cached.expires > Date.now()) return cached.ids;
+  const ids = new Set<string>([rootId]);
+  const queue = [rootId];
+  while (queue.length) {
+    const id = queue.shift()!;
+    const params = new URLSearchParams({
+      q: `'${id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+      fields: "files(id)",
+      pageSize: "1000",
+      supportsAllDrives: "true",
+      includeItemsFromAllDrives: "true",
+    });
+    const res = await driveFetch(`/drive/v3/files?${params.toString()}`);
+    if (!res.ok) break;
+    const data = (await res.json()) as { files?: { id: string }[] };
+    for (const f of data.files ?? []) {
+      if (!ids.has(f.id)) {
+        ids.add(f.id);
+        queue.push(f.id);
+      }
+    }
+  }
+  folderCache.set(rootId, { ids, expires: Date.now() + 5 * 60_000 });
+  return ids;
+}
+
 export async function whoami(): Promise<{ user?: { displayName?: string; emailAddress?: string } }> {
   const res = await driveFetch(`/drive/v3/about?fields=user(displayName,emailAddress)`);
   if (!res.ok) throw new Error(`Drive about failed (${res.status})`);

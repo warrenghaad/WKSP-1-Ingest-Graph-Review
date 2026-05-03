@@ -3167,6 +3167,19 @@ Respond ONLY with valid JSON (no markdown, no explanation):
     }
   });
 
+  app.get("/api/drive/search", async (req, res) => {
+    try {
+      const q = String(req.query.q || "");
+      const root = req.query.root ? String(req.query.root) : undefined;
+      const pageToken = req.query.pageToken ? String(req.query.pageToken) : undefined;
+      if (!q.trim()) return res.status(400).json({ error: "q required" });
+      const r = await drive.searchDrive(q, root, 50, pageToken);
+      res.json(r);
+    } catch (e: any) {
+      res.status(502).json({ error: e?.message || "Drive search failed" });
+    }
+  });
+
   app.get("/api/drive/file/:id/meta", async (req, res) => {
     try {
       const meta = await drive.getFileMetadata(req.params.id);

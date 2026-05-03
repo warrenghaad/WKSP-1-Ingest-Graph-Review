@@ -227,6 +227,13 @@ re-publish from the Replit publishing UI and ensure visibility is set to Public.
 - `APP_API_BASE` - External backend URL for handoff (optional, enables backend adapter)
 - `APP_API_KEY` - External backend auth key (optional)
 
+## Google Drive (RWI corpus access)
+- Replit connector: `google-drive` (OAuth, signed in as smajeed3@gmail.com).
+- Wrapper: `server/googleDrive.ts` — `listFolder`, `searchDrive`, `getFileMetadata`, `downloadFileText`, `whoami`. Uses `@replit/connectors-sdk` proxy pattern. Auto-exports Google Docs to text and Sheets to CSV. Recursively caches folder descendants for scoped search.
+- Routes: `GET /api/drive/whoami`, `/api/drive/list?folder=<id|url>`, `/api/drive/search?q=<query>&root=<id>`, `/api/drive/file/:id/meta`, `/api/drive/file/:id/text`.
+- Default RWI root folder: `1oEjgB70OrVvFmZ9gH9k5qhypHJ0MUeVV` (contains `data/`, `docs/`, `graph/` ← 13 CSVs of artifacts/deities/inventions/etc., `public/`, `sql/rwi.sql`, `src/` ← legacy rwi-*.js code, `README.md`, `RWI-IMAGE-INTEGRATION.md`, `AUTONOMOUS-WORKFLOW.md`).
+- Known limitation: Drive `fullText` indexing skips raw `.md` files. Search matches filename; for content search export to Google Docs first, OR ingest the `graph/*.csv` files directly into our DB (recommended).
+
 ## Lesson Builder (EUCLID Phase 1 — "Face" output surface)
 - Route: `/builder` (added to `client/src/App.tsx`)
 - Page: `client/src/pages/Builder.tsx` — three-column layout (lessons sidebar | markdown editor + live preview | research panel)
