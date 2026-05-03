@@ -3134,5 +3134,47 @@ Respond ONLY with valid JSON (no markdown, no explanation):
     }
   });
 
+  // ----- Google Drive (Replit connector: google-drive) -----
+  const drive = await import("./googleDrive");
+
+  app.get("/api/drive/whoami", async (_req, res) => {
+    try {
+      const r = await drive.whoami();
+      res.json(r);
+    } catch (e: any) {
+      res.status(502).json({ error: e?.message || "Drive not connected" });
+    }
+  });
+
+  app.get("/api/drive/list", async (req, res) => {
+    try {
+      const folder = String(req.query.folder || req.query.id || "");
+      const pageToken = req.query.pageToken ? String(req.query.pageToken) : undefined;
+      if (!folder) return res.status(400).json({ error: "folder query param required" });
+      const r = await drive.listFolder(folder, pageToken);
+      res.json(r);
+    } catch (e: any) {
+      res.status(502).json({ error: e?.message || "Drive list failed" });
+    }
+  });
+
+  app.get("/api/drive/file/:id/text", async (req, res) => {
+    try {
+      const text = await drive.downloadFileText(req.params.id);
+      res.json({ id: req.params.id, text });
+    } catch (e: any) {
+      res.status(502).json({ error: e?.message || "Drive download failed" });
+    }
+  });
+
+  app.get("/api/drive/file/:id/meta", async (req, res) => {
+    try {
+      const meta = await drive.getFileMetadata(req.params.id);
+      res.json(meta);
+    } catch (e: any) {
+      res.status(502).json({ error: e?.message || "Drive metadata failed" });
+    }
+  });
+
   return httpServer;
 }
