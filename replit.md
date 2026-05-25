@@ -66,38 +66,11 @@ A 3D-styled card grid where each milestone appears as a "door":
 - Linked images persist in view and show on closed door cards as thumbnails
 - Cards have 3D hover tilt effect (perspective + rotateY/rotateX)
 
-### Memory Palace (`/braid` → Palace toggle)
-Interactive visualization of the Geometric Primitives Theory with 4 tabs:
-
-**Primitives Tab**: 5 universal geometric atomics (Point · Line · Angle · Curve · Plane)
-- Each with physics roles (As Force, As Motion, As Energy, As State)
-- Construction rules: Creates (↑D via motion), Created By (↓D via intersection)
-- Output Rule: Primitive nD × Motion vector × Duration = Result
-- Metaphor = Function convergence from Notion databases
-
-**Grammar Tab**: Generative grammar showing Primitive + Operation + Duration = Result
-- 14 rules mapping primitives to geometric elements through physical operations
-- Each rule has a physics analogy (e.g., "Centripetal force creates orbit")
-
-**Evidence Tab**: Historical DII confirmation with real artifacts
-- 20 evidence entries across all 5 primitives
-- Each shows Discovery → Innovation → Invention journey with Met Museum images
-- MAGIC driver tags per artifact
-
-**Art Theory Tab**: Metaphor = Function proven through art
-- 10 entries showing the same primitives structuring both aesthetic and engineering decisions
-- Each entry has Metaphor Register, Function Register, and Convergence Note
-
-Data files:
-- `client/src/lib/primitivesTheory.ts`: All primitives data, generative grammar, art theory, historical evidence
-- `client/src/components/MemoryPalace.tsx`: 4-tab interactive visualization
-
 ### Data Layer
 - `magicFramework.ts`: All 15 lesson sections with vectors, cognitive operations, GE tags, keyword templates
 - `artifacts.ts`: 18 artifacts with MAGIC metadata (sectionRoles, GEA/GEM tags, E×C×D specs, RWI tags)
 - `braidData.ts`: Civilization data for braid theory (7 civs with MAGIC profiles, interactions)
 - `diiMilestones.ts`: 63 DII milestones with Met Museum CDN images
-- `primitivesTheory.ts`: Geometric primitives theory with physics roles, generative grammar, historical evidence, art theory
 - `MAGICRadar.tsx`: Pentagon radar chart + horizontal bar chart for weight vectors
 - `LessonArc.tsx`: Interactive lesson architecture viewer with section bars and detail panel
 
@@ -250,7 +223,6 @@ re-publish from the Replit publishing UI and ensure visibility is set to Public.
 - `client/src/pages/Lab.tsx` - Automation lab
 - `client/src/pages/Braid.tsx` - Braid Theory page with 4 views (braid, calendar, palace, meetings)
 - `client/src/components/Timeline3D.tsx` - Three.js 3D timeline component
-- `client/src/components/MemoryPalace.tsx` - Primitives theory visualization (4 tabs)
 - `client/src/components/PeopleGraph.tsx` - Meeting Tables / traveling MAGIC people view
 - `client/src/components/MAGICRadar.tsx` - MAGIC weight vector radar chart and bar chart
 - `client/src/components/LessonArc.tsx` - Lesson Architecture interactive viewer
@@ -258,7 +230,6 @@ re-publish from the Replit publishing UI and ensure visibility is set to Public.
 - `client/src/lib/artifacts.ts` - Artifact data model with MAGIC metadata
 - `client/src/lib/braidData.ts` - Civilization data for braid theory (7 civs with MAGIC profiles, interactions)
 - `client/src/lib/diiMilestones.ts` - 63 DII milestones with Met Museum images
-- `client/src/lib/primitivesTheory.ts` - Geometric primitives theory data
 - `client/src/components/BraidSVG.tsx` - SVG braid visualization
 - `client/src/pages/Textreader.tsx` - Euclid First-Run Textreader (4-zone layout)
 - `server/routes.ts` - API route definitions (image search, textreader, saved images)
