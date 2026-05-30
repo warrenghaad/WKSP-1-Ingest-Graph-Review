@@ -90,7 +90,7 @@ export default function ArtifactDetailPanel({ artifact, onClose, compact = false
                     <h2 className={`${compact ? "text-xl" : "text-2xl"} font-serif font-medium text-white mb-3 leading-tight`} data-testid="text-detail-name">{artifact.name}</h2>
                     {!compact && (
                       <div className="relative rounded-xl overflow-hidden mb-4 border border-white/[0.06]">
-                        <img src={artifact.image} alt={artifact.name} className="w-full h-48 object-cover" data-testid={`img-artifact-${artifact.id}`} />
+                        <img src={artifact.image} alt={artifact.name} loading="lazy" decoding="async" width={800} height={192} className="w-full h-48 object-cover" data-testid={`img-artifact-${artifact.id}`} />
                         <span className="absolute bottom-2 right-2 text-[9px] text-white/40 bg-black/60 px-2 py-0.5 rounded">
                           Discovered {artifact.discoveryYear}
                         </span>

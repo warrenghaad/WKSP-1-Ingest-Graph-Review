@@ -255,7 +255,7 @@ export default function Home() {
               onClick={() => setSelectedArtifact(artifact)}
             >
               <div className="relative h-36 overflow-hidden">
-                <img src={artifact.image} alt={artifact.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                <img src={artifact.image} alt={artifact.name} loading="lazy" decoding="async" width={400} height={144} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#060912] via-transparent to-transparent" />
                 <div className="absolute bottom-2 left-2 flex gap-1">
                   <span className="text-[9px] px-1.5 py-0.5 rounded bg-black/60 backdrop-blur text-amber-300/80 border border-amber-400/20">

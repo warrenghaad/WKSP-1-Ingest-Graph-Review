@@ -32,14 +32,14 @@ export interface Artifact {
   museumUrl?: string;
 }
 
-import tablet1 from "@/assets/images/tablet_1.jpg";
-import tablet2 from "@/assets/images/tablet_2.jpg";
-import seal1 from "@/assets/images/seal_1.jpg";
-import seal2 from "@/assets/images/seal_2.jpg";
-import pottery1 from "@/assets/images/pottery_1.jpg";
-import pottery2 from "@/assets/images/pottery_2.jpg";
-import ziggurat1 from "@/assets/images/ziggurat_1.jpg";
-import ziggurat2 from "@/assets/images/ziggurat_2.jpg";
+const tablet1 = "/artifacts/tablet_1.jpg";
+const tablet2 = "/artifacts/tablet_2.jpg";
+const seal1 = "/artifacts/seal_1.jpg";
+const seal2 = "/artifacts/seal_2.jpg";
+const pottery1 = "/artifacts/pottery_1.jpg";
+const pottery2 = "/artifacts/pottery_2.jpg";
+const ziggurat1 = "/artifacts/ziggurat_1.jpg";
+const ziggurat2 = "/artifacts/ziggurat_2.jpg";
 
 export const ERAS = [
   { id: "ubaid", name: "Ubaid Period", start: -6500, end: -3800, color: "#6d5c4e" },

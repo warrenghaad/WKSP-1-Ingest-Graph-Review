@@ -39,6 +39,39 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (
+            id.includes("node_modules/three/") ||
+            id.includes("node_modules/@react-three/") ||
+            id.includes("node_modules/three-stdlib/")
+          ) {
+            return "vendor-three";
+          }
+          if (id.includes("node_modules/@tiptap/")) {
+            return "vendor-tiptap";
+          }
+          if (id.includes("node_modules/recharts/") || id.includes("node_modules/d3-")) {
+            return "vendor-recharts";
+          }
+          if (id.includes("node_modules/framer-motion/")) {
+            return "vendor-framer";
+          }
+          if (id.includes("node_modules/@radix-ui/")) {
+            return "vendor-radix";
+          }
+          if (
+            id.includes("node_modules/react/") ||
+            id.includes("node_modules/react-dom/") ||
+            id.includes("node_modules/wouter/") ||
+            id.includes("node_modules/scheduler/")
+          ) {
+            return "vendor-react";
+          }
+        },
+      },
+    },
   },
   server: {
     host: "0.0.0.0",
