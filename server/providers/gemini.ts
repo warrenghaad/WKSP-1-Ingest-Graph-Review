@@ -103,3 +103,72 @@ export async function searchGeminiForArtifact(
     return null;
   }
 }
+
+export interface Gemini15SearchResult {
+  enrichedQuery: string;
+  candidateUrls: Array<{ url: string; title: string; source: string }>;
+}
+
+export async function searchGemini15ForArtifact(
+  query: string
+): Promise<Gemini15SearchResult | null> {
+  const apiKey = process.env.Google_AI;
+  if (!apiKey) {
+    console.log("[Gemini15] Skipped: Google_AI key not set");
+    return null;
+  }
+
+  const RWI_SOURCES = `Metropolitan Museum of Art (metmuseum.org), CDLI (cdli.earth), British Museum (britishmuseum.org), Penn Museum (penn.museum), Wikimedia Commons, Smarthistory (smarthistory.org), World History Encyclopedia (worldhistory.org)`;
+
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: `You are a museum image search specialist for ancient Mesopotamian artifacts. Given the search query "${query}", do two things:
+
+1. Write an enriched, archaeologically precise search query (max 12 words) that would surface the best results in museum image databases.
+2. List 3-5 real, publicly accessible image URLs from trusted institutions only. Allowed: ${RWI_SOURCES}. Forbidden: Pinterest, stock sites, AI-generated images.
+
+Return ONLY valid JSON in this exact shape:
+{
+  "enrichedQuery": "<optimized search string>",
+  "candidateUrls": [
+    { "url": "<direct image URL ending in .jpg/.png/.webp>", "title": "<artifact name and period>", "source": "<institution name>" }
+  ]
+}
+
+Output ONLY the JSON object. No markdown, no explanation.`
+            }]
+          }],
+          generationConfig: { temperature: 0.1, maxOutputTokens: 800 }
+        }),
+      }
+    );
+
+    if (!res.ok) {
+      console.error("[Gemini15] API error:", res.status);
+      return null;
+    }
+
+    const data = await res.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+    const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return null;
+
+    const parsed = JSON.parse(jsonMatch[0]) as Gemini15SearchResult;
+    if (!parsed.enrichedQuery) return null;
+    return {
+      enrichedQuery: parsed.enrichedQuery,
+      candidateUrls: Array.isArray(parsed.candidateUrls) ? parsed.candidateUrls : [],
+    };
+  } catch (err) {
+    console.error("[Gemini15] Error:", err);
+    return null;
+  }
+}

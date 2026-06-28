@@ -14,8 +14,9 @@ import { extractEntitiesFromText } from "./entityExtractor";
 import { seedTimelineArtifacts, TIMELINE_NODES, CONVERGENCE_LINKS } from "./artifactSeeder";
 import { seedBraidPoints } from "./braidSeeder";
 import { seedOntology, seedLicensedImageResources } from "./ontologySeeder";
-import { generateGeminiImage, searchGeminiForArtifact } from "./providers/gemini";
+import { generateGeminiImage, searchGeminiForArtifact, searchGemini15ForArtifact } from "./providers/gemini";
 import { searchPerplexityForArtifact } from "./providers/perplexity";
+import { generateGpt4oImage } from "./replit_integrations/image/client";
 import { researchWithClaude } from "./providers/anthropic";
 import { insertLessonSchema } from "@shared/schema";
 import { exec } from "child_process";
@@ -159,11 +160,25 @@ export async function registerRoutes(
 
   app.post("/api/generate-image", async (req, res) => {
     try {
-      const { prompt, size = "1024x1024" } = req.body;
+      const { prompt, size = "1024x1024", provider = "gpt_image_1", style = "museum_photograph" } = req.body;
       if (!prompt || typeof prompt !== "string") {
         return res.status(400).json({ error: "Prompt is required" });
       }
 
+      if (provider === "gemini" || provider === "gemini_2_0") {
+        const result = await generateGeminiImage(prompt, style);
+        if (!result) return res.status(500).json({ error: "Gemini image generation failed" });
+        return res.json({ url: result.url, prompt: result.prompt, model: result.model, provider: "gemini" });
+      }
+
+      if (provider === "gpt_4o") {
+        const result = await generateGpt4oImage(prompt, style);
+        if (!result) return res.status(500).json({ error: "GPT-4o image generation failed" });
+        const b64 = result.url.replace(/^data:image\/[^;]+;base64,/, "");
+        return res.json({ b64_json: b64, url: result.url, prompt: result.prompt, model: result.model, provider: "gpt_4o" });
+      }
+
+      // Default: gpt-image-1
       const response = await openai.images.generate({
         model: "gpt-image-1",
         prompt: `Archaeological museum photograph style: ${prompt}. Highly detailed, museum lighting, educational reference quality.`,
@@ -175,6 +190,8 @@ export async function registerRoutes(
       res.json({
         b64_json: imageData?.b64_json,
         prompt,
+        model: "gpt-image-1",
+        provider: "gpt_image_1",
       });
     } catch (error: unknown) {
       console.error("Image generation error:", error);
@@ -419,6 +436,43 @@ export async function registerRoutes(
           } else if (sourceMode === "ai_reconstruction") {
             const aiResults = await searchImages(query);
             results.push(...aiResults.map(r => ({ ...r, sourceType: "open_web" as const })));
+          } else if (sourceMode === "gemini_1_5") {
+            const g15 = await searchGemini15ForArtifact(query);
+            if (g15) {
+              // Use enriched query to also hit museum sources
+              const [museumResults, aiResults] = await Promise.all([
+                searchAllMuseums(g15.enrichedQuery),
+                searchImages(g15.enrichedQuery),
+              ]);
+              // Surface direct candidate URLs from Gemini 1.5 grounding
+              for (const c of g15.candidateUrls) {
+                results.push({ ...c, objectUrl: undefined, sourceType: "open_web" as const });
+              }
+              results.push(
+                ...museumResults.map(r => ({ ...r, sourceType: "museum" as const })),
+                ...aiResults.map(r => ({ ...r, sourceType: "open_web" as const })),
+              );
+            } else {
+              // Fallback to standard AI search
+              const aiResults = await searchImages(query);
+              results.push(...aiResults.map(r => ({ ...r, sourceType: "open_web" as const })));
+            }
+          } else if (sourceMode === "gpt_4o") {
+            // GPT-4o: generate an image from the first AI prompt on the concept card
+            const prompt = card.aiPrompts?.[0] ?? card.label;
+            const generated = await generateGpt4oImage(prompt, "museum_photograph");
+            if (generated) {
+              results.push({
+                url: generated.url,
+                title: `AI Generated: ${card.label}`,
+                source: "GPT-4o (AI Generated)",
+                objectUrl: undefined,
+                sourceType: "open_web" as const,
+              });
+            }
+            // Also run museum search for reference
+            const museumResults = await searchAllMuseums(query);
+            results.push(...museumResults.map(r => ({ ...r, sourceType: "museum" as const })));
           }
 
           for (const r of results) {

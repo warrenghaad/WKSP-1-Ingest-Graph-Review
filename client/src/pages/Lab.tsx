@@ -63,6 +63,9 @@ export default function Lab() {
   const [generatePrompt, setGeneratePrompt] = useState("");
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
+  const [generateProvider, setGenerateProvider] = useState<"gpt_image_1" | "gpt_4o" | "gemini">("gpt_image_1");
+  const [generateStyle, setGenerateStyle] = useState<"museum_photograph" | "reconstruction" | "diagram" | "illustration">("museum_photograph");
+  const [generatedModel, setGeneratedModel] = useState<string>("gpt-image-1");
 
   // Broken images tracker
   const [brokenImages, setBrokenImages] = useState<Set<string>>(new Set());
@@ -247,13 +250,17 @@ export default function Lab() {
       const res = await fetch("/api/generate-image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: generatePrompt }),
+        body: JSON.stringify({ prompt: generatePrompt, provider: generateProvider, style: generateStyle }),
       });
 
       if (!res.ok) throw new Error("Generation failed");
       const data = await res.json();
-      if (data.b64_json) {
+      if (data.url && data.url.startsWith("data:")) {
+        setGeneratedImage(data.url);
+        setGeneratedModel(data.model ?? generateProvider);
+      } else if (data.b64_json) {
         setGeneratedImage(`data:image/png;base64,${data.b64_json}`);
+        setGeneratedModel(data.model ?? "gpt-image-1");
       }
     } catch (err) {
       toast({ title: "Generation failed", description: "Please try again.", variant: "destructive" });
@@ -571,6 +578,36 @@ export default function Lab() {
                 <p className="text-sm text-muted-foreground">Generate custom archaeological reference images using AI when real photos aren't available.</p>
               </div>
 
+              <div className="flex gap-3">
+                <div className="flex flex-col gap-1 flex-1">
+                  <label className="text-xs font-medium text-muted-foreground">Provider</label>
+                  <select
+                    data-testid="select-generate-provider"
+                    value={generateProvider}
+                    onChange={e => setGenerateProvider(e.target.value as typeof generateProvider)}
+                    className="text-sm border border-border rounded-md px-3 py-2 bg-background"
+                  >
+                    <option value="gpt_image_1">GPT-Image-1 (default)</option>
+                    <option value="gpt_4o">GPT-4o</option>
+                    <option value="gemini">Gemini 2.0 Flash</option>
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1 flex-1">
+                  <label className="text-xs font-medium text-muted-foreground">Style</label>
+                  <select
+                    data-testid="select-generate-style"
+                    value={generateStyle}
+                    onChange={e => setGenerateStyle(e.target.value as typeof generateStyle)}
+                    className="text-sm border border-border rounded-md px-3 py-2 bg-background"
+                  >
+                    <option value="museum_photograph">Museum Photograph</option>
+                    <option value="reconstruction">Archaeological Reconstruction</option>
+                    <option value="diagram">Schematic Diagram</option>
+                    <option value="illustration">Historical Illustration</option>
+                  </select>
+                </div>
+              </div>
+
               <Textarea
                 data-testid="textarea-generate"
                 placeholder="e.g. A Mesopotamian cylinder seal impression showing a hunting scene with a lion and archer, detailed cuneiform border, museum photograph lighting"
@@ -602,7 +639,7 @@ export default function Lab() {
                     <div className="p-4 flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium line-clamp-1">{generatePrompt}</p>
-                        <p className="text-xs text-muted-foreground">AI Generated (OpenAI gpt-image-1)</p>
+                        <p className="text-xs text-muted-foreground">AI Generated ({generatedModel})</p>
                       </div>
                       <div className="flex gap-2">
                         <Button
@@ -611,7 +648,7 @@ export default function Lab() {
                             saveMutation.mutate({
                               url: generatedImage!,
                               title: generatePrompt,
-                              source: "AI Generated (OpenAI)",
+                              source: `AI Generated (${generatedModel})`,
                               query: generatePrompt,
                             });
                           }}

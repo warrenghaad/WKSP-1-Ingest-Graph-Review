@@ -202,5 +202,8 @@ export async function searchAllProviders(query: string): Promise<ProviderResult[
   return results;
 }
 
-export { generateGeminiImage, searchGeminiForArtifact } from "./gemini";
+export { generateGeminiImage, searchGeminiForArtifact, searchGemini15ForArtifact } from "./gemini";
+export type { Gemini15SearchResult } from "./gemini";
 export { searchPerplexityForArtifact, extractArticleText } from "./perplexity";
+export { generateGpt4oImage } from "../replit_integrations/image/client";
+export type { Gpt4oImageResult } from "../replit_integrations/image/client";

@@ -19,7 +19,7 @@ type ConceptState =
   | "draft" | "parsed" | "query_ready" | "searching"
   | "candidates_ready" | "selected" | "ai_prompt_ready"
   | "ready_for_handoff" | "sent_to_backend" | "error";
-type SourceMode = "open_web_fast" | "museum_context" | "ai_reconstruction" | "hybrid";
+type SourceMode = "open_web_fast" | "museum_context" | "ai_reconstruction" | "hybrid" | "gemini_1_5" | "gpt_4o";
 type AIStyle = "museum_photograph" | "reconstruction" | "diagram" | "illustration";
 
 interface ConceptCard {
@@ -762,6 +762,8 @@ export default function Textreader() {
             <option value="museum_context">Museum Context</option>
             <option value="ai_reconstruction">AI Reconstruction</option>
             <option value="hybrid">Hybrid</option>
+            <option value="gemini_1_5">Gemini 1.5 (Enriched)</option>
+            <option value="gpt_4o">GPT-4o (Generate)</option>
           </select>
           {readyConcepts.length > 0 && (
             <button
